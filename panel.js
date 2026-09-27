@@ -1,6 +1,17 @@
 (() => {
   const $ = id => document.getElementById(id);
-  const db = window.supabase.createClient(window.APP_CONFIG.supabaseUrl,window.APP_CONFIG.supabasePublishableKey);
+  const db = window.supabase.createClient(
+    window.APP_CONFIG.supabaseUrl,
+    window.APP_CONFIG.supabasePublishableKey,
+    {
+      auth:{
+        storageKey:window.APP_CONFIG.staffAuthStorageKey || "obispado-staff-auth-v1",
+        persistSession:true,
+        autoRefreshToken:true,
+        detectSessionInUrl:false
+      }
+    }
+  );
   const signupClient = window.supabase.createClient(
     window.APP_CONFIG.supabaseUrl,
     window.APP_CONFIG.supabasePublishableKey,
@@ -19,7 +30,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v2.8.2";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v2.9.0";
 
   const leaderRole = {
     bishop:"bishop",
@@ -852,7 +863,7 @@
   };
 
   async function logout() {
-    await db.auth.signOut();
+    await db.auth.signOut({scope:"local"});
     state.user = null;
     state.profile = null;
     showLogin();
