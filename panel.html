@@ -8,7 +8,7 @@
   <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#005581">
   <title>Panel | Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=2.8.1">
+  <link rel="stylesheet" href="styles.css?v=2.8.2">
 </head>
 <body>
 <header class="topbar panel-topbar">
@@ -17,10 +17,10 @@
     <div>
       <strong>Panel de Entrevistas</strong>
       <small id="panelUnit">Barrio / Rama</small>
-      <small id="panelVersion" class="version-label">v2.8.1</small>
+      <small id="panelVersion" class="version-label">v2.8.2</small>
     </div>
   </div>
-  <a class="link-button" href="index.html?v=2.8.1">Página pública</a>
+  <a class="link-button" href="index.html?v=2.8.2">Página pública</a>
 </header>
 
 <main class="container">
@@ -43,9 +43,9 @@
   </section>
 
   <section id="unauthorizedView" class="card hidden">
-    <h2>Cuenta sin rol asignado</h2>
-    <p>El usuario existe, pero aún no tiene un rol interno autorizado.</p>
-    <button id="unauthorizedLogout" class="secondary-button">Cerrar sesión</button>
+    <h2>Acceso no autorizado</h2>
+    <p>Esta cuenta es de miembro o no tiene un rol interno habilitado. Solo Obispo, Consejeros y Secretarios autorizados pueden entrar al panel.</p>
+    <button id="unauthorizedLogout" class="secondary-button">Cerrar sesión y entrar con otra cuenta</button>
   </section>
 
   <section id="dashboard" class="hidden">
@@ -259,7 +259,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=2.8.1"></script>
-<script src="panel.js?v=2.8.1"></script>
+<script src="config.js?v=2.8.2"></script>
+<script src="panel.js?v=2.8.2"></script>
 </body>
 </html>
