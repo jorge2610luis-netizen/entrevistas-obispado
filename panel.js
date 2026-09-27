@@ -923,6 +923,11 @@
       const email = $("userEmail").value.trim().toLowerCase();
       const role = $("userRole").value;
       const password = $("userPassword").value;
+      const unitId = $("userUnit")?.value || null;
+
+      if (role!=="secretary_admin" && !unitId) {
+        throw new Error("Selecciona el barrio o rama que administrará este usuario.");
+      }
 
       const {data,error} = await signupClient.auth.signUp({
         email,
@@ -939,16 +944,33 @@
         p_display_name:display_name
       });
 
-      if (roleError) throw new Error("El usuario fue creado, pero no se pudo asignar el rol.");
+      if (roleError) {
+        throw new Error("El usuario fue creado, pero no se pudo asignar el rol.");
+      }
 
-      result.textContent = data.session
-        ? "Usuario creado y listo para iniciar sesión."
-        : "Usuario creado. Puede requerir confirmación del correo.";
+      if (role!=="secretary_admin") {
+        const {error:assignError} = await db.rpc("admin_assign_unit_staff",{
+          p_unit_id:unitId,
+          p_profile_id:data.user.id,
+          p_role:role
+        });
+
+        if (assignError) {
+          throw new Error("El usuario fue creado, pero no se pudo asignar al barrio.");
+        }
+      }
+
+      result.textContent = role==="secretary_admin"
+        ? "Secretario Administrador creado correctamente."
+        : "Usuario creado y asignado al barrio correctamente.";
       result.className = "alert success";
+
       form.reset();
       $("userRole").value = "bishop";
       $("userPassword").type = "password";
       $("toggleUserPassword").textContent = "Mostrar";
+      if ($("userUnitWrap")) $("userUnitWrap").classList.remove("hidden");
+
       await refresh();
     } catch (error) {
       result.textContent = error?.message || "No se pudo crear el usuario.";
