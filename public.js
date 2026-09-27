@@ -19,7 +19,7 @@
     nearbyMeetinghouses:[]
   };
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.6.0";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.6.1";
 
 
   const PHONE_COUNTRIES = [
@@ -730,52 +730,207 @@
     }).filter(item=>item.exact || item.distanceKm!==null);
   }
 
-  async function osmMeetinghousesNear(lat,lon,radius=30000) {
-    const query =
-      '[out:json][timeout:20];('+
-      'nwr(around:'+radius+','+lat+','+lon+')['+
-        '"amenity"="place_of_worship"]["name"~"Jesucristo|Jesus Christ|Latter-day|Últimos Días|Santos de los",i];'+
-      'nwr(around:'+radius+','+lat+','+lon+')["denomination"~"mormon|latter.?day",i];'+
-      ');out center tags;';
+  async function fetchJsonWithTimeout(url,timeoutMs=14000) {
+    const controller = new AbortController();
+    const timer = setTimeout(()=>controller.abort(),timeoutMs);
 
-    const endpoint = "https://overpass-api.de/api/interpreter?data="+encodeURIComponent(query);
-    const response = await fetch(endpoint,{headers:{"Accept":"application/json"}});
-    if (!response.ok) throw new Error("No fue posible consultar centros de reuniones cercanos.");
+    try {
+      const response = await fetch(url,{
+        headers:{"Accept":"application/json"},
+        signal:controller.signal
+      });
+      if (!response.ok) throw new Error("HTTP "+response.status);
+      return await response.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
-    const data = await response.json();
+  function meetinghouseFromOsmElement(item,originLat,originLon) {
+    const plat = item.lat ?? item.center?.lat;
+    const plon = item.lon ?? item.center?.lon;
+    if (!Number.isFinite(plat) || !Number.isFinite(plon)) return null;
+
+    const tags = item.tags || {};
+    const address = [
+      tags["addr:street"],
+      tags["addr:housenumber"],
+      tags["addr:suburb"],
+      tags["addr:city"]
+    ].filter(Boolean).join(" ");
+
+    return {
+      source:"osm",
+      exact:false,
+      unitName:"",
+      name:
+        tags.name ||
+        tags.official_name ||
+        tags.brand ||
+        tags.operator ||
+        "Centro de reuniones de La Iglesia de Jesucristo",
+      address,
+      city:tags["addr:city"] || tags["addr:town"] || tags["addr:village"] || "",
+      countryCode:String(tags["addr:country"]||"").toUpperCase(),
+      lat:plat,
+      lon:plon,
+      distanceKm:distanceKm(originLat,originLon,plat,plon),
+      bookingUrl:null
+    };
+  }
+
+  function mergeMeetinghouses(rows) {
+    const deduped = [];
     const seen = new Set();
 
-    return (data.elements||[]).map(item=>{
-      const plat = item.lat ?? item.center?.lat;
-      const plon = item.lon ?? item.center?.lon;
-      if (!Number.isFinite(plat) || !Number.isFinite(plon)) return null;
-
-      const tags = item.tags || {};
-      const key = Math.round(plat*100000)+":"+Math.round(plon*100000);
-      if (seen.has(key)) return null;
+    for (const item of rows.filter(Boolean)) {
+      const coordKey = Number.isFinite(item.lat) && Number.isFinite(item.lon)
+        ? Math.round(item.lat*10000)+":"+Math.round(item.lon*10000)
+        : "";
+      const nameKey = String(item.name||"").toLowerCase().replace(/\s+/g," ").trim();
+      const key = coordKey || nameKey;
+      if (!key || seen.has(key)) continue;
       seen.add(key);
+      deduped.push(item);
+    }
 
-      const address = [
-        tags["addr:street"],
-        tags["addr:housenumber"],
-        tags["addr:suburb"],
-        tags["addr:city"]
-      ].filter(Boolean).join(" ");
+    return deduped.sort((a,b)=>{
+      if (a.exact && !b.exact) return -1;
+      if (!a.exact && b.exact) return 1;
+      const ad = Number.isFinite(a.distanceKm) ? a.distanceKm : Number.MAX_SAFE_INTEGER;
+      const bd = Number.isFinite(b.distanceKm) ? b.distanceKm : Number.MAX_SAFE_INTEGER;
+      return ad-bd;
+    });
+  }
 
-      return {
-        source:"osm",
-        exact:false,
-        unitName:"",
-        name:tags.name || "Centro de reuniones",
-        address,
-        city:tags["addr:city"] || tags["addr:town"] || "",
-        countryCode:String(tags["addr:country"]||"").toUpperCase(),
-        lat:plat,
-        lon:plon,
-        distanceKm:distanceKm(lat,lon,plat,plon),
-        bookingUrl:null
-      };
-    }).filter(Boolean).sort((a,b)=>a.distanceKm-b.distanceKm);
+  async function osmMeetinghousesNear(lat,lon,radius=15000) {
+    const nameRegex = "Jesucristo|Jesus Christ|Latter[- ]?day|Últimos Días|Ultimos Dias|Santos de los Últimos|Santos de los Ultimos|Iglesia SUD|LDS";
+
+    const query =
+      '[out:json][timeout:18];('+
+      'nwr(around:'+radius+','+lat+','+lon+')["brand:wikidata"="Q42504"];'+
+      'nwr(around:'+radius+','+lat+','+lon+')["operator:wikidata"="Q42504"];'+
+      'nwr(around:'+radius+','+lat+','+lon+')["name"~"'+nameRegex+'",i];'+
+      'nwr(around:'+radius+','+lat+','+lon+')["official_name"~"'+nameRegex+'",i];'+
+      'nwr(around:'+radius+','+lat+','+lon+')["brand"~"'+nameRegex+'",i];'+
+      'nwr(around:'+radius+','+lat+','+lon+')["operator"~"'+nameRegex+'",i];'+
+      'nwr(around:'+radius+','+lat+','+lon+')["denomination"~"mormon|latter.?day|lds",i];'+
+      ');out center tags;';
+
+    const endpoints = [
+      "https://overpass-api.de/api/interpreter?data=",
+      "https://overpass.kumi.systems/api/interpreter?data="
+    ];
+
+    let lastError = null;
+
+    for (const base of endpoints) {
+      try {
+        const data = await fetchJsonWithTimeout(base+encodeURIComponent(query),15000);
+        return mergeMeetinghouses(
+          (data.elements||[]).map(item=>meetinghouseFromOsmElement(item,lat,lon))
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError || new Error("No fue posible consultar centros de reuniones cercanos.");
+  }
+
+  async function nominatimMeetinghousesNear(lat,lon,context={},radiusKm=120) {
+    const latDelta = radiusKm/111;
+    const cos = Math.max(Math.cos(lat*Math.PI/180),0.25);
+    const lonDelta = radiusKm/(111*cos);
+    const viewbox = [
+      lon-lonDelta,
+      lat+latDelta,
+      lon+lonDelta,
+      lat-latDelta
+    ].join(",");
+
+    const spanish = String(navigator.language||"").toLowerCase().startsWith("es");
+    const query = spanish
+      ? "La Iglesia de Jesucristo de los Santos de los Últimos Días"
+      : "The Church of Jesus Christ of Latter-day Saints";
+
+    const params = new URLSearchParams({
+      format:"jsonv2",
+      addressdetails:"1",
+      dedupe:"1",
+      limit:"20",
+      bounded:"1",
+      viewbox,
+      q:query,
+      "accept-language":"es"
+    });
+
+    if (context.countryCode) {
+      params.set("countrycodes",String(context.countryCode).toLowerCase());
+    }
+
+    try {
+      const data = await fetchJsonWithTimeout(
+        "https://nominatim.openstreetmap.org/search?"+params.toString(),
+        12000
+      );
+
+      return mergeMeetinghouses((data||[]).map(item=>{
+        const plat = Number(item.lat);
+        const plon = Number(item.lon);
+        if (!Number.isFinite(plat) || !Number.isFinite(plon)) return null;
+
+        const address = item.address || {};
+        return {
+          source:"nominatim",
+          exact:false,
+          unitName:"",
+          name:
+            address.amenity ||
+            address.building ||
+            String(item.display_name||"").split(",")[0] ||
+            "Centro de reuniones de La Iglesia de Jesucristo",
+          address:String(item.display_name||""),
+          city:address.city || address.town || address.village || address.municipality || "",
+          countryCode:String(address.country_code||context.countryCode||"").toUpperCase(),
+          lat:plat,
+          lon:plon,
+          distanceKm:distanceKm(lat,lon,plat,plon),
+          bookingUrl:null
+        };
+      }));
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function progressiveMeetinghouseSearch(lat,lon,context={}) {
+    const radii = [15000,30000,60000,120000];
+    let found = [];
+    let searchedRadiusKm = 0;
+
+    for (const radius of radii) {
+      searchedRadiusKm = radius/1000;
+      try {
+        const rows = await osmMeetinghousesNear(lat,lon,radius);
+        found = mergeMeetinghouses([...found,...rows]);
+      } catch (_) {}
+
+      if (found.length>=5) break;
+    }
+
+    if (found.length<3) {
+      const fallback = await nominatimMeetinghousesNear(lat,lon,context,120);
+      found = mergeMeetinghouses([...found,...fallback]);
+      searchedRadiusKm = Math.max(searchedRadiusKm,120);
+    }
+
+    return {
+      rows:found.filter(item=>
+        !Number.isFinite(item.distanceKm) || item.distanceKm<=120
+      ).slice(0,15),
+      searchedRadiusKm
+    };
   }
 
   async function findNearbyMeetinghouses() {
@@ -790,7 +945,7 @@
     try {
       const position = await getPreciseLocation();
       setLocationStatus(
-        "Ubicación obtenida con una precisión aproximada de "+Math.round(position.accuracy)+" m. Buscando centros de reuniones…",
+        "Ubicación obtenida con una precisión aproximada de "+Math.round(position.accuracy)+" m. Buscando capillas desde tu ubicación…",
         "info"
       );
 
@@ -799,32 +954,30 @@
         configuredUnitsNear(position.lat,position.lon)
       ]);
 
-      state.locationContext = context;
-
-      let osm = [];
-      try {
-        osm = await osmMeetinghousesNear(position.lat,position.lon,30000);
-        if (!osm.length) osm = await osmMeetinghousesNear(position.lat,position.lon,80000);
-      } catch (_) {}
+      state.locationContext = {
+        ...context,
+        lat:position.lat,
+        lon:position.lon
+      };
 
       const exactConfigured = configured.filter(x=>x.exact);
       const nearbyConfigured = configured
-        .filter(x=>!x.exact && x.distanceKm!==null)
+        .filter(x=>!x.exact && x.distanceKm!==null && x.distanceKm<=120)
         .sort((a,b)=>a.distanceKm-b.distanceKm)
-        .slice(0,5);
+        .slice(0,10);
 
-      const results = [...exactConfigured,...nearbyConfigured,...osm];
+      const search = await progressiveMeetinghouseSearch(
+        position.lat,
+        position.lon,
+        context
+      );
 
-      const deduped = [];
-      const seen = new Set();
-      for (const item of results) {
-        const key = (item.name+"|"+(item.lat??"")+"|"+(item.lon??"")).toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        deduped.push(item);
-      }
+      state.nearbyMeetinghouses = mergeMeetinghouses([
+        ...exactConfigured,
+        ...nearbyConfigured,
+        ...search.rows
+      ]).slice(0,15);
 
-      state.nearbyMeetinghouses = deduped.slice(0,10);
       renderNearbyMeetinghouses();
 
       if (exactConfigured.length) {
@@ -833,13 +986,19 @@
           "success"
         );
       } else if (state.nearbyMeetinghouses.length) {
+        const farthest = state.nearbyMeetinghouses
+          .filter(x=>Number.isFinite(x.distanceKm))
+          .reduce((max,x)=>Math.max(max,x.distanceKm),0);
+
         setLocationStatus(
-          "Encontramos centros de reuniones cercanos. Selecciona tu capilla y confirma el nombre de tu barrio o rama.",
+          "Encontramos "+state.nearbyMeetinghouses.length+
+          " centro(s) de reuniones. Están ordenados por distancia desde tu ubicación"+
+          (farthest ? " y buscamos hasta "+Math.round(search.searchedRadiusKm)+" km." : "."),
           "success"
         );
       } else {
         setLocationStatus(
-          "No encontramos una capilla automáticamente. Puedes usar el localizador oficial o ingresar tu barrio manualmente.",
+          "Buscamos centros de reuniones en un radio de hasta 120 km y no encontramos resultados automáticos. Puedes usar el localizador oficial o ingresar tu barrio manualmente.",
           "info"
         );
       }
