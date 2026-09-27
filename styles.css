@@ -696,3 +696,29 @@ footer .small{font-size:12px}
     align-items:flex-start;
   }
 }
+
+/* v2.8.1 · Encabezado estable durante carga/login */
+@media(max-width:900px){
+  .public-topbar{
+    grid-template-columns:minmax(0,1fr) auto;
+  }
+  .public-topbar.member-menu-enabled{
+    grid-template-columns:auto minmax(0,1fr) auto;
+  }
+}
+@media(max-width:620px){
+  .public-topbar{
+    grid-template-columns:minmax(0,1fr) auto;
+  }
+  .public-topbar.member-menu-enabled{
+    grid-template-columns:40px minmax(0,1fr) auto;
+  }
+}
+@media(max-width:390px){
+  .public-topbar{
+    grid-template-columns:minmax(0,1fr) auto;
+  }
+  .public-topbar.member-menu-enabled{
+    grid-template-columns:38px minmax(0,1fr) auto;
+  }
+}
