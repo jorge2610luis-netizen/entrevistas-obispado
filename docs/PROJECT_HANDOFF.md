@@ -2,10 +2,24 @@
 
 > Última actualización: 2026-09-27  
 > Rama de producción: `main`  
-> Versión: **v4.3.0**  
+> Versión: **v4.3.1**  
 > Sitio: https://mientrevista.online  
 > Panel: https://mientrevista.online/panel.html  
 > Supabase: `gyyahvrkcjocqhhoslho`
+
+## Corrección v4.3.1
+
+Se restauraron los eventos del área de miembro que se habían eliminado accidentalmente al retirar el código geográfico:
+
+- navegación Inicio / Mi barrio / Mis entrevistas / Nueva entrevista;
+- abrir/cerrar menú móvil;
+- iniciar sesión y crear cuenta;
+- guardar barrio de Iquique;
+- enviar solicitud de entrevista;
+- cerrar sesión;
+- botones de seguimiento posteriores a una solicitud.
+
+No se reintrodujo GPS ni lógica multipaís.
 
 ## 1. Alcance
 
@@ -43,7 +57,7 @@ Gómez Carreño conserva los datos reales actualmente usados por miembros/lidera
 
 ## 3. Base de datos actual
 
-Después de la limpieza v4.3.0:
+Después de la limpieza v4.3.1:
 
 - `church_units`: 6
 - `church_meetinghouses`: 5
@@ -96,7 +110,7 @@ Panel interno.
 El Secretario Administrador puede administrar las seis unidades activas.
 
 ### `config.js` / `version.json`
-Versión actual: `v4.3.0`.
+Versión actual: `v4.3.1`.
 
 ## 5. Autenticación
 

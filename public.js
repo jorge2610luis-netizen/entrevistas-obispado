@@ -37,7 +37,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.3.0";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.3.1";
 
 
   const PHONE_COUNTRIES = [
@@ -910,6 +910,199 @@
     $("memberLocationStatus").className = "alert hidden";
     $("memberLocationStatus").textContent = "";
   }
+
+  $("memberLoginForm").onsubmit = async event => {
+    event.preventDefault();
+    clearAuthMessage();
+
+    let phone;
+    try {
+      phone = normalizePhone($("memberLoginPhone").value,selectedCountryCode("memberLoginCountry"));
+    } catch (error) {
+      showAuthMessage(error.message);
+      return;
+    }
+
+    const button = event.currentTarget.querySelector('button[type="submit"]');
+    button.disabled = true;
+    button.textContent = "Ingresando…";
+
+    const {data,error} = await db.auth.signInWithPassword({
+      email:memberAuthEmail(phone),
+      password:$("memberLoginPassword").value
+    });
+
+    button.disabled = false;
+    button.textContent = "Ingresar";
+
+    if (error) {
+      showAuthMessage("Número de teléfono o contraseña incorrectos.");
+      return;
+    }
+
+    if (data?.session) await loadMember(data.session);
+  };
+
+  $("memberRegisterForm").onsubmit = async event => {
+    event.preventDefault();
+    clearAuthMessage();
+
+    const fullName = $("memberRegisterName").value.trim();
+    const password = $("memberRegisterPassword").value;
+    const password2 = $("memberRegisterPassword2").value;
+
+    if (password!==password2) {
+      showAuthMessage("Las contraseñas no coinciden.");
+      return;
+    }
+
+    let phone;
+    try {
+      phone = normalizePhone($("memberRegisterPhone").value,selectedCountryCode("memberRegisterCountry"));
+    } catch (error) {
+      showAuthMessage(error.message);
+      return;
+    }
+
+    const button = event.currentTarget.querySelector('button[type="submit"]');
+    button.disabled = true;
+    button.textContent = "Creando…";
+
+    const {data,error} = await db.auth.signUp({
+      email:memberAuthEmail(phone),
+      password,
+      options:{
+        data:{
+          account_type:"member",
+          full_name:fullName,
+          phone_e164:phone
+        }
+      }
+    });
+
+    button.disabled = false;
+    button.textContent = "Crear mi cuenta";
+
+    if (error) {
+      const msg = String(error.message||"");
+      if (/already|registered|exists/i.test(msg)) {
+        showAuthMessage("Ese número ya tiene una cuenta. Usa “Ingresar”.");
+      } else {
+        showAuthMessage(/email rate limit exceeded/i.test(msg)
+          ? "Supabase está intentando enviar un correo de confirmación. Desactiva Confirm email en Authentication → Providers → Email, guarda y vuelve a intentarlo."
+          : "No se pudo crear la cuenta. Revisa los datos e inténtalo nuevamente.");
+      }
+      return;
+    }
+
+    if (data?.session) {
+      await loadMember(data.session);
+    } else {
+      showAuthMessage("La cuenta fue creada, pero falta desactivar “Confirm email” en Authentication → Providers → Email. Después podrás ingresar solo con teléfono y contraseña, sin SMS.","info");
+    }
+  };
+
+  $("bookingForm").onsubmit = async event => {
+    event.preventDefault();
+    clearBookingError();
+
+    if (!state.member || !state.session) {
+      showBookingError("Inicia sesión con tu cuenta de miembro.");
+      return;
+    }
+
+    const interviewTypeId = state.interviewTypes[0]?.id || null;
+    const availabilityId = state.selectedSlot?.id;
+
+    if (!state.selectedLeader || !interviewTypeId || !availabilityId) {
+      showBookingError("Selecciona líder, día y hora.");
+      return;
+    }
+
+    const submit = $("submitBooking");
+    submit.disabled = true;
+    submit.textContent = "Enviando…";
+
+    const {error} = await db.from("appointments").insert({
+      availability_id:availabilityId,
+      interview_type_id:interviewTypeId
+    });
+
+    submit.disabled = false;
+    submit.textContent = "Solicitar entrevista";
+
+    if (error) {
+      if (error.code==="23505" || /unique|booked/i.test(String(error.message||""))) {
+        showBookingError("Ese horario acaba de ser solicitado por otra persona. Elige otro horario.");
+        const activeButton = document.querySelector('[data-leader-id="'+state.selectedLeader.id+'"]');
+        if (activeButton) await selectLeader(state.selectedLeader,activeButton);
+      } else {
+        showBookingError("No se pudo enviar la solicitud. Inténtalo nuevamente.");
+      }
+      return;
+    }
+
+    $("bookingCard").classList.add("hidden");
+    $("successBox").classList.remove("hidden");
+    await loadMemberAppointments();
+    $("successBox").scrollIntoView({behavior:"smooth"});
+  };
+
+  if ($("saveIquiqueUnit")) $("saveIquiqueUnit").onclick = saveIquiqueUnit;
+
+  $("memberMenuToggle").onclick = () => {
+    const open = $("memberSidebar")?.classList.contains("open");
+    if (open) closeMemberMenu();
+    else openMemberMenu();
+  };
+  $("memberSidebarBackdrop").onclick = closeMemberMenu;
+
+  document.querySelectorAll("[data-member-view]").forEach(button=>{
+    button.addEventListener("click",()=>showMemberView(button.dataset.memberView));
+  });
+
+  $("showMemberLogin").onclick = () => setAuthTab("login");
+  $("showMemberRegister").onclick = () => setAuthTab("register");
+  $("memberRefreshAppointments").onclick = loadMemberAppointments;
+
+  $("memberLogoutBtn").onclick = async () => {
+    showBootLoading("Cerrando sesión…");
+    await db.auth.signOut({scope:"local"});
+    state.session = null;
+    state.member = null;
+    resetMemberHistory();
+    setAuthTab("login");
+    setMemberAppMode("guest");
+  };
+
+  $("newRequestBtn").onclick = () => {
+    $("successBox").classList.add("hidden");
+    $("bookingCard").classList.remove("hidden");
+    $("bookingForm").classList.add("hidden");
+    state.selectedLeader = null;
+    state.selectedDateKey = null;
+    state.selectedSlot = null;
+    state.interviewTypes = [];
+    $("autoInterviewType")?.classList.add("hidden");
+    document.querySelectorAll(".leader-card").forEach(el=>el.classList.remove("active"));
+    showMemberView("booking");
+  };
+
+  $("viewMyAppointmentsBtn").onclick = () => showMemberView("appointments");
+
+  db.auth.onAuthStateChange((event,session)=>{
+    if (event==="SIGNED_OUT") {
+      state.session = null;
+      state.member = null;
+      resetMemberHistory();
+      if (state.booted) {
+        setAuthTab("login");
+        setMemberAppMode("guest");
+      }
+    } else if (event==="SIGNED_IN" && session && state.booted && !state.member) {
+      loadMember(session);
+    }
+  });
 
   async function boot({force=false}={}) {
     if (bootPromise && !force) return bootPromise;
