@@ -237,3 +237,56 @@ footer .small{font-size:12px}
   .unit-link-actions,.unit-confirm-actions{display:grid;grid-template-columns:1fr}
   .unit-link-actions a,.unit-confirm-actions button{text-align:center;width:100%}
 }
+
+/* v2.6.0 · App de miembro con navegación lateral */
+.member-app{width:100%}
+.member-shell{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px;align-items:start}
+.member-sidebar{position:sticky;top:92px;min-height:calc(100vh - 120px);background:#fff;border:1px solid var(--line);border-radius:20px;padding:16px;box-shadow:0 12px 35px #17313a0c;display:flex;flex-direction:column;gap:16px}
+.member-sidebar-profile{display:flex;align-items:center;gap:11px;padding:8px 6px 15px;border-bottom:1px solid var(--line)}
+.member-sidebar-profile>div:last-child{min-width:0}
+.member-sidebar-profile strong,.member-sidebar-profile span{display:block}
+.member-sidebar-profile strong{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.member-sidebar-profile span{font-size:11px;color:var(--muted);margin-top:3px}
+.member-avatar{width:42px;height:42px;flex:0 0 auto;border-radius:12px;display:grid;place-items:center;background:var(--blue);color:#fff;font:bold 20px Georgia}
+.member-nav{display:grid;gap:6px}
+.member-nav-item{width:100%;border:0;background:transparent;border-radius:12px;padding:11px 12px;display:flex;align-items:center;gap:10px;text-align:left;color:var(--ink);font-weight:750}
+.member-nav-item:hover{background:var(--soft)}
+.member-nav-item.active{background:var(--blue-soft);color:var(--blue)}
+.member-nav-icon{width:24px;text-align:center;font-size:19px}
+.member-logout-button{margin-top:auto;border:0;border-radius:12px;padding:11px 12px;background:#fff1f1;color:var(--danger);font-weight:800;text-align:left}
+.member-main{min-width:0}
+.member-view>.card,.member-view>section.card{margin:0}
+.member-menu-toggle{display:none}
+.member-sidebar-backdrop{display:none}
+.member-home-card h1{margin-bottom:8px}
+.member-home-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:22px}
+.member-home-action{border:1px solid var(--line);border-radius:16px;background:#fff;padding:18px;text-align:left;display:grid;gap:5px}
+.member-home-action:hover{border-color:#a8c7d5;background:#f7fbfd}
+.member-home-icon{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:var(--blue-soft);color:var(--blue);font-size:22px;margin-bottom:6px}
+.member-home-action strong{font-size:15px;color:var(--ink)}
+.member-home-action small{color:var(--muted);line-height:1.4}
+.member-home-status{margin-top:18px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--soft);display:grid;gap:3px}
+.member-home-status-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.member-home-status strong{color:var(--blue)}
+.member-home-status small{color:var(--muted)}
+.success-actions{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;margin-top:16px}
+
+@media(max-width:900px){
+  .member-shell{display:block}
+  .member-menu-toggle{display:flex;align-items:center;gap:8px;position:sticky;top:86px;z-index:18;width:max-content;margin:0 0 12px;border:0;border-radius:12px;padding:10px 14px;background:var(--blue);color:#fff;font-weight:800;box-shadow:0 8px 20px #003b5c22}
+  .member-sidebar{position:fixed;z-index:31;top:0;left:0;width:min(82vw,310px);height:100dvh;min-height:0;border-radius:0 20px 20px 0;padding:20px 16px;transform:translateX(-105%);transition:transform .22s ease;overflow-y:auto}
+  .member-sidebar.open{transform:translateX(0)}
+  .member-sidebar-backdrop{position:fixed;inset:0;z-index:30;background:#0b2433aa;display:block;opacity:0;pointer-events:none;transition:opacity .2s ease}
+  .member-sidebar-backdrop.open{opacity:1;pointer-events:auto}
+  body.member-menu-open{overflow:hidden}
+  .member-home-grid{grid-template-columns:1fr}
+}
+
+@media(max-width:620px){
+  #memberArea{margin-top:-12px}
+  .member-menu-toggle{top:82px}
+  .member-view .card{border-radius:18px}
+  .member-home-card h1{font-size:32px}
+  .success-actions{display:grid;grid-template-columns:1fr}
+  .success-actions button{width:100%}
+}
