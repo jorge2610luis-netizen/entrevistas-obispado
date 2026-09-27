@@ -8,7 +8,7 @@
   <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#005581">
   <title>Panel | Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=3.1.0">
+  <link rel="stylesheet" href="styles.css?v=3.2.0">
 </head>
 <body>
 <header class="topbar panel-topbar">
@@ -20,10 +20,10 @@
     <div>
       <strong>Panel de Entrevistas</strong>
       <small id="panelUnit">Barrio / Rama</small>
-      <small id="panelVersion" class="version-label">v3.1.0</small>
+      <small id="panelVersion" class="version-label">v3.2.0</small>
     </div>
   </div>
-  <a class="link-button" href="index.html?v=3.1.0">Página pública</a>
+  <a class="link-button" href="index.html?v=3.2.0">Página pública</a>
 </header>
 
 <div id="panelSidebarBackdrop" class="panel-sidebar-backdrop hidden"></div>
@@ -56,7 +56,7 @@
 
   <div class="panel-sidebar-actions">
     <button id="panelSidebarRefresh" type="button" class="panel-sidebar-action">↻ Actualizar datos</button>
-    <a class="panel-sidebar-action" href="index.html?v=3.1.0">← Página de miembros</a>
+    <a class="panel-sidebar-action" href="index.html?v=3.2.0">← Página de miembros</a>
     <button id="panelSidebarLogout" type="button" class="panel-sidebar-action danger">Cerrar sesión</button>
   </div>
 </aside>
@@ -73,7 +73,7 @@
     <h1>Iniciar sesión</h1>
     <p>Solo para Secretario, Obispo y Consejeros autorizados.</p>
     <form id="loginForm" class="login-form">
-      <label>Correo electrónico<input id="loginEmail" type="email" required autocomplete="username"></label>
+      <label>Correo o teléfono internacional<input id="loginEmail" type="text" required autocomplete="username" placeholder="correo@ejemplo.com o +56912345678"></label>
       <label>Contraseña<input id="loginPassword" type="password" required autocomplete="current-password"></label>
       <div id="loginError" class="alert error hidden"></div>
       <button class="primary-button" type="submit">Ingresar</button>
@@ -252,38 +252,7 @@
         </div>
         <div id="usersList" class="users-list"><div class="empty">Cargando líderes…</div></div>
 
-        <section id="userEditPanel" class="user-edit-panel hidden">
-          <div class="edit-panel-header">
-            <div>
-              <span class="eyebrow">Editar usuario</span>
-              <h3 id="editUserTitle">Usuario</h3>
-            </div>
-            <button id="cancelEditUserTop" class="mini-button" type="button">Cerrar</button>
-          </div>
-          <form id="editUserForm" class="edit-user-form">
-            <input id="editUserId" type="hidden">
-            <label>Nombre<input id="editUserName" maxlength="120" required></label>
-            <label>Correo de acceso
-              <input id="editUserEmail" type="email" readonly>
-              <small>El correo no se cambia desde esta edición.</small>
-            </label>
-            <label>Rol
-              <select id="editUserRole" required>
-                <option value="bishop">Obispo</option>
-                <option value="first_counselor">Primer Consejero</option>
-                <option value="second_counselor">Segundo Consejero</option>
-                <option value="secretary">Secretario</option>
-                <option value="secretary_admin">Secretario Administrador</option>
-              </select>
-            </label>
-            <label class="active-toggle"><input id="editUserActive" type="checkbox"><span>Usuario activo</span></label>
-            <div class="edit-user-actions">
-              <button id="cancelEditUser" class="secondary-button" type="button">Cancelar</button>
-              <button id="saveEditUser" class="primary-button" type="submit">Guardar cambios</button>
-            </div>
-          </form>
-          <div id="editUserResult" class="alert hidden"></div>
-        </section>
+
       </section>
 
       <section id="memberUsersView" class="user-directory-view hidden">
@@ -305,6 +274,44 @@
           <div class="empty">Cargando miembros…</div>
         </div>
       </section>
+
+        <section id="userEditPanel" class="user-edit-panel hidden">
+          <div class="edit-panel-header">
+            <div>
+              <span class="eyebrow">Editar usuario</span>
+              <h3 id="editUserTitle">Usuario</h3>
+            </div>
+            <button id="cancelEditUserTop" class="mini-button" type="button">Cerrar</button>
+          </div>
+          <form id="editUserForm" class="edit-user-form">
+            <input id="editUserId" type="hidden">
+            <label>Nombre<input id="editUserName" maxlength="120" required></label>
+            <label>Correo de acceso
+              <input id="editUserEmail" type="email" readonly>
+              <small>El correo no se cambia desde esta edición.</small>
+            </label>
+            <label>Rol
+              <select id="editUserRole" required>
+                <option value="unassigned">Miembro / Sin cargo</option>
+                <option value="bishop">Obispo</option>
+                <option value="first_counselor">Primer Consejero</option>
+                <option value="second_counselor">Segundo Consejero</option>
+                <option value="secretary">Secretario</option>
+                <option value="secretary_admin">Secretario Administrador</option>
+              </select>
+            </label>
+            <label id="editUserUnitWrap">Barrio / Rama
+              <select id="editUserUnit"></select>
+              <small>Al cambiar de barrio se cerrarán los horarios futuros libres de la asignación anterior.</small>
+            </label>
+            <label class="active-toggle"><input id="editUserActive" type="checkbox"><span>Usuario activo</span></label>
+            <div class="edit-user-actions">
+              <button id="cancelEditUser" class="secondary-button" type="button">Cancelar</button>
+              <button id="saveEditUser" class="primary-button" type="submit">Guardar cambios</button>
+            </div>
+          </form>
+          <div id="editUserResult" class="alert hidden"></div>
+        </section>
     </section>
     <div class="dashboard-grid">
       <section id="panelRequestsSection" class="card panel-section" data-panel-section="requests">
@@ -380,7 +387,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=3.1.0"></script>
-<script src="panel.js?v=3.1.0"></script>
+<script src="config.js?v=3.2.0"></script>
+<script src="panel.js?v=3.2.0"></script>
 </body>
 </html>
