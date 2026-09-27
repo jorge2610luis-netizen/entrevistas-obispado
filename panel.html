@@ -8,20 +8,58 @@
   <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#005581">
   <title>Panel | Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=3.0.0">
+  <link rel="stylesheet" href="styles.css?v=3.1.0">
 </head>
 <body>
 <header class="topbar panel-topbar">
+  <button id="panelMenuToggle" class="panel-menu-toggle hidden" type="button" aria-label="Abrir menú" aria-controls="panelSidebar" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
   <div class="brand">
     <div class="brand-mark">E</div>
     <div>
       <strong>Panel de Entrevistas</strong>
       <small id="panelUnit">Barrio / Rama</small>
-      <small id="panelVersion" class="version-label">v3.0.0</small>
+      <small id="panelVersion" class="version-label">v3.1.0</small>
     </div>
   </div>
-  <a class="link-button" href="index.html?v=3.0.0">Página pública</a>
+  <a class="link-button" href="index.html?v=3.1.0">Página pública</a>
 </header>
+
+<div id="panelSidebarBackdrop" class="panel-sidebar-backdrop hidden"></div>
+<aside id="panelSidebar" class="panel-sidebar" aria-hidden="true">
+  <div class="panel-sidebar-head">
+    <div>
+      <strong>Menú</strong>
+      <small id="panelSidebarRole">Panel interno</small>
+    </div>
+    <button id="panelSidebarClose" class="panel-sidebar-close" type="button" aria-label="Cerrar menú">×</button>
+  </div>
+
+  <nav class="panel-sidebar-nav" aria-label="Navegación del panel">
+    <button type="button" class="panel-nav-item active" data-panel-view="overview">
+      <span>⌂</span><strong>Resumen</strong>
+    </button>
+    <button id="panelNavUnits" type="button" class="panel-nav-item admin-only-nav hidden" data-panel-view="units">
+      <span>⌖</span><strong>Barrios y liderazgo</strong>
+    </button>
+    <button id="panelNavUsers" type="button" class="panel-nav-item admin-only-nav hidden" data-panel-view="users">
+      <span>♙</span><strong>Usuarios</strong>
+    </button>
+    <button type="button" class="panel-nav-item" data-panel-view="requests">
+      <span>☷</span><strong>Solicitudes</strong>
+    </button>
+    <button type="button" class="panel-nav-item" data-panel-view="schedule">
+      <span>◷</span><strong>Horarios</strong>
+    </button>
+  </nav>
+
+  <div class="panel-sidebar-actions">
+    <button id="panelSidebarRefresh" type="button" class="panel-sidebar-action">↻ Actualizar datos</button>
+    <a class="panel-sidebar-action" href="index.html?v=3.1.0">← Página de miembros</a>
+    <button id="panelSidebarLogout" type="button" class="panel-sidebar-action danger">Cerrar sesión</button>
+  </div>
+</aside>
 
 <main class="container">
   <section id="authLoadingView" class="card auth-card auth-loading">
@@ -49,6 +87,7 @@
   </section>
 
   <section id="dashboard" class="hidden">
+    <section id="panelOverviewSection" class="panel-section panel-section-active" data-panel-section="overview">
     <div class="dashboard-header">
       <div>
         <span class="eyebrow">Panel interno</span>
@@ -71,7 +110,10 @@
     </section>
 
 
-    <section id="unitLeadershipCard" class="card unit-leadership-card hidden">
+        <div id="stats" class="stats"></div>
+    </section>
+
+    <section id="unitLeadershipCard" class="card unit-leadership-card hidden panel-section" data-panel-section="units">
       <div class="card-header">
         <div>
           <span class="eyebrow">Administración multi-barrio</span>
@@ -142,7 +184,7 @@
       </section>
     </section>
 
-    <section id="userAdminCard" class="card user-admin-card hidden">
+    <section id="userAdminCard" class="card user-admin-card hidden panel-section" data-panel-section="users">
       <div class="card-header user-directory-header">
         <div>
           <span class="eyebrow">Solo Secretario Administrador</span>
@@ -264,11 +306,8 @@
         </div>
       </section>
     </section>
-
-        <div id="stats" class="stats"></div>
-
     <div class="dashboard-grid">
-      <section class="card">
+      <section id="panelRequestsSection" class="card panel-section" data-panel-section="requests">
         <div class="card-header">
           <div>
             <h2>Solicitudes</h2>
@@ -289,7 +328,7 @@
         <div id="requestsList" class="requests-list"></div>
       </section>
 
-      <aside class="card schedule-card">
+      <aside id="panelScheduleSection" class="card schedule-card panel-section" data-panel-section="schedule">
         <div class="card-header">
           <div>
             <h2>Disponibilidad semanal</h2>
@@ -341,7 +380,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=3.0.0"></script>
-<script src="panel.js?v=3.0.0"></script>
+<script src="config.js?v=3.1.0"></script>
+<script src="panel.js?v=3.1.0"></script>
 </body>
 </html>
