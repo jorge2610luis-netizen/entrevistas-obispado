@@ -1608,3 +1608,12 @@ body.modal-open{
     width:100%;
   }
 }
+
+.coverage-empty{
+  border:1px solid #efd4a8;
+  background:#fff8ed;
+  color:#6f5125;
+}
+.coverage-empty strong{
+  color:#8a5310;
+}
