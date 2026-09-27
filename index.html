@@ -9,122 +9,118 @@
   <meta name="theme-color" content="#005581">
   <meta name="description" content="Solicitud de entrevistas con el obispado.">
   <title>Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=2.2.0">
+  <link rel="stylesheet" href="styles.css?v=2.3.0">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="brand-mark" aria-hidden="true">E</div>
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">E</div>
+    <div>
+      <strong>Entrevistas del Obispado</strong>
+      <small id="unitName">Barrio / Rama</small>
+      <small id="appVersion" class="version-label">v2.3.0</small>
+    </div>
+  </div>
+  <a class="link-button" href="panel.html?v=2.3.0">Acceso de líderes</a>
+</header>
+
+<main class="container">
+  <section class="hero">
+    <div>
+      <span class="eyebrow">Agenda de entrevistas</span>
+      <h1>Solicita una entrevista</h1>
+      <p>Elige con quién necesitas reunirte y te mostraremos únicamente los días y horarios que ese líder tenga disponibles.</p>
+    </div>
+    <div class="hero-card">
+      <span class="hero-check">✓</span>
+      <strong>Proceso de confirmación</strong>
+      <span>Solicitud → Secretario → Líder → Confirmada</span>
+    </div>
+  </section>
+
+  <section id="bookingCard" class="card">
+    <div class="section-heading">
+      <span class="step">1</span>
       <div>
-        <strong>Entrevistas del Obispado</strong>
-        <small id="unitName">Barrio / Rama</small>
-        <small id="appVersion" class="version-label">v2.2.0</small>
+        <h2>Elige con quién necesitas reunirte</h2>
+        <p>Solo se muestran líderes activos.</p>
       </div>
     </div>
-    <a class="link-button" href="panel.html?v=2.2.0">Acceso de líderes</a>
-  </header>
 
-  <main class="container">
-    <section class="hero">
-      <div>
-        <span class="eyebrow">Agenda de entrevistas</span>
-        <h1>Solicita una entrevista</h1>
-        <p>Selecciona el líder, el tipo de entrevista y luego elige en el calendario un día con disponibilidad.</p>
-      </div>
-      <div class="hero-card">
-        <span class="hero-check">✓</span>
-        <strong>Proceso de confirmación</strong>
-        <span>Solicitud → Secretario → Líder → Confirmada</span>
-      </div>
-    </section>
+    <div id="leaderGrid" class="leader-grid">
+      <div class="empty">Cargando líderes...</div>
+    </div>
 
-    <section id="bookingCard" class="card">
-      <div class="section-heading">
-        <span class="step">1</span>
+    <form id="bookingForm" class="booking-form hidden">
+      <div class="section-heading compact">
+        <span class="step">2</span>
         <div>
-          <h2>Elige con quién necesitas reunirte</h2>
-          <p>Solo se muestran líderes activos.</p>
+          <h2>Selecciona entrevista y día</h2>
+          <p>Solo aparecen los días que tienen horas disponibles.</p>
         </div>
       </div>
 
-      <div id="leaderGrid" class="leader-grid">
-        <div class="empty">Cargando líderes...</div>
+      <label class="public-type-label">
+        Tipo de entrevista
+        <select id="interviewType" required></select>
+      </label>
+
+      <div class="available-days-block">
+        <span class="field-label">Días disponibles</span>
+        <div id="availableDays" class="available-day-list"></div>
       </div>
 
-      <form id="bookingForm" class="booking-form hidden">
-        <div class="section-heading compact">
-          <span class="step">2</span>
+      <section id="publicDayPanel" class="public-day-panel hidden">
+        <div class="subheading-row">
           <div>
-            <h2>Selecciona la entrevista y el día</h2>
-            <p>Los días destacados tienen horarios libres.</p>
+            <span class="eyebrow">Horas disponibles</span>
+            <h3 id="publicSelectedDate"></h3>
           </div>
         </div>
+        <div id="publicTimeSlots" class="time-slot-grid"></div>
+      </section>
 
-        <label class="public-type-label">
-          Tipo de entrevista
-          <select id="interviewType" required></select>
-        </label>
-
-        <div class="calendar-shell public-calendar-shell">
-          <div class="calendar-toolbar">
-            <button id="publicPrevMonth" class="calendar-nav" type="button" aria-label="Mes anterior">‹</button>
-            <strong id="publicMonthTitle" class="calendar-title"></strong>
-            <button id="publicNextMonth" class="calendar-nav" type="button" aria-label="Mes siguiente">›</button>
-          </div>
-          <div class="calendar-weekdays" aria-hidden="true">
-            <span>Do</span><span>Lu</span><span>Ma</span><span>Mi</span><span>Ju</span><span>Vi</span><span>Sá</span>
-          </div>
-          <div id="publicCalendar" class="month-calendar"></div>
+      <div class="section-heading compact">
+        <span class="step">3</span>
+        <div>
+          <h2>Tus datos</h2>
+          <p id="selectedSlotSummary">Selecciona primero un día y una hora.</p>
         </div>
+      </div>
 
-        <div id="publicDayPanel" class="public-day-panel hidden">
-          <div class="subheading-row">
-            <div>
-              <span class="eyebrow">Horarios disponibles</span>
-              <h3 id="publicSelectedDate"></h3>
-            </div>
-          </div>
-          <div id="publicTimeSlots" class="time-slot-grid"></div>
-        </div>
+      <div class="form-grid">
+        <label>Nombre completo<input id="memberName" maxlength="120" required autocomplete="name"></label>
+        <label>Teléfono / WhatsApp<input id="memberPhone" maxlength="40" required inputmode="tel" autocomplete="tel"></label>
+        <label>Correo electrónico <span class="optional">(opcional)</span><input id="memberEmail" maxlength="254" type="email" autocomplete="email"></label>
+      </div>
 
-        <div class="section-heading compact">
-          <span class="step">3</span>
-          <div><h2>Tus datos</h2><p id="selectedSlotSummary">Selecciona primero un horario.</p></div>
-        </div>
+      <div class="privacy-note"><strong>Privacidad:</strong> no escribas detalles confidenciales de la entrevista. El formulario solicita únicamente información de coordinación.</div>
+      <div id="bookingError" class="alert error hidden"></div>
+      <button id="submitBooking" class="primary-button" type="submit">Enviar solicitud</button>
+    </form>
+  </section>
 
-        <div class="form-grid">
-          <label>Nombre completo<input id="memberName" maxlength="120" required autocomplete="name"></label>
-          <label>Teléfono / WhatsApp<input id="memberPhone" maxlength="40" required inputmode="tel" autocomplete="tel"></label>
-          <label>Correo electrónico <span class="optional">(opcional)</span><input id="memberEmail" maxlength="254" type="email" autocomplete="email"></label>
-        </div>
+  <section id="successBox" class="card success-box hidden">
+    <div class="success-icon">✓</div>
+    <h2>Solicitud enviada</h2>
+    <p>Tu solicitud quedó pendiente de revisión por el secretario. La cita aún no está confirmada.</p>
+    <button id="newRequestBtn" class="secondary-button" type="button">Solicitar otra entrevista</button>
+  </section>
 
-        <div class="privacy-note"><strong>Privacidad:</strong> no escribas detalles confidenciales de la entrevista. El formulario solicita únicamente información de coordinación.</div>
-        <div id="bookingError" class="alert error hidden"></div>
-        <button id="submitBooking" class="primary-button" type="submit">Enviar solicitud</button>
-      </form>
-    </section>
+  <section class="info-grid">
+    <article class="info-card"><span>1</span><h3>Selecciona</h3><p>Elige líder, entrevista, día y hora.</p></article>
+    <article class="info-card"><span>2</span><h3>Secretario</h3><p>Revisa y confirma contigo los datos.</p></article>
+    <article class="info-card"><span>3</span><h3>Líder</h3><p>Aprueba finalmente la entrevista.</p></article>
+  </section>
+</main>
 
-    <section id="successBox" class="card success-box hidden">
-      <div class="success-icon">✓</div>
-      <h2>Solicitud enviada</h2>
-      <p>Tu solicitud quedó pendiente de revisión por el secretario. La cita aún no está confirmada.</p>
-      <button id="newRequestBtn" class="secondary-button" type="button">Solicitar otra entrevista</button>
-    </section>
+<footer>
+  <p>Herramienta local para organización de entrevistas del obispado.</p>
+  <p class="small">No es un sitio web oficial de La Iglesia de Jesucristo de los Santos de los Últimos Días.</p>
+</footer>
 
-    <section class="info-grid">
-      <article class="info-card"><span>1</span><h3>Selecciona</h3><p>Elige líder, entrevista, día y hora.</p></article>
-      <article class="info-card"><span>2</span><h3>Secretario</h3><p>Revisa y confirma contigo los datos.</p></article>
-      <article class="info-card"><span>3</span><h3>Líder</h3><p>Aprueba finalmente la entrevista.</p></article>
-    </section>
-  </main>
-
-  <footer>
-    <p>Herramienta local para organización de entrevistas del obispado.</p>
-    <p class="small">No es un sitio web oficial de La Iglesia de Jesucristo de los Santos de los Últimos Días.</p>
-  </footer>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-  <script src="config.js?v=2.2.0"></script>
-  <script src="public.js?v=2.2.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
+<script src="config.js?v=2.3.0"></script>
+<script src="public.js?v=2.3.0"></script>
 </body>
 </html>
