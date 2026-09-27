@@ -1,8 +1,10 @@
 # Entrevistas del Obispado
 
-Aplicación web multi-barrio para solicitar, coordinar y dar seguimiento a entrevistas con el Obispado.
+Aplicación web para solicitar, coordinar y dar seguimiento a entrevistas con el Obispado en Iquique.
 
-**Versión actual declarada:** v4.2.2
+**Alcance actual:** Iquique únicamente. El trabajo multipaís quedó pausado y respaldado en la rama `archive/multipais-v4.2.2`.
+
+**Versión actual declarada:** v4.3.0
 **Producción:** https://mientrevista.online  
 **Backend:** Supabase  
 **Deploy:** GitHub Pages desde `main`

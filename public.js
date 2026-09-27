@@ -26,6 +26,7 @@
     selectedMeetinghouse:null,
     nearbyMeetinghouses:[],
     catalogResults:[],
+    iquiqueUnits:[],
     unitSelectionSource:null,
     manualCatalogOpen:false,
     currentView:"home",
@@ -36,7 +37,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.2.2";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.3.0";
 
 
   const PHONE_COUNTRIES = [
@@ -184,77 +185,6 @@
     else {
       const fallback = [...select.options].find(option=>option.dataset.iso==="BO");
       if (fallback) fallback.selected = true;
-    }
-  }
-
-  function populateCatalogCountrySelect(detectedIso) {
-    const select = $("catalogCountry");
-    if (!select) return;
-    select.innerHTML = PHONE_COUNTRIES.map(([iso,,name]) =>
-      '<option value="'+iso+'" '+(iso===detectedIso?'selected':'')+'>'+name+'</option>'
-    ).join("");
-    if (![...select.options].some(option=>option.value===detectedIso)) {
-      select.value = "CL";
-    }
-  }
-
-  async function loadCatalogCities(countryCode,preferredCity="") {
-    const select = $("catalogCity");
-    if (!select) return;
-
-    select.disabled = true;
-    select.innerHTML = '<option value="">Cargando ciudades…</option>';
-
-    try {
-      let {data,error} = await db.from("church_directory_places")
-        .select("city_name,region")
-        .eq("country_code",countryCode)
-        .order("city_name")
-        .limit(500);
-
-      if (!error && (!data || !data.length)) {
-        try {
-          await Promise.race([
-            db.functions.invoke("church-directory",{body:{action:"country-index",countryCode}}),
-            new Promise(resolve=>setTimeout(()=>resolve(null),16000))
-          ]);
-          const retry = await db.from("church_directory_places")
-            .select("city_name,region")
-            .eq("country_code",countryCode)
-            .order("city_name")
-            .limit(500);
-          data = retry.data || [];
-          error = retry.error;
-        } catch (_) {}
-      }
-
-      if (error) throw error;
-
-      const unique = new Map();
-      for (const row of data||[]) {
-        const city = String(row.city_name||"").trim();
-        if (!city) continue;
-        const key = city.toLocaleLowerCase("es");
-        if (!unique.has(key)) unique.set(key,{city,region:String(row.region||"").trim()});
-      }
-
-      const rows = [...unique.values()].sort((a,b)=>a.city.localeCompare(b.city,"es"));
-      select.innerHTML = '<option value="">Selecciona una ciudad</option>'+
-        rows.map(row=>'<option value="'+escapeHtml(row.city)+'">'+
-          escapeHtml(row.city+(row.region?" · "+row.region:""))+
-        '</option>').join("");
-
-      if (preferredCity) {
-        const exact = [...select.options].find(option=>
-          option.value.toLocaleLowerCase("es")===String(preferredCity).toLocaleLowerCase("es")
-        );
-        if (exact) select.value = exact.value;
-      }
-    } catch (error) {
-      console.warn("city catalog failed",error);
-      select.innerHTML = '<option value="">No se pudieron cargar las ciudades</option>';
-    } finally {
-      select.disabled = false;
     }
   }
 
@@ -507,7 +437,7 @@
     $("memberAccountPhone").textContent = prettyPhone(data.phone);
     renderMemberUnit();
 
-    await Promise.all([loadMemberAppointments(),loadLeaders()]);
+    await Promise.all([loadMemberAppointments(),loadLeaders(),loadIquiqueUnits()]);
 
     setMemberAppMode("member");
     initializeMemberHistory();
@@ -717,9 +647,99 @@
     } else {
       box.innerHTML =
         '<strong>Unidad todavía no configurada</strong>'+
-        '<span>Puedes buscar una capilla cercana o confirmar tu barrio manualmente.</span>';
+        '<span>Selecciona tu barrio de Iquique en la lista disponible.</span>';
       box.classList.remove("configured");
     }
+  }
+
+  async function loadIquiqueUnits() {
+    const select = $("iquiqueUnitSelect");
+    if (!select) return;
+
+    select.disabled = true;
+    select.innerHTML = '<option value="">Cargando barrios de Iquique…</option>';
+
+    const {data,error}=await db.rpc("search_church_catalog_v2",{
+      p_query:null,
+      p_country_code:"CL",
+      p_region:null,
+      p_city:"Iquique",
+      p_coverage:null,
+      p_limit:20,
+      p_offset:0
+    });
+
+    if (error) {
+      console.warn("Iquique unit load failed",error);
+      select.innerHTML='<option value="">No se pudieron cargar los barrios</option>';
+      setLocationStatus("No se pudieron cargar los barrios de Iquique. Inténtalo nuevamente.","error");
+      select.disabled=false;
+      return;
+    }
+
+    state.iquiqueUnits=(data||[]).filter(row=>
+      String(row.city||"").trim().toLocaleLowerCase("es")==="iquique" &&
+      String(row.country_code||"").toUpperCase()==="CL"
+    );
+
+    select.innerHTML='<option value="">Selecciona tu barrio</option>'+
+      state.iquiqueUnits.map(unit=>
+        '<option value="'+escapeHtml(unit.unit_id)+'">'+
+          escapeHtml(unit.unit_name+(unit.meetinghouse_name?' · '+unit.meetinghouse_name:''))+
+        '</option>'
+      ).join("");
+
+    if (state.member?.church_unit_id && state.iquiqueUnits.some(x=>x.unit_id===state.member.church_unit_id)) {
+      select.value=state.member.church_unit_id;
+    }
+
+    select.disabled=false;
+  }
+
+  async function saveIquiqueUnit() {
+    if (!state.member) return;
+
+    const select=$("iquiqueUnitSelect");
+    const unit=state.iquiqueUnits.find(x=>x.unit_id===select?.value);
+
+    if (!unit) {
+      setLocationStatus("Selecciona uno de los barrios de Iquique antes de guardar.","error");
+      return;
+    }
+
+    const button=$("saveIquiqueUnit");
+    button.disabled=true;
+    button.textContent="Guardando…";
+    clearLocationStatus();
+
+    const {error}=await db.rpc("member_set_church_unit",{
+      p_unit_name:unit.unit_name,
+      p_meetinghouse_name:unit.meetinghouse_name || null,
+      p_city:"Iquique",
+      p_country_code:"CL",
+      p_assignment_method:"manual",
+      p_church_unit_id:unit.unit_id
+    });
+
+    button.disabled=false;
+    button.textContent="Guardar barrio";
+
+    if (error) {
+      setLocationStatus(error.message || "No se pudo guardar tu barrio.","error");
+      return;
+    }
+
+    state.member.church_unit_id=unit.unit_id;
+    state.member.church_unit_name=unit.unit_name;
+    state.member.meetinghouse_name=unit.meetinghouse_name || null;
+    state.member.location_city="Iquique";
+    state.member.location_country_code="CL";
+    state.member.unit_assignment_method="manual";
+
+    renderMemberUnit();
+    renderMemberHome();
+    await loadLeaders();
+    setLocationStatus("Barrio guardado. Ya puedes solicitar una entrevista con los líderes disponibles.","success");
   }
 
   function renderMemberHome() {
@@ -891,1124 +911,6 @@
     $("memberLocationStatus").textContent = "";
   }
 
-  function getPreciseLocation() {
-    return new Promise((resolve,reject)=>{
-      if (!navigator.geolocation) {
-        reject(new Error("Este navegador no permite obtener la ubicación."));
-        return;
-      }
-
-      let best = null;
-      let settled = false;
-      let watchId = null;
-
-      const finish = (value,error=null) => {
-        if (settled) return;
-        settled = true;
-        if (watchId!==null) navigator.geolocation.clearWatch(watchId);
-        clearTimeout(timer);
-        if (error) reject(error);
-        else resolve(value);
-      };
-
-      const messages = {
-        1:"Permiso de ubicación denegado. Habilita la ubicación precisa del navegador o busca tu barrio manualmente.",
-        2:"No fue posible determinar tu ubicación.",
-        3:"La ubicación tardó demasiado en responder. Inténtalo nuevamente."
-      };
-
-      const timer = setTimeout(()=>{
-        if (best) finish(best);
-        else finish(null,new Error("No pudimos obtener una ubicación suficientemente precisa. Revisa que el GPS esté activo."));
-      },12000);
-
-      watchId = navigator.geolocation.watchPosition(
-        position=>{
-          const current = {
-            lat:position.coords.latitude,
-            lon:position.coords.longitude,
-            accuracy:position.coords.accuracy
-          };
-          if (!best || current.accuracy<best.accuracy) best=current;
-          if (current.accuracy<=25) finish(current);
-        },
-        error=>{
-          if (best) finish(best);
-          else finish(null,new Error(messages[error.code] || "No se pudo obtener tu ubicación."));
-        },
-        {enableHighAccuracy:true,timeout:11000,maximumAge:0}
-      );
-    });
-  }
-
-  function distanceKm(lat1,lon1,lat2,lon2) {
-    const rad = value=>value*Math.PI/180;
-    const R = 6371;
-    const dLat = rad(lat2-lat1);
-    const dLon = rad(lon2-lon1);
-    const a =
-      Math.sin(dLat/2)*Math.sin(dLat/2)+
-      Math.cos(rad(lat1))*Math.cos(rad(lat2))*
-      Math.sin(dLon/2)*Math.sin(dLon/2);
-    return 2*R*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-  }
-
-  function pointInRing(point,ring) {
-    const [x,y] = point;
-    let inside = false;
-    for (let i=0,j=ring.length-1;i<ring.length;j=i++) {
-      const [xi,yi] = ring[i];
-      const [xj,yj] = ring[j];
-      const intersect = ((yi>y)!==(yj>y)) &&
-        (x < (xj-xi)*(y-yi)/((yj-yi)||1e-12)+xi);
-      if (intersect) inside = !inside;
-    }
-    return inside;
-  }
-
-  function pointInGeoJson(lon,lat,geojson) {
-    if (!geojson || !geojson.type) return false;
-    const point = [lon,lat];
-
-    if (geojson.type==="Polygon") {
-      return geojson.coordinates?.[0] ? pointInRing(point,geojson.coordinates[0]) : false;
-    }
-
-    if (geojson.type==="MultiPolygon") {
-      return (geojson.coordinates||[]).some(poly=>poly?.[0] && pointInRing(point,poly[0]));
-    }
-
-    if (geojson.type==="Feature") return pointInGeoJson(lon,lat,geojson.geometry);
-    if (geojson.type==="FeatureCollection") {
-      return (geojson.features||[]).some(feature=>pointInGeoJson(lon,lat,feature.geometry));
-    }
-
-    return false;
-  }
-
-  async function reverseLocation(lat,lon) {
-    try {
-      const url =
-        "https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&accept-language=es&lat="+
-        encodeURIComponent(lat)+"&lon="+encodeURIComponent(lon);
-      const response = await fetch(url,{headers:{"Accept":"application/json"}});
-      if (!response.ok) throw new Error("reverse failed");
-      const data = await response.json();
-      const address = data.address || {};
-      return {
-        city:address.city || address.town || address.village || address.municipality || "",
-        countryCode:String(address.country_code||"").toUpperCase(),
-        region:address.state || address.region || "",
-        district:address.state_district || address.county || "",
-        neighbourhood:
-          address.neighbourhood ||
-          address.suburb ||
-          address.quarter ||
-          address.city_district ||
-          address.hamlet ||
-          "",
-        displayName:String(data.display_name||"")
-      };
-    } catch (_) {
-      return {
-        city:"",
-        countryCode:"",
-        region:"",
-        district:"",
-        neighbourhood:"",
-        displayName:""
-      };
-    }
-  }
-
-  async function syncOfficialDirectory({city,countryCode,lat,lon}={}) {
-    try {
-      const body = {};
-      if (city) body.city = city;
-      if (countryCode) body.countryCode = countryCode;
-      if (Number.isFinite(lat)) body.lat = lat;
-      if (Number.isFinite(lon)) body.lon = lon;
-
-      const {data,error} = await db.functions.invoke("church-directory",{body});
-      if (error) {
-        console.warn("official directory sync failed",error);
-        return null;
-      }
-      return data || null;
-    } catch (error) {
-      console.warn("official directory sync failed",error);
-      return null;
-    }
-  }
-
-  function groupCatalogRows(rows,origin=null) {
-    const map = new Map();
-
-    for (const row of rows||[]) {
-      const key = row.meetinghouse_id || [row.country_code,row.city,row.address].join("|");
-      if (!map.has(key)) {
-        const hasCoords = Number.isFinite(row.latitude) && Number.isFinite(row.longitude);
-        map.set(key,{
-          source:"catalog",
-          exact:Boolean(row.boundary_match),
-          matchMethod:row.match_method || null,
-          confidence:row.confidence || null,
-          meetinghouseId:row.meetinghouse_id,
-          unitName:"",
-          units:[],
-          name:row.meetinghouse_name || "Capilla",
-          address:row.address || "",
-          city:row.city || "",
-          region:row.region || "",
-          countryCode:row.country_code || "",
-          lat:hasCoords ? row.latitude : null,
-          lon:hasCoords ? row.longitude : null,
-          officialUrl:row.official_url || null,
-          distanceKm:Number.isFinite(row.distance_km)
-            ? row.distance_km
-            : (hasCoords && origin
-                ? distanceKm(origin.lat,origin.lon,row.latitude,row.longitude)
-                : null),
-          bookingUrl:null
-        });
-      }
-
-      const item = map.get(key);
-      if (row.boundary_match) {
-        item.exact = true;
-        item.matchMethod = "boundary";
-        item.confidence = "exact";
-      } else {
-        item.matchMethod ||= row.match_method || null;
-        item.confidence ||= row.confidence || null;
-      }
-      if (Number.isFinite(row.distance_km)) {
-        item.distanceKm = row.distance_km;
-      }
-      if (row.unit_id && !item.units.some(unit=>unit.id===row.unit_id)) {
-        item.units.push({
-          id:row.unit_id,
-          name:row.unit_name,
-          type:row.unit_type,
-          sundayService:row.sunday_service || "",
-          officialUrl:row.unit_official_url || null,
-          coverageStatus:row.coverage_status || null,
-          leaderCount:Number(row.leader_count||0),
-          boundaryMatch:Boolean(row.boundary_match),
-          matchMethod:row.match_method || null,
-          confidence:row.confidence || null
-        });
-      }
-    }
-
-    return [...map.values()].sort((a,b)=>{
-      const ad = Number.isFinite(a.distanceKm) ? a.distanceKm : Number.MAX_SAFE_INTEGER;
-      const bd = Number.isFinite(b.distanceKm) ? b.distanceKm : Number.MAX_SAFE_INTEGER;
-      if (ad!==bd) return ad-bd;
-      return (a.address||"").localeCompare(b.address||"","es");
-    });
-  }
-
-  async function searchCatalog({query="",countryCode="",city="",origin=null,limit=100}={}) {
-    const [catalogResult,coverageResult] = await Promise.all([
-      db.rpc("search_church_catalog",{
-        p_query:query || null,
-        p_country_code:countryCode || null,
-        p_city:city || null,
-        p_limit:limit
-      }),
-      db.rpc("search_church_catalog_v2",{
-        p_query:query || null,
-        p_country_code:countryCode || null,
-        p_region:null,
-        p_city:city || null,
-        p_coverage:null,
-        p_limit:limit,
-        p_offset:0
-      })
-    ]);
-
-    if (catalogResult.error) {
-      console.warn("catalog search failed",catalogResult.error);
-      return [];
-    }
-
-    const coverageMap=new Map(
-      (coverageResult.data||[]).map(row=>[
-        row.unit_id,
-        {
-          coverage_status:row.coverage_status,
-          leader_count:Number(row.leader_count||0)
-        }
-      ])
-    );
-
-    const rows=(catalogResult.data||[]).map(row=>({
-      ...row,
-      ...(coverageMap.get(row.unit_id)||{})
-    }));
-
-    return groupCatalogRows(rows,origin);
-  }
-
-  async function resolveUnitsByLocation(lat,lon,context={}) {
-    try {
-      const {data,error} = await db.rpc("find_church_units_by_location",{
-        p_lat:lat,
-        p_lon:lon,
-        p_country_code:context.countryCode || null,
-        p_city:context.city || null,
-        p_limit:20
-      });
-
-      if (error) {
-        console.warn("location resolver unavailable",error);
-        return [];
-      }
-
-      return groupCatalogRows((data||[]).map(row=>({
-        meetinghouse_id:row.meetinghouse_id,
-        meetinghouse_name:row.meetinghouse_name,
-        address:row.address,
-        city:row.city,
-        region:row.region,
-        country_code:row.country_code,
-        latitude:row.latitude,
-        longitude:row.longitude,
-        official_url:row.official_url,
-        unit_id:row.unit_id,
-        unit_name:row.unit_name,
-        unit_type:row.unit_type,
-        sunday_service:row.sunday_service,
-        unit_official_url:row.official_url,
-        boundary_match:Boolean(row.boundary_match),
-        distance_km:Number.isFinite(row.distance_km)?row.distance_km:null,
-        match_method:row.match_method || null,
-        confidence:row.confidence || null
-      })),{lat,lon});
-    } catch (error) {
-      console.warn("location resolver failed",error);
-      return [];
-    }
-  }
-
-  async function configuredUnitsNear(lat,lon,context={}) {
-    const resolved = await resolveUnitsByLocation(lat,lon,context);
-    if (resolved.length) return resolved;
-
-    return await searchCatalog({
-      countryCode:context.countryCode || "",
-      city:context.city || "",
-      origin:{lat,lon},
-      limit:100
-    });
-  }
-
-  function catalogCounts(items) {
-    const meetinghouses = items.length;
-    const units = items.reduce((sum,item)=>sum+(item.units?.length||0),0);
-    return {meetinghouses,units};
-  }
-
-  async function fetchJsonWithTimeout(url,timeoutMs=14000) {
-    const controller = new AbortController();
-    const timer = setTimeout(()=>controller.abort(),timeoutMs);
-
-    try {
-      const response = await fetch(url,{
-        headers:{"Accept":"application/json"},
-        signal:controller.signal
-      });
-      if (!response.ok) throw new Error("HTTP "+response.status);
-      return await response.json();
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  function meetinghouseFromOsmElement(item,originLat,originLon) {
-    const plat = item.lat ?? item.center?.lat;
-    const plon = item.lon ?? item.center?.lon;
-    if (!Number.isFinite(plat) || !Number.isFinite(plon)) return null;
-
-    const tags = item.tags || {};
-    const address = [
-      tags["addr:street"],
-      tags["addr:housenumber"],
-      tags["addr:suburb"],
-      tags["addr:city"]
-    ].filter(Boolean).join(" ");
-
-    return {
-      source:"osm",
-      exact:false,
-      unitName:"",
-      name:
-        tags.name ||
-        tags.official_name ||
-        tags.brand ||
-        tags.operator ||
-        "Centro de reuniones de La Iglesia de Jesucristo",
-      address,
-      city:tags["addr:city"] || tags["addr:town"] || tags["addr:village"] || "",
-      countryCode:String(tags["addr:country"]||"").toUpperCase(),
-      lat:plat,
-      lon:plon,
-      distanceKm:distanceKm(originLat,originLon,plat,plon),
-      bookingUrl:null
-    };
-  }
-
-  function mergeMeetinghouses(rows) {
-    const deduped = [];
-    const seen = new Set();
-
-    for (const item of rows.filter(Boolean)) {
-      const coordKey = Number.isFinite(item.lat) && Number.isFinite(item.lon)
-        ? Math.round(item.lat*10000)+":"+Math.round(item.lon*10000)
-        : "";
-      const nameKey = String(item.name||"").toLowerCase().replace(/\s+/g," ").trim();
-      const key = coordKey || nameKey;
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      deduped.push(item);
-    }
-
-    return deduped.sort((a,b)=>{
-      if (a.exact && !b.exact) return -1;
-      if (!a.exact && b.exact) return 1;
-      const ad = Number.isFinite(a.distanceKm) ? a.distanceKm : Number.MAX_SAFE_INTEGER;
-      const bd = Number.isFinite(b.distanceKm) ? b.distanceKm : Number.MAX_SAFE_INTEGER;
-      return ad-bd;
-    });
-  }
-
-  async function osmMeetinghousesNear(lat,lon,radius=30000) {
-    const nameRegex = "Jesucristo|Jesus Christ|Latter[- ]?day|Últimos Días|Ultimos Dias|Santos de los Últimos|Santos de los Ultimos|Iglesia SUD|LDS";
-
-    const query =
-      '[out:json][timeout:12];('+
-      'nwr(around:'+radius+','+lat+','+lon+')["brand:wikidata"="Q42504"];'+
-      'nwr(around:'+radius+','+lat+','+lon+')["operator:wikidata"="Q42504"];'+
-      'nwr(around:'+radius+','+lat+','+lon+')["name"~"'+nameRegex+'",i];'+
-      'nwr(around:'+radius+','+lat+','+lon+')["official_name"~"'+nameRegex+'",i];'+
-      'nwr(around:'+radius+','+lat+','+lon+')["brand"~"'+nameRegex+'",i];'+
-      'nwr(around:'+radius+','+lat+','+lon+')["operator"~"'+nameRegex+'",i];'+
-      'nwr(around:'+radius+','+lat+','+lon+')["denomination"~"mormon|latter.?day|lds",i];'+
-      ');out center tags;';
-
-    const endpoints = [
-      "https://overpass-api.de/api/interpreter?data=",
-      "https://overpass.kumi.systems/api/interpreter?data="
-    ];
-
-    const attempts = endpoints.map(async base=>{
-      const data = await fetchJsonWithTimeout(base+encodeURIComponent(query),9000);
-      return (data.elements||[]).map(item=>meetinghouseFromOsmElement(item,lat,lon));
-    });
-
-    const settled = await Promise.allSettled(attempts);
-    const rows = settled
-      .filter(result=>result.status==="fulfilled")
-      .flatMap(result=>result.value||[]);
-
-    if (!rows.length && settled.every(result=>result.status==="rejected")) {
-      throw new Error("No fue posible consultar centros de reuniones cercanos.");
-    }
-
-    return mergeMeetinghouses(rows);
-  }
-
-  async function nominatimMeetinghousesNear(lat,lon,context={},radiusKm=120) {
-    const latDelta = radiusKm/111;
-    const cos = Math.max(Math.cos(lat*Math.PI/180),0.25);
-    const lonDelta = radiusKm/(111*cos);
-    const viewbox = [
-      lon-lonDelta,
-      lat+latDelta,
-      lon+lonDelta,
-      lat-latDelta
-    ].join(",");
-
-    const spanish = String(navigator.language||"").toLowerCase().startsWith("es");
-    const query = spanish
-      ? "La Iglesia de Jesucristo de los Santos de los Últimos Días"
-      : "The Church of Jesus Christ of Latter-day Saints";
-
-    const params = new URLSearchParams({
-      format:"jsonv2",
-      addressdetails:"1",
-      dedupe:"1",
-      limit:"20",
-      bounded:"1",
-      viewbox,
-      q:query,
-      "accept-language":"es"
-    });
-
-    if (context.countryCode) {
-      params.set("countrycodes",String(context.countryCode).toLowerCase());
-    }
-
-    try {
-      const data = await fetchJsonWithTimeout(
-        "https://nominatim.openstreetmap.org/search?"+params.toString(),
-        12000
-      );
-
-      return mergeMeetinghouses((data||[]).map(item=>{
-        const plat = Number(item.lat);
-        const plon = Number(item.lon);
-        if (!Number.isFinite(plat) || !Number.isFinite(plon)) return null;
-
-        const address = item.address || {};
-        return {
-          source:"nominatim",
-          exact:false,
-          unitName:"",
-          name:
-            address.amenity ||
-            address.building ||
-            String(item.display_name||"").split(",")[0] ||
-            "Centro de reuniones de La Iglesia de Jesucristo",
-          address:String(item.display_name||""),
-          city:address.city || address.town || address.village || address.municipality || "",
-          countryCode:String(address.country_code||context.countryCode||"").toUpperCase(),
-          lat:plat,
-          lon:plon,
-          distanceKm:distanceKm(lat,lon,plat,plon),
-          bookingUrl:null
-        };
-      }));
-    } catch (_) {
-      return [];
-    }
-  }
-
-  async function progressiveMeetinghouseSearch(lat,lon,context={}) {
-    const firstStage = await Promise.allSettled([
-      osmMeetinghousesNear(lat,lon,30000),
-      nominatimMeetinghousesNear(lat,lon,context,120)
-    ]);
-
-    let found = mergeMeetinghouses(
-      firstStage
-        .filter(result=>result.status==="fulfilled")
-        .flatMap(result=>result.value||[])
-    );
-
-    let searchedRadiusKm = 120;
-
-    if (found.length<3) {
-      try {
-        const expanded = await osmMeetinghousesNear(lat,lon,120000);
-        found = mergeMeetinghouses([...found,...expanded]);
-      } catch (_) {}
-    }
-
-    return {
-      rows:found.filter(item=>
-        !Number.isFinite(item.distanceKm) || item.distanceKm<=120
-      ).slice(0,15),
-      searchedRadiusKm
-    };
-  }
-
-  async function findNearbyMeetinghouses() {
-    clearLocationStatus();
-    $("nearbyMeetinghouses").innerHTML = "";
-    $("nearbyMeetinghouses").classList.remove("hidden");
-    $("unitConfirmPanel").classList.add("hidden");
-    $("catalogSearchCard")?.classList.add("hidden");
-    state.manualCatalogOpen = false;
-    state.unitSelectionSource = null;
-    if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Mi barrio todavía no aparece: buscar manualmente";
-
-    const button = $("useMemberLocation");
-    button.disabled = true;
-    button.textContent = "Buscando ubicación…";
-
-    try {
-      const position = await getPreciseLocation();
-
-      setLocationStatus(
-        "Ubicación obtenida con una precisión aproximada de "+Math.round(position.accuracy)+" m. Identificando tu ciudad…",
-        "info"
-      );
-
-      const context = await reverseLocation(position.lat,position.lon);
-      state.locationContext = {
-        ...context,
-        lat:position.lat,
-        lon:position.lon,
-        accuracy:position.accuracy
-      };
-
-      if (context.countryCode && $("catalogCountry")) {
-        $("catalogCountry").value = context.countryCode;
-        await loadCatalogCities(context.countryCode,context.city);
-      } else if ($("catalogCountry")) {
-        await loadCatalogCities($("catalogCountry").value,context.city);
-      }
-
-      const detectedArea = [
-        context.neighbourhood,
-        context.city,
-        context.region
-      ].filter(Boolean).filter((value,index,array)=>array.indexOf(value)===index).join(" · ");
-
-      setLocationStatus(
-        "Ubicación lista"+(detectedArea?" en "+detectedArea:"")+". Consultando nuestro catálogo y el directorio oficial…",
-        "info"
-      );
-
-      await Promise.race([
-        syncOfficialDirectory({
-          city:context.city,
-          countryCode:context.countryCode,
-          lat:position.lat,
-          lon:position.lon
-        }),
-        new Promise(resolve=>setTimeout(()=>resolve(null),16000))
-      ]);
-
-      let catalog = await configuredUnitsNear(position.lat,position.lon,context);
-
-      // El catálogo oficial por ciudad es la fuente principal. OSM queda solo como respaldo.
-      if (!catalog.length) {
-        const fallback = await Promise.race([
-          progressiveMeetinghouseSearch(position.lat,position.lon,context),
-          new Promise(resolve=>setTimeout(()=>resolve({rows:[],searchedRadiusKm:120,timedOut:true}),18000))
-        ]);
-        catalog = fallback.rows || [];
-      }
-
-      state.nearbyMeetinghouses = mergeMeetinghouses(catalog).slice(0,20);
-      renderNearbyMeetinghouses();
-
-      if (state.nearbyMeetinghouses.length) {
-        $("catalogSearchCard")?.classList.add("hidden");
-        state.manualCatalogOpen = false;
-        const counts = catalogCounts(state.nearbyMeetinghouses);
-        const exactMatches = state.nearbyMeetinghouses.filter(item=>item.exact);
-        setLocationStatus(
-          exactMatches.length
-            ? "Detectamos "+counts.units+" barrio(s)/rama(s) candidato(s) y una coincidencia territorial exacta. Confirma tu unidad antes de guardarla."
-            : "Encontramos "+counts.meetinghouses+" capilla(s)"+
-              (counts.units ? " y "+counts.units+" barrio(s)/rama(s)" : "")+
-              (context.city ? " en o cerca de "+context.city : "")+
-              ". La cercanía de una capilla no define tu barrio; revisa y confirma la unidad correcta.",
-          "success"
-        );
-      } else {
-        $("catalogSearchCard")?.classList.remove("hidden");
-        state.manualCatalogOpen = true;
-        if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Ocultar búsqueda manual";
-        setLocationStatus(
-          "No encontramos una capilla automáticamente para esta ubicación. Usa la búsqueda manual por ciudad, capilla o barrio.",
-          "info"
-        );
-      }
-    } catch (error) {
-      setLocationStatus(error.message || "No se pudo obtener tu ubicación.","error");
-    } finally {
-      button.disabled = false;
-      button.textContent = "Usar mi ubicación";
-    }
-  }
-
-  function unitSummary(item) {
-    if (!item.units?.length) return "";
-    return item.units.map(unit=>
-      unit.name+(unit.sundayService?" · "+unit.sundayService:"")
-    ).join(" | ");
-  }
-
-  function renderNearbyMeetinghouses() {
-    const list = $("nearbyMeetinghouses");
-    const rows = state.nearbyMeetinghouses || [];
-
-    if (!rows.length) {
-      list.innerHTML = "";
-      return;
-    }
-
-    list.innerHTML =
-      '<div class="subheading-row"><h3>Capillas cercanas</h3><span class="muted-text">'+rows.length+' encontrada(s)</span></div>'+
-      rows.map((item,index)=>
-        '<article class="meetinghouse-item '+(item.exact?"exact-unit":"")+'">'+
-          '<div>'+
-            (item.exact?'<span class="match-badge">Coincidencia territorial exacta</span>':'')+
-            '<strong>'+escapeHtml(item.name)+'</strong>'+
-            (item.address?'<span>'+escapeHtml(item.address)+'</span>':'')+
-            (item.city?'<span>'+escapeHtml(item.city+(item.region?" · "+item.region:""))+'</span>':'')+
-            (item.units?.length?'<span class="unit-list-text"><strong>Barrios/Ramas:</strong> '+escapeHtml(unitSummary(item))+'</span>':'')+
-            (Number.isFinite(item.distanceKm)?'<small>A '+escapeHtml(item.distanceKm.toFixed(1))+' km aprox.</small>':'')+
-          '</div>'+
-          '<button class="secondary-button" type="button" data-meetinghouse="'+index+'">Seleccionar</button>'+
-        '</article>'
-      ).join("");
-
-    list.querySelectorAll("[data-meetinghouse]").forEach(button=>{
-      button.onclick = () => chooseMeetinghouse(rows[Number(button.dataset.meetinghouse)],null,"gps");
-    });
-  }
-
-  function renderCatalogResults() {
-    const list = $("catalogResults");
-    const rows = state.catalogResults || [];
-
-    if (!rows.length) {
-      list.innerHTML = '<div class="empty">No encontramos coincidencias en el catálogo para esa búsqueda.</div>';
-      return;
-    }
-
-    list.innerHTML = rows.map((item,index)=>
-      '<article class="meetinghouse-item catalog-result-item">'+
-        '<div>'+
-          '<strong>'+escapeHtml(item.name)+'</strong>'+
-          (item.address?'<span>'+escapeHtml(item.address)+'</span>':'')+
-          (item.city?'<span>'+escapeHtml(item.city+(item.region?" · "+item.region:""))+'</span>':'')+
-          (item.units?.length
-            ? '<div class="catalog-unit-buttons">'+item.units.map(unit=>
-                '<button type="button" class="catalog-unit-button" data-catalog-index="'+index+'" data-unit-id="'+escapeHtml(unit.id)+'">'+
-                  escapeHtml(unit.name)+
-                  (unit.sundayService?' · '+escapeHtml(unit.sundayService):'')+
-                  (unit.coverageStatus==="covered"?' · Con cobertura':' · Sin cobertura')+
-                '</button>'
-              ).join("")+'</div>'
-            : '<small>Capilla registrada; si tu barrio todavía no está cargado podrás escribirlo al seleccionar.</small>')+
-        '</div>'+
-        (!item.units?.length
-          ? '<button class="secondary-button" type="button" data-catalog-meetinghouse="'+index+'">Seleccionar capilla</button>'
-          : '')+
-      '</article>'
-    ).join("");
-
-    list.querySelectorAll("[data-catalog-index]").forEach(button=>{
-      button.onclick = () => {
-        const item = rows[Number(button.dataset.catalogIndex)];
-        chooseMeetinghouse(item,button.dataset.unitId,"manual");
-      };
-    });
-
-    list.querySelectorAll("[data-catalog-meetinghouse]").forEach(button=>{
-      button.onclick = () => chooseMeetinghouse(rows[Number(button.dataset.catalogMeetinghouse)],null,"manual");
-    });
-  }
-
-  async function searchManualCatalog() {
-    const countryCode = $("catalogCountry").value;
-    const city = $("catalogCity").value.trim();
-    const query = $("catalogQuery").value.trim();
-    const button = $("catalogSearchBtn");
-
-    if (!city && !query) {
-      $("catalogSearchStatus").textContent = "Selecciona una ciudad o escribe un barrio, capilla o dirección.";
-      return;
-    }
-
-    button.disabled = true;
-    button.textContent = "Buscando…";
-    $("catalogSearchStatus").textContent = "Consultando catálogo…";
-
-    try {
-      // Primero usamos la base local. Solo consultamos el directorio oficial
-      // cuando la ciudad todavía no está cacheada o no tiene coincidencias.
-      state.catalogResults = await searchCatalog({
-        query,
-        countryCode,
-        city,
-        limit:100
-      });
-
-      if (!state.catalogResults.length && city) {
-        $("catalogSearchStatus").textContent = "La ciudad todavía no está cargada. Sincronizando el directorio oficial…";
-        await Promise.race([
-          syncOfficialDirectory({city,countryCode}),
-          new Promise(resolve=>setTimeout(()=>resolve(null),16000))
-        ]);
-
-        state.catalogResults = await searchCatalog({
-          query,
-          countryCode,
-          city,
-          limit:100
-        });
-      }
-
-      const counts = catalogCounts(state.catalogResults);
-      $("catalogSearchStatus").textContent = counts.meetinghouses
-        ? counts.meetinghouses+" capilla(s) y "+counts.units+" barrio(s)/rama(s) encontrados."
-        : "No hay coincidencias todavía. Puedes escribir tu barrio manualmente.";
-      renderCatalogResults();
-    } finally {
-      button.disabled = false;
-      button.textContent = "Buscar";
-    }
-  }
-
-  function chooseMeetinghouse(item,preferredUnitId=null,source="manual") {
-    state.selectedMeetinghouse = item || null;
-    state.unitSelectionSource = source;
-
-    $("nearbyMeetinghouses")?.classList.add("hidden");
-    $("catalogSearchCard")?.classList.add("hidden");
-    if ($("manualUnitBtn")) $("manualUnitBtn").classList.add("hidden");
-
-    $("selectedMeetinghouseName").textContent = item?.name || "Ingreso manual";
-    $("selectedMeetinghouseMeta").textContent = item
-      ? [item.address,item.city,Number.isFinite(item.distanceKm)?item.distanceKm.toFixed(1)+" km aprox.":""].filter(Boolean).join(" · ")
-      : "Escribe el nombre correcto de tu barrio o rama.";
-
-    const units = item?.units || [];
-    const selectWrap = $("memberUnitSelectWrap");
-    const inputWrap = $("memberUnitInputWrap");
-
-    if (units.length) {
-      $("memberUnitSelect").innerHTML = units.map(unit=>
-        '<option value="'+escapeHtml(unit.id)+'">'+escapeHtml(unit.name)+(unit.sundayService?' · '+escapeHtml(unit.sundayService):'')+'</option>'
-      ).join("");
-      if (preferredUnitId && units.some(unit=>unit.id===preferredUnitId)) {
-        $("memberUnitSelect").value = preferredUnitId;
-      }
-      selectWrap.classList.remove("hidden");
-      inputWrap.classList.add("hidden");
-      $("memberUnitName").value = "";
-    } else {
-      selectWrap.classList.add("hidden");
-      inputWrap.classList.remove("hidden");
-      $("memberUnitName").value = item?.unitName || state.member?.church_unit_name || "";
-    }
-
-    const maps = $("selectedGoogleMapsLink");
-    if (item && Number.isFinite(item.lat) && Number.isFinite(item.lon)) {
-      maps.href = "https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(item.lat+","+item.lon);
-      maps.classList.remove("hidden");
-    } else if (item?.address) {
-      maps.href = "https://www.google.com/maps/search/?api=1&query="+encodeURIComponent([item.address,item.city].filter(Boolean).join(", "));
-      maps.classList.remove("hidden");
-    } else {
-      maps.classList.add("hidden");
-      maps.removeAttribute("href");
-    }
-
-    $("unitConfirmPanel").classList.remove("hidden");
-    $("unitConfirmPanel").scrollIntoView({behavior:"smooth",block:"nearest"});
-  }
-
-  async function saveMemberUnit() {
-    if (!state.member) return;
-
-    const item = state.selectedMeetinghouse;
-    const selectedUnitId = !$("memberUnitSelectWrap").classList.contains("hidden")
-      ? $("memberUnitSelect").value
-      : null;
-    const selectedUnit = item?.units?.find(unit=>unit.id===selectedUnitId) || null;
-    const unitName = selectedUnit?.name || $("memberUnitName").value.trim();
-
-    if (unitName.length<2) {
-      setLocationStatus("Selecciona o escribe el nombre de tu barrio o rama antes de guardar.","error");
-      return;
-    }
-
-    const context = state.locationContext || {};
-    const button = $("saveMemberUnit");
-    button.disabled = true;
-    button.textContent = "Guardando…";
-
-    const {error} = await db.rpc("member_set_church_unit",{
-      p_unit_name:unitName,
-      p_meetinghouse_name:item?.name || null,
-      p_city:item?.city || context.city || null,
-      p_country_code:item?.countryCode || context.countryCode || null,
-      p_assignment_method:item?.exact ? "boundary" : item ? "nearby_meetinghouse" : "manual",
-      p_church_unit_id:selectedUnit?.id || null
-    });
-
-    button.disabled = false;
-    button.textContent = "Guardar barrio";
-
-    if (error) {
-      setLocationStatus(error.message || "No se pudo guardar tu barrio.","error");
-      return;
-    }
-
-    state.member.church_unit_id = selectedUnit?.id || null;
-    state.member.church_unit_name = unitName;
-    state.member.meetinghouse_name = item?.name || null;
-    state.member.location_city = item?.city || context.city || null;
-    state.member.location_country_code = item?.countryCode || context.countryCode || null;
-    state.member.unit_assignment_method = item?.exact ? "boundary" : item ? "nearby_meetinghouse" : "manual";
-
-    renderMemberUnit();
-    renderMemberHome();
-    $("unitConfirmPanel").classList.add("hidden");
-    $("nearbyMeetinghouses")?.classList.add("hidden");
-    $("catalogSearchCard")?.classList.add("hidden");
-    if ($("manualUnitBtn")) $("manualUnitBtn").classList.remove("hidden");
-    state.manualCatalogOpen = false;
-    state.unitSelectionSource = null;
-    if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Cambiar mi barrio o capilla";
-    await loadLeaders();
-    setLocationStatus(
-      selectedUnit?.id
-        ? "Barrio y capilla guardados. Ya puedes ver los líderes asignados a tu barrio."
-        : "Barrio guardado manualmente. Para reservar, Secretaría debe vincularlo a una unidad registrada.",
-      "success"
-    );
-  }
-
-  $("memberLoginForm").onsubmit = async event => {
-    event.preventDefault();
-    clearAuthMessage();
-
-    let phone;
-    try {
-      phone = normalizePhone($("memberLoginPhone").value,selectedCountryCode("memberLoginCountry"));
-    } catch (error) {
-      showAuthMessage(error.message);
-      return;
-    }
-
-    const button = event.currentTarget.querySelector('button[type="submit"]');
-    button.disabled = true;
-    button.textContent = "Ingresando…";
-
-    const {data,error} = await db.auth.signInWithPassword({
-      email:memberAuthEmail(phone),
-      password:$("memberLoginPassword").value
-    });
-
-    button.disabled = false;
-    button.textContent = "Ingresar";
-
-    if (error) {
-      showAuthMessage("Número de teléfono o contraseña incorrectos.");
-      return;
-    }
-
-    if (data?.session) await loadMember(data.session);
-  };
-
-  $("memberRegisterForm").onsubmit = async event => {
-    event.preventDefault();
-    clearAuthMessage();
-
-    const fullName = $("memberRegisterName").value.trim();
-    const password = $("memberRegisterPassword").value;
-    const password2 = $("memberRegisterPassword2").value;
-
-    if (password!==password2) {
-      showAuthMessage("Las contraseñas no coinciden.");
-      return;
-    }
-
-    let phone;
-    try {
-      phone = normalizePhone($("memberRegisterPhone").value,selectedCountryCode("memberRegisterCountry"));
-    } catch (error) {
-      showAuthMessage(error.message);
-      return;
-    }
-
-    const button = event.currentTarget.querySelector('button[type="submit"]');
-    button.disabled = true;
-    button.textContent = "Creando…";
-
-    const {data,error} = await db.auth.signUp({
-      email:memberAuthEmail(phone),
-      password,
-      options:{
-        data:{
-          account_type:"member",
-          full_name:fullName,
-          phone_e164:phone
-        }
-      }
-    });
-
-    button.disabled = false;
-    button.textContent = "Crear mi cuenta";
-
-    if (error) {
-      const msg = String(error.message||"");
-      if (/already|registered|exists/i.test(msg)) {
-        showAuthMessage("Ese número ya tiene una cuenta. Usa “Ingresar”.");
-      } else {
-        showAuthMessage(/email rate limit exceeded/i.test(msg) ? "Supabase está intentando enviar un correo de confirmación. Desactiva Confirm email en Authentication → Providers → Email, guarda y vuelve a intentarlo." : "No se pudo crear la cuenta. Revisa los datos e inténtalo nuevamente.");
-      }
-      return;
-    }
-
-    if (data?.session) {
-      await loadMember(data.session);
-    } else {
-      showAuthMessage("La cuenta fue creada, pero falta desactivar “Confirm email” en Authentication → Providers → Email. Después podrás ingresar solo con teléfono y contraseña, sin SMS.","info");
-    }
-  };
-
-  $("bookingForm").onsubmit = async event => {
-    event.preventDefault();
-    clearBookingError();
-
-    if (!state.member || !state.session) {
-      showBookingError("Inicia sesión con tu cuenta de miembro.");
-      return;
-    }
-
-    const interviewTypeId = state.interviewTypes[0]?.id || null;
-    const availabilityId = state.selectedSlot?.id;
-
-    if (!state.selectedLeader || !interviewTypeId || !availabilityId) {
-      showBookingError("Selecciona líder, día y hora.");
-      return;
-    }
-
-    const submit = $("submitBooking");
-    submit.disabled = true;
-    submit.textContent = "Enviando…";
-
-    const {error} = await db.from("appointments").insert({
-      availability_id:availabilityId,
-      interview_type_id:interviewTypeId
-    });
-
-    submit.disabled = false;
-    submit.textContent = "Solicitar entrevista";
-
-    if (error) {
-      if (error.code==="23505" || /unique|booked/i.test(String(error.message||""))) {
-        showBookingError("Ese horario acaba de ser solicitado por otra persona. Elige otro horario.");
-        const activeButton = document.querySelector('[data-leader-id="'+state.selectedLeader.id+'"]');
-        if (activeButton) await selectLeader(state.selectedLeader,activeButton);
-      } else {
-        showBookingError("No se pudo enviar la solicitud. Inténtalo nuevamente.");
-      }
-      return;
-    }
-
-    $("bookingCard").classList.add("hidden");
-    $("successBox").classList.remove("hidden");
-    await loadMemberAppointments();
-    $("successBox").scrollIntoView({behavior:"smooth"});
-  };
-
-  $("useMemberLocation").onclick = findNearbyMeetinghouses;
-  $("manualUnitBtn").onclick = () => {
-    const card = $("catalogSearchCard");
-    state.manualCatalogOpen = !state.manualCatalogOpen;
-
-    if (state.manualCatalogOpen) {
-      card?.classList.remove("hidden");
-      $("nearbyMeetinghouses")?.classList.add("hidden");
-      $("unitConfirmPanel")?.classList.add("hidden");
-      state.selectedMeetinghouse = null;
-      state.unitSelectionSource = null;
-      $("manualUnitBtn").textContent = "Volver a capillas encontradas";
-      card?.scrollIntoView({behavior:"smooth",block:"nearest"});
-    } else {
-      card?.classList.add("hidden");
-      if (state.nearbyMeetinghouses?.length) $("nearbyMeetinghouses")?.classList.remove("hidden");
-      $("manualUnitBtn").textContent = "Mi barrio todavía no aparece: buscar manualmente";
-    }
-  };
-  $("catalogSearchBtn").onclick = searchManualCatalog;
-  $("catalogCountry").onchange = async () => {
-    state.catalogResults = [];
-    $("catalogResults").innerHTML = "";
-    $("catalogSearchStatus").textContent = "Cargando ciudades del país…";
-    await loadCatalogCities($("catalogCountry").value);
-    $("catalogSearchStatus").textContent = "Selecciona una ciudad para ver sus barrios/ramas.";
-  };
-  $("catalogCity").onchange = async () => {
-    if (!$("catalogCity").value) {
-      state.catalogResults = [];
-      $("catalogResults").innerHTML = "";
-      return;
-    }
-    await searchManualCatalog();
-  };
-  $("catalogQuery").addEventListener("keydown",event=>{
-    if (event.key==="Enter") {
-      event.preventDefault();
-      searchManualCatalog();
-    }
-  });
-
-  $("cancelMeetinghouseSelection").onclick = () => {
-    $("unitConfirmPanel").classList.add("hidden");
-    state.selectedMeetinghouse = null;
-
-    if ($("manualUnitBtn")) $("manualUnitBtn").classList.remove("hidden");
-
-    if (state.unitSelectionSource==="manual") {
-      $("catalogSearchCard")?.classList.remove("hidden");
-      $("nearbyMeetinghouses")?.classList.add("hidden");
-      state.manualCatalogOpen = true;
-      if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Volver a capillas encontradas";
-    } else {
-      $("catalogSearchCard")?.classList.add("hidden");
-      if (state.nearbyMeetinghouses?.length) $("nearbyMeetinghouses")?.classList.remove("hidden");
-      state.manualCatalogOpen = false;
-      if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Mi barrio todavía no aparece: buscar manualmente";
-    }
-
-    state.unitSelectionSource = null;
-  };
-  $("saveMemberUnit").onclick = saveMemberUnit;
-
-  $("memberMenuToggle").onclick = () => {
-    const open = $("memberSidebar")?.classList.contains("open");
-    if (open) closeMemberMenu();
-    else openMemberMenu();
-  };
-  $("memberSidebarBackdrop").onclick = closeMemberMenu;
-  document.querySelectorAll("[data-member-view]").forEach(button=>{
-    button.addEventListener("click",()=>showMemberView(button.dataset.memberView));
-  });
-
-  $("showMemberLogin").onclick = () => setAuthTab("login");
-  $("showMemberRegister").onclick = () => setAuthTab("register");
-  $("memberRefreshAppointments").onclick = loadMemberAppointments;
-
-  $("memberLogoutBtn").onclick = async () => {
-    showBootLoading("Cerrando sesión…");
-    await db.auth.signOut({scope:"local"});
-    state.session = null;
-    state.member = null;
-    resetMemberHistory();
-    setAuthTab("login");
-    setMemberAppMode("guest");
-  };
-
-  $("newRequestBtn").onclick = () => {
-    $("successBox").classList.add("hidden");
-    $("bookingCard").classList.remove("hidden");
-    $("bookingForm").classList.add("hidden");
-    state.selectedLeader = null;
-    state.selectedDateKey = null;
-    state.selectedSlot = null;
-    state.interviewTypes = [];
-    $("autoInterviewType")?.classList.add("hidden");
-    document.querySelectorAll(".leader-card").forEach(el=>el.classList.remove("active"));
-    showMemberView("booking");
-  };
-
-  $("viewMyAppointmentsBtn").onclick = () => showMemberView("appointments");
-
-  db.auth.onAuthStateChange((event,session)=>{
-    if (event==="SIGNED_OUT") {
-      state.session = null;
-      state.member = null;
-      resetMemberHistory();
-      if (state.booted) {
-        setAuthTab("login");
-        setMemberAppMode("guest");
-      }
-    }
-  });
-
   async function boot({force=false}={}) {
     if (bootPromise && !force) return bootPromise;
 
@@ -2019,13 +921,11 @@
         const detectedIso = detectCountryIso();
         populateCountrySelect("memberLoginCountry",detectedIso);
         populateCountrySelect("memberRegisterCountry",detectedIso);
-        populateCatalogCountrySelect(detectedIso);
         bindCountrySelectors();
 
         const [sessionResult] = await Promise.all([
           db.auth.getSession(),
-          loadSettings(),
-          loadCatalogCities($("catalogCountry")?.value || detectedIso)
+          loadSettings()
         ]);
 
         if (sessionResult.error) {

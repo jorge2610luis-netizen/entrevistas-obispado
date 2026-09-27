@@ -48,7 +48,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.2.2";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.3.0";
 
   const leaderRole = {
     bishop:"bishop",
@@ -267,108 +267,6 @@
     const unitId=currentUnitId();
     if (unitId && appointment.church_unit_id!==unitId) return false;
     return appointment.assigned_profile_id===state.user?.id;
-  }
-
-  function populateCountrySelect() {
-    const select=$("adminUnitCountry");
-    if (!select) return;
-
-    const preferred=currentUnit()?.country_code || state.accessibleUnits[0]?.country_code || "CL";
-
-    if (!select.options.length) {
-      select.innerHTML=[
-        ["BO","Bolivia"],
-        ["CL","Chile"]
-      ].map(([code,name])=>
-        '<option value="'+code+'">'+e(name)+'</option>'
-      ).join("");
-    }
-
-    if ([...select.options].some(o=>o.value===preferred)) {
-      select.value=preferred;
-    }
-  }
-
-  async function loadRegionsForCountry(countryCode) {
-    const {data,error}=await db.from("directory_regions")
-      .select("country_code,country_name,region_name,region_type,sort_order")
-      .eq("country_code",countryCode)
-      .order("sort_order");
-
-    if (error) {
-      state.regions=[];
-      return;
-    }
-
-    state.regions=data||[];
-    const select=$("adminUnitRegion");
-    if (!select) return;
-
-    const previous=select.value;
-    select.innerHTML='<option value="">'+(countryCode==="BO"?"Todos los departamentos":"Todas las regiones")+'</option>'+
-      state.regions.map(x=>'<option value="'+e(x.region_name)+'">'+e(x.region_name)+'</option>').join("");
-
-    if (previous && state.regions.some(x=>x.region_name===previous)) {
-      select.value=previous;
-    }
-  }
-
-  async function loadCountryPlaces(countryCode, selectedRegion="") {
-    let {data,error}=await db.from("church_directory_places")
-      .select("city_name,region")
-      .eq("country_code",countryCode)
-      .order("city_name")
-      .limit(500);
-
-    if (!error && (!data || !data.length)) {
-      try {
-        await db.functions.invoke("church-directory",{
-          body:{action:"country-index",countryCode}
-        });
-        const retry=await db.from("church_directory_places")
-          .select("city_name,region")
-          .eq("country_code",countryCode)
-          .order("city_name")
-          .limit(500);
-        data=retry.data||[];
-      } catch (_) {}
-    }
-
-    const list=$("adminUnitCity");
-    if (list) {
-      const previous=list.value;
-      const unique=new Map();
-      for (const row of data||[]) {
-        const city=String(row.city_name||"").trim();
-        const region=String(row.region||"").trim();
-        if (!city) continue;
-        // Nunca permitir combinar una región elegida con una ciudad de otra.
-        // Las ciudades sin región aún se completan mediante la sincronización oficial.
-        if (selectedRegion && region && region!==selectedRegion) continue;
-        const key=city.toLocaleLowerCase("es");
-        if (!unique.has(key)) unique.set(key,{city,region});
-      }
-      const rows=[...unique.values()].sort((a,b)=>{
-        if (selectedRegion) {
-          const aRank=a.region===selectedRegion ? 0 : 1;
-          const bRank=b.region===selectedRegion ? 0 : 1;
-          if (aRank!==bRank) return aRank-bRank;
-        }
-        return a.city.localeCompare(b.city,"es");
-      });
-      list.innerHTML='<option value="">'+(selectedRegion && !rows.length
-        ? "Sin ciudades clasificadas todavía"
-        : "Todas las ciudades")+'</option>'+
-        rows.map(x=>'<option value="'+e(x.city)+'">'+e(
-          x.city+(x.region?' · '+x.region:(selectedRegion?' · Región por clasificar':''))
-        )+'</option>').join("");
-      list.disabled=Boolean(selectedRegion && !rows.length);
-      if (previous && rows.some(x=>x.city===previous)) list.value=previous;
-    }
-
-    if ($("directorySyncStatus") && data?.length) {
-      $("directorySyncStatus").textContent=data.length+" zona(s) oficiales indexadas para "+countryCode+".";
-    }
   }
 
   function populateAdministrativeUnitFilters() {
@@ -952,7 +850,6 @@
       state.staffAssignments=[];
     }
 
-    populateCountrySelect();
     populateActiveUnitSelect();
     populateAdministrativeUnitFilters();
     await loadRequestLeaderOptions();
@@ -970,9 +867,8 @@
     }
 
     if (isSecretaryAdmin()) {
-      await loadRegionsForCountry($("adminUnitCountry")?.value||"BO");
-      await loadCountryPlaces($("adminUnitCountry")?.value||"BO");
       await loadDirectoryPage();
+      await searchAdminUnits();
       renderAdminSelectedUnit();
     }
   }
@@ -1230,63 +1126,44 @@
     if (!isSecretaryAdmin()) return;
 
     const button=$("adminUnitSearchBtn");
-    const countryCode=$("adminUnitCountry").value;
-    const region=$("adminUnitRegion")?.value || "";
-    const city=$("adminUnitCity").value.trim();
-    const query=$("adminUnitQuery").value.trim();
+    const query=$("adminUnitQuery")?.value.trim() || "";
     const coverage=$("adminCoverageFilter")?.value || "";
 
-    button.disabled=true;
-    button.textContent="Buscando…";
-    $("adminUnitSearchStatus").textContent="Buscando barrios y ramas…";
+    if (button) {
+      button.disabled=true;
+      button.textContent="Buscando…";
+    }
+    $("adminUnitSearchStatus").textContent="Buscando barrios de Iquique…";
 
     try {
-      const runLocalSearch = async () => {
-        const {data,error}=await db.rpc("search_church_catalog_v2",{
-          p_query:query || null,
-          p_country_code:countryCode || null,
-          p_region:region || null,
-          p_city:city || null,
-          p_coverage:coverage || null,
-          p_limit:100,
-          p_offset:0
-        });
-        if (error) throw error;
-        return groupAdminUnitRows(data||[]);
-      };
+      const {data,error}=await db.rpc("search_church_catalog_v2",{
+        p_query:query || null,
+        p_country_code:"CL",
+        p_region:null,
+        p_city:"Iquique",
+        p_coverage:coverage || null,
+        p_limit:20,
+        p_offset:0
+      });
+      if (error) throw error;
 
-      // La búsqueda normal siempre usa primero la base de datos.
-      state.adminUnitResults=await runLocalSearch();
-
-      // Si esa ciudad todavía no fue cargada, intentamos una sincronización puntual
-      // y consultamos nuevamente. La búsqueda no depende del botón de actualización.
-      if (!state.adminUnitResults.length && city) {
-        $("adminUnitSearchStatus").textContent="No hay barrios cacheados todavía. Sincronizando "+city+"…";
-        try {
-          await Promise.race([
-            db.functions.invoke("church-directory",{
-              body:{action:"sync-city",city,countryCode}
-            }),
-            new Promise(resolve=>setTimeout(()=>resolve(null),15000))
-          ]);
-        } catch (error) {
-          console.warn("city directory sync failed",error);
-        }
-        state.adminUnitResults=await runLocalSearch();
-      }
+      state.adminUnitResults=groupAdminUnitRows(data||[]).filter(unit=>
+        String(unit.city||"").trim().toLocaleLowerCase("es")==="iquique" &&
+        String(unit.country_code||"").toUpperCase()==="CL"
+      );
 
       $("adminUnitSearchStatus").textContent=state.adminUnitResults.length
-        ? state.adminUnitResults.length+" barrio(s)/rama(s) encontrado(s)."
-        : city
-          ? "La ciudad está disponible, pero sus barrios/ramas aún no se han sincronizado. Pulsa “Actualizar directorio oficial del país” e inténtalo nuevamente."
-          : "Selecciona una ciudad de la región o actualiza el directorio oficial.";
+        ? state.adminUnitResults.length+" barrio(s) de Iquique encontrado(s)."
+        : "No se encontraron barrios de Iquique con esos filtros.";
       renderAdminUnitResults();
     } catch (error) {
-      $("adminUnitSearchStatus").textContent=error?.message || "No se pudo buscar el barrio.";
+      $("adminUnitSearchStatus").textContent=error?.message || "No se pudieron cargar los barrios de Iquique.";
       $("adminUnitResults").innerHTML="";
     } finally {
-      button.disabled=false;
-      button.textContent="Buscar";
+      if (button) {
+        button.disabled=false;
+        button.textContent="Buscar";
+      }
     }
   }
 
@@ -1317,121 +1194,6 @@
     $("adminUnitResults").querySelectorAll("[data-admin-unit]").forEach(button=>{
       button.onclick=()=>selectAdminUnit(button.dataset.adminUnit);
     });
-  }
-
-  async function syncOfficialCountryDirectory() {
-    if (!isSecretaryAdmin()) return;
-
-    const button=$("syncOfficialDirectory");
-    const status=$("directorySyncStatus");
-    const countryCode=$("adminUnitCountry").value;
-    const progressKey="church-directory-progress-"+countryCode;
-    let offset=Number(localStorage.getItem(progressKey)||0);
-    let total=null;
-    let processedTotal=0;
-
-    button.disabled=true;
-    button.textContent="Sincronizando…";
-    status.textContent="Leyendo el directorio oficial…";
-
-    try {
-      for (let batchIndex=0;batchIndex<80;batchIndex++) {
-        const {data,error}=await db.functions.invoke("church-directory",{
-          body:{
-            action:"sync-country-batch",
-            countryCode,
-            offset,
-            limit:3
-          }
-        });
-
-        if (error) throw error;
-        if (!data) throw new Error("El directorio oficial no respondió.");
-
-        total=Number(data.total||0);
-        processedTotal+=Number(data.processed||0);
-        offset=Number(data.nextOffset||offset);
-        localStorage.setItem(progressKey,String(offset));
-
-        const meetinghouses=(data.results||[]).reduce((sum,x)=>sum+Number(x.meetinghouses||0),0);
-        const units=(data.results||[]).reduce((sum,x)=>sum+Number(x.units||0),0);
-
-        status.textContent="Directorio "+countryCode+": "+Math.min(offset,total||offset)+
-          " de "+(total||"?")+" zonas · +"+meetinghouses+" capilla(s) · +"+units+" barrio(s)/rama(s).";
-
-        if (data.done || !data.processed) break;
-      }
-
-      if (total && offset>=total) {
-        localStorage.setItem(progressKey,String(total));
-        status.textContent="Zonas revisadas. Indexando barrios y ramas oficiales…";
-      } else {
-        status.textContent="Zonas parcialmente revisadas. Indexando también barrios y ramas oficiales…";
-      }
-
-      let unitIndex=null;
-      try {
-        const indexResult=await db.functions.invoke("church-directory",{
-          body:{action:"unit-index",countryCode}
-        });
-        if (!indexResult.error) unitIndex=indexResult.data || null;
-      } catch (error) {
-        console.warn("unit directory index failed",error);
-      }
-
-      let unitProcessed=0;
-      let unitRemaining=null;
-      for (let batchIndex=0;batchIndex<100;batchIndex++) {
-        try {
-          const {data,error}=await db.functions.invoke("church-directory",{
-            body:{action:"sync-unit-batch",countryCode,limit:8}
-          });
-          if (error) throw error;
-          if (!data) break;
-
-          unitProcessed+=Number(data.processed||0);
-          unitRemaining=Number(data.remaining||0);
-
-          status.textContent="Directorio "+countryCode+": "+
-            (total?Math.min(offset,total)+" de "+total+" zonas · ":"")+
-            unitProcessed+" barrio(s)/rama(s) procesados en esta tanda"+
-            (unitRemaining!==null?" · "+unitRemaining+" pendientes":"")+".";
-
-          if (data.done || !data.processed) break;
-        } catch (error) {
-          console.warn("unit directory batch failed",error);
-          break;
-        }
-      }
-
-      if (unitIndex?.discovered && unitRemaining===0) {
-        status.textContent="Directorio oficial actualizado: "+unitIndex.discovered+
-          " páginas de barrio/rama indexadas para "+countryCode+".";
-      } else if (unitProcessed>0) {
-        status.textContent="Directorio actualizado parcialmente: "+unitProcessed+
-          " barrio(s)/rama(s) procesados en esta tanda"+
-          (unitRemaining!==null?" · "+unitRemaining+" pendientes.":".")+
-          " Pulsa nuevamente para continuar.";
-      } else if (total && offset>=total) {
-        status.textContent="Directorio de ciudades y capillas actualizado. Los barrios/ramas se completarán en las siguientes tandas.";
-      } else {
-        status.textContent="Sincronización pausada. Se revisaron "+processedTotal+" zona(s) en esta tanda; pulsa nuevamente para continuar.";
-      }
-
-      const unitsResult=await db.rpc("staff_accessible_units");
-      if (!unitsResult.error) {
-        state.accessibleUnits=unitsResult.data||[];
-        populateActiveUnitSelect();
-        populateAdministrativeUnitFilters();
-      }
-
-      await searchAdminUnits();
-    } catch (error) {
-      status.textContent=error?.message || "No se pudo sincronizar el directorio.";
-    } finally {
-      button.disabled=false;
-      button.textContent="Actualizar directorio oficial del país";
-    }
   }
 
   async function selectAdminUnit(unitId) {
@@ -2268,26 +2030,6 @@
   $("goAssignLeaders").onclick = () => setPanelView("units");
 
   $("adminUnitSearchBtn").onclick = searchAdminUnits;
-  $("syncOfficialDirectory").onclick = syncOfficialCountryDirectory;
-  $("adminUnitCountry").onchange = async () => {
-    $("adminUnitRegion").value="";
-    await loadRegionsForCountry($("adminUnitCountry").value);
-    await loadCountryPlaces($("adminUnitCountry").value);
-    state.adminUnitResults=[];
-    $("adminUnitResults").innerHTML="";
-    $("adminUnitSearchStatus").textContent="Selecciona región, ciudad o busca un barrio.";
-  };
-  $("adminUnitRegion").onchange = async () => {
-    const countryCode=$("adminUnitCountry").value;
-    const region=$("adminUnitRegion").value;
-    await loadCountryPlaces(countryCode,region);
-    state.adminUnitResults=[];
-    $("adminUnitResults").innerHTML="";
-    $("adminUnitSearchStatus").textContent=region
-      ? "Selecciona una ciudad de la región elegida."
-      : "Selecciona región, ciudad o busca un barrio.";
-  };
-  $("adminUnitCity").onchange = searchAdminUnits;
   $("adminCoverageFilter").onchange = searchAdminUnits;
   $("adminUnitQuery").addEventListener("keydown",event=>{
     if (event.key==="Enter") {
