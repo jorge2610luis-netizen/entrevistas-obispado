@@ -1613,19 +1613,29 @@
     $("catalogSearchStatus").textContent = "Consultando catálogo…";
 
     try {
-      if (city) {
-        await Promise.race([
-          syncOfficialDirectory({city,countryCode}),
-          new Promise(resolve=>setTimeout(()=>resolve(null),16000))
-        ]);
-      }
-
+      // Primero usamos la base local. Solo consultamos el directorio oficial
+      // cuando la ciudad todavía no está cacheada o no tiene coincidencias.
       state.catalogResults = await searchCatalog({
         query,
         countryCode,
         city,
         limit:100
       });
+
+      if (!state.catalogResults.length && city) {
+        $("catalogSearchStatus").textContent = "La ciudad todavía no está cargada. Sincronizando el directorio oficial…";
+        await Promise.race([
+          syncOfficialDirectory({city,countryCode}),
+          new Promise(resolve=>setTimeout(()=>resolve(null),16000))
+        ]);
+
+        state.catalogResults = await searchCatalog({
+          query,
+          countryCode,
+          city,
+          limit:100
+        });
+      }
 
       const counts = catalogCounts(state.catalogResults);
       $("catalogSearchStatus").textContent = counts.meetinghouses
