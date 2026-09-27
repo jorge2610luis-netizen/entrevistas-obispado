@@ -19,13 +19,23 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v2.8.1";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v2.8.2";
 
   const leaderRole = {
     bishop:"bishop",
     first_counselor:"first_counselor",
     second_counselor:"second_counselor"
   };
+
+  const INTERNAL_ROLES = new Set([
+    "secretary_admin",
+    "secretary",
+    "bishop",
+    "first_counselor",
+    "second_counselor"
+  ]);
+
+  const isInternalRole = role => INTERNAL_ROLES.has(role);
 
   const titleByRole = {
     secretary_admin:"Panel del Secretario Administrador",
@@ -65,7 +75,7 @@
     timeStyle:"short"
   }).format(new Date(value));
 
-  const isSecretaryStaff = () => ["secretary_admin","secretary"].includes(state.profile?.role);
+  const isSecretaryStaff = () => isInternalRole(state.profile?.role) && ["secretary_admin","secretary"].includes(state.profile?.role);
   const isSecretaryAdmin = () => state.profile?.role==="secretary_admin";
 
   function alertGlobal(message,type="info") {
@@ -156,12 +166,26 @@
   async function enterAuthenticated(session) {
     state.user = session.user;
 
+    const {data:allowed,error:accessError} = await db.rpc("can_access_internal_panel");
+
+    if (accessError || allowed!==true) {
+      state.profile = null;
+      showUnauthorized();
+      return;
+    }
+
     const {data:profile,error} = await db.from("profiles")
       .select("role,display_name,is_active")
       .eq("id",session.user.id)
       .maybeSingle();
 
-    if (error || !profile?.role || profile.is_active===false) {
+    if (
+      error ||
+      !profile ||
+      profile.is_active===false ||
+      !isInternalRole(profile.role)
+    ) {
+      state.profile = null;
       showUnauthorized();
       return;
     }
