@@ -17,12 +17,13 @@
     locationContext:null,
     selectedMeetinghouse:null,
     nearbyMeetinghouses:[],
+    catalogResults:[],
     booted:false
   };
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.6.3";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.7.0";
 
 
   const PHONE_COUNTRIES = [
@@ -170,6 +171,17 @@
     else {
       const fallback = [...select.options].find(option=>option.dataset.iso==="BO");
       if (fallback) fallback.selected = true;
+    }
+  }
+
+  function populateCatalogCountrySelect(detectedIso) {
+    const select = $("catalogCountry");
+    if (!select) return;
+    select.innerHTML = PHONE_COUNTRIES.map(([iso,,name]) =>
+      '<option value="'+iso+'" '+(iso===detectedIso?'selected':'')+'>'+name+'</option>'
+    ).join("");
+    if (![...select.options].some(option=>option.value===detectedIso)) {
+      select.value = "CL";
     }
   }
 
@@ -673,21 +685,45 @@
         return;
       }
 
-      navigator.geolocation.getCurrentPosition(
-        position=>resolve({
-          lat:position.coords.latitude,
-          lon:position.coords.longitude,
-          accuracy:position.coords.accuracy
-        }),
-        error=>{
-          const messages = {
-            1:"Permiso de ubicación denegado. Puedes habilitarlo en el navegador o ingresar tu barrio manualmente.",
-            2:"No fue posible determinar tu ubicación.",
-            3:"La ubicación tardó demasiado en responder. Inténtalo nuevamente."
+      let best = null;
+      let settled = false;
+      let watchId = null;
+
+      const finish = (value,error=null) => {
+        if (settled) return;
+        settled = true;
+        if (watchId!==null) navigator.geolocation.clearWatch(watchId);
+        clearTimeout(timer);
+        if (error) reject(error);
+        else resolve(value);
+      };
+
+      const messages = {
+        1:"Permiso de ubicación denegado. Habilita la ubicación precisa del navegador o busca tu barrio manualmente.",
+        2:"No fue posible determinar tu ubicación.",
+        3:"La ubicación tardó demasiado en responder. Inténtalo nuevamente."
+      };
+
+      const timer = setTimeout(()=>{
+        if (best) finish(best);
+        else finish(null,new Error("No pudimos obtener una ubicación suficientemente precisa. Revisa que el GPS esté activo."));
+      },12000);
+
+      watchId = navigator.geolocation.watchPosition(
+        position=>{
+          const current = {
+            lat:position.coords.latitude,
+            lon:position.coords.longitude,
+            accuracy:position.coords.accuracy
           };
-          reject(new Error(messages[error.code] || "No se pudo obtener tu ubicación."));
+          if (!best || current.accuracy<best.accuracy) best=current;
+          if (current.accuracy<=25) finish(current);
         },
-        {enableHighAccuracy:true,timeout:15000,maximumAge:30000}
+        error=>{
+          if (best) finish(best);
+          else finish(null,new Error(messages[error.code] || "No se pudo obtener tu ubicación."));
+        },
+        {enableHighAccuracy:true,timeout:11000,maximumAge:0}
       );
     });
   }
@@ -755,30 +791,103 @@
     }
   }
 
-  async function configuredUnitsNear(lat,lon) {
-    const {data,error} = await db.from("church_units")
-      .select("id,unit_name,unit_type,stake_or_district,meetinghouse_name,address,city,country_code,latitude,longitude,boundary_geojson,booking_url")
-      .eq("is_active",true);
+  async function syncOfficialDirectory({city,countryCode,lat,lon}={}) {
+    try {
+      const body = {};
+      if (city) body.city = city;
+      if (countryCode) body.countryCode = countryCode;
+      if (Number.isFinite(lat)) body.lat = lat;
+      if (Number.isFinite(lon)) body.lon = lon;
 
-    if (error) return [];
+      const {data,error} = await db.functions.invoke("church-directory",{body});
+      if (error) {
+        console.warn("official directory sync failed",error);
+        return null;
+      }
+      return data || null;
+    } catch (error) {
+      console.warn("official directory sync failed",error);
+      return null;
+    }
+  }
 
-    return (data||[]).map(unit=>{
-      const exact = pointInGeoJson(lon,lat,unit.boundary_geojson);
-      const hasCoords = Number.isFinite(unit.latitude) && Number.isFinite(unit.longitude);
-      return {
-        source:"configured",
-        exact,
-        unitName:unit.unit_name,
-        name:unit.meetinghouse_name || unit.unit_name,
-        address:unit.address || "",
-        city:unit.city || "",
-        countryCode:unit.country_code || "",
-        lat:hasCoords ? unit.latitude : null,
-        lon:hasCoords ? unit.longitude : null,
-        distanceKm:hasCoords ? distanceKm(lat,lon,unit.latitude,unit.longitude) : null,
-        bookingUrl:unit.booking_url || null
-      };
-    }).filter(item=>item.exact || item.distanceKm!==null);
+  function groupCatalogRows(rows,origin=null) {
+    const map = new Map();
+
+    for (const row of rows||[]) {
+      const key = row.meetinghouse_id || [row.country_code,row.city,row.address].join("|");
+      if (!map.has(key)) {
+        const hasCoords = Number.isFinite(row.latitude) && Number.isFinite(row.longitude);
+        map.set(key,{
+          source:"catalog",
+          exact:false,
+          meetinghouseId:row.meetinghouse_id,
+          unitName:"",
+          units:[],
+          name:row.meetinghouse_name || "Capilla",
+          address:row.address || "",
+          city:row.city || "",
+          region:row.region || "",
+          countryCode:row.country_code || "",
+          lat:hasCoords ? row.latitude : null,
+          lon:hasCoords ? row.longitude : null,
+          officialUrl:row.official_url || null,
+          distanceKm:hasCoords && origin
+            ? distanceKm(origin.lat,origin.lon,row.latitude,row.longitude)
+            : null,
+          bookingUrl:null
+        });
+      }
+
+      const item = map.get(key);
+      if (row.unit_id && !item.units.some(unit=>unit.id===row.unit_id)) {
+        item.units.push({
+          id:row.unit_id,
+          name:row.unit_name,
+          type:row.unit_type,
+          sundayService:row.sunday_service || "",
+          officialUrl:row.unit_official_url || null
+        });
+      }
+    }
+
+    return [...map.values()].sort((a,b)=>{
+      const ad = Number.isFinite(a.distanceKm) ? a.distanceKm : Number.MAX_SAFE_INTEGER;
+      const bd = Number.isFinite(b.distanceKm) ? b.distanceKm : Number.MAX_SAFE_INTEGER;
+      if (ad!==bd) return ad-bd;
+      return (a.address||"").localeCompare(b.address||"","es");
+    });
+  }
+
+  async function searchCatalog({query="",countryCode="",city="",origin=null,limit=100}={}) {
+    const {data,error} = await db.rpc("search_church_catalog",{
+      p_query:query || null,
+      p_country_code:countryCode || null,
+      p_city:city || null,
+      p_limit:limit
+    });
+
+    if (error) {
+      console.warn("catalog search failed",error);
+      return [];
+    }
+
+    return groupCatalogRows(data||[],origin);
+  }
+
+  async function configuredUnitsNear(lat,lon,context={}) {
+    return await searchCatalog({
+      countryCode:context.countryCode || "",
+      city:context.city || "",
+      origin:{lat,lon},
+      limit:100
+    });
+  }
+
+  function catalogCounts(items) {
+    const meetinghouses = items.length;
+    const units = items.reduce((sum,item)=>sum+(item.units?.length||0),0);
+    return {meetinghouses,units};
   }
 
   async function fetchJsonWithTimeout(url,timeoutMs=14000) {
@@ -996,67 +1105,68 @@
 
     try {
       const position = await getPreciseLocation();
+
       setLocationStatus(
-        "Ubicación obtenida con una precisión aproximada de "+Math.round(position.accuracy)+" m. Buscando capillas desde tu ubicación…",
+        "Ubicación obtenida con una precisión aproximada de "+Math.round(position.accuracy)+" m. Identificando tu ciudad…",
         "info"
       );
 
-      const [context,configured] = await Promise.all([
-        reverseLocation(position.lat,position.lon),
-        configuredUnitsNear(position.lat,position.lon)
-      ]);
-
+      const context = await reverseLocation(position.lat,position.lon);
       state.locationContext = {
         ...context,
         lat:position.lat,
-        lon:position.lon
+        lon:position.lon,
+        accuracy:position.accuracy
       };
 
-      const exactConfigured = configured.filter(x=>x.exact);
-      const nearbyConfigured = configured
-        .filter(x=>!x.exact && x.distanceKm!==null && x.distanceKm<=120)
-        .sort((a,b)=>a.distanceKm-b.distanceKm)
-        .slice(0,10);
+      if (context.countryCode && $("catalogCountry")) {
+        $("catalogCountry").value = context.countryCode;
+      }
+      if (context.city && $("catalogCity")) {
+        $("catalogCity").value = context.city;
+      }
 
       setLocationStatus(
-        "Ubicación lista. Buscando capillas cercanas y ampliando el rango si hace falta…",
+        "Ubicación lista"+(context.city?" en "+context.city:"")+". Consultando nuestro catálogo y el directorio oficial…",
         "info"
       );
 
-      const search = await Promise.race([
-        progressiveMeetinghouseSearch(position.lat,position.lon,context),
-        new Promise(resolve=>setTimeout(()=>resolve({rows:[],searchedRadiusKm:120,timedOut:true}),22000))
+      await Promise.race([
+        syncOfficialDirectory({
+          city:context.city,
+          countryCode:context.countryCode,
+          lat:position.lat,
+          lon:position.lon
+        }),
+        new Promise(resolve=>setTimeout(()=>resolve(null),16000))
       ]);
 
-      state.nearbyMeetinghouses = mergeMeetinghouses([
-        ...exactConfigured,
-        ...nearbyConfigured,
-        ...search.rows
-      ]).slice(0,15);
+      let catalog = await configuredUnitsNear(position.lat,position.lon,context);
 
+      // El catálogo oficial por ciudad es la fuente principal. OSM queda solo como respaldo.
+      if (!catalog.length) {
+        const fallback = await Promise.race([
+          progressiveMeetinghouseSearch(position.lat,position.lon,context),
+          new Promise(resolve=>setTimeout(()=>resolve({rows:[],searchedRadiusKm:120,timedOut:true}),18000))
+        ]);
+        catalog = fallback.rows || [];
+      }
+
+      state.nearbyMeetinghouses = mergeMeetinghouses(catalog).slice(0,20);
       renderNearbyMeetinghouses();
 
-      if (exactConfigured.length) {
+      if (state.nearbyMeetinghouses.length) {
+        const counts = catalogCounts(state.nearbyMeetinghouses);
         setLocationStatus(
-          "Encontramos una unidad configurada cuyo límite incluye tu ubicación. Confirma que sea correcta.",
-          "success"
-        );
-      } else if (state.nearbyMeetinghouses.length) {
-        const farthest = state.nearbyMeetinghouses
-          .filter(x=>Number.isFinite(x.distanceKm))
-          .reduce((max,x)=>Math.max(max,x.distanceKm),0);
-
-        setLocationStatus(
-          "Encontramos "+state.nearbyMeetinghouses.length+
-          " centro(s) de reuniones. Están ordenados por distancia desde tu ubicación"+
-          (farthest ? " y buscamos hasta "+Math.round(search.searchedRadiusKm)+" km." : "."),
+          "Encontramos "+counts.meetinghouses+" capilla(s)"+
+          (counts.units ? " y "+counts.units+" barrio(s)/rama(s)" : "")+
+          (context.city ? " en o cerca de "+context.city : "")+
+          ". Revisa la dirección y selecciona tu unidad.",
           "success"
         );
       } else {
         setLocationStatus(
-          search.timedOut
-            ? "La búsqueda automática tardó demasiado. Puedes reintentar, usar el localizador oficial o ingresar tu barrio manualmente."
-            : "Buscamos centros de reuniones en un radio de hasta 120 km y no encontramos resultados automáticos. Puedes usar el localizador oficial o ingresar tu barrio manualmente.",
+          "No encontramos una capilla automáticamente para esta ubicación. Usa la búsqueda manual por ciudad, capilla o barrio.",
           "info"
         );
       }
@@ -1066,6 +1176,13 @@
       button.disabled = false;
       button.textContent = "Usar mi ubicación";
     }
+  }
+
+  function unitSummary(item) {
+    if (!item.units?.length) return "";
+    return item.units.map(unit=>
+      unit.name+(unit.sundayService?" · "+unit.sundayService:"")
+    ).join(" | ");
   }
 
   function renderNearbyMeetinghouses() {
@@ -1078,15 +1195,16 @@
     }
 
     list.innerHTML =
-      '<div class="subheading-row"><h3>Capillas cercanas</h3><span class="muted-text">Confirma antes de guardar</span></div>'+
+      '<div class="subheading-row"><h3>Capillas cercanas</h3><span class="muted-text">'+rows.length+' encontrada(s)</span></div>'+
       rows.map((item,index)=>
         '<article class="meetinghouse-item '+(item.exact?"exact-unit":"")+'">'+
           '<div>'+
             (item.exact?'<span class="match-badge">Coincide con límite configurado</span>':'')+
             '<strong>'+escapeHtml(item.name)+'</strong>'+
-            (item.unitName?'<span>Barrio/Rama: '+escapeHtml(item.unitName)+'</span>':'')+
             (item.address?'<span>'+escapeHtml(item.address)+'</span>':'')+
-            (item.distanceKm!==null?'<small>A '+escapeHtml(item.distanceKm.toFixed(1))+' km aprox.</small>':'')+
+            (item.city?'<span>'+escapeHtml(item.city+(item.region?" · "+item.region:""))+'</span>':'')+
+            (item.units?.length?'<span class="unit-list-text"><strong>Barrios/Ramas:</strong> '+escapeHtml(unitSummary(item))+'</span>':'')+
+            (Number.isFinite(item.distanceKm)?'<small>A '+escapeHtml(item.distanceKm.toFixed(1))+' km aprox.</small>':'')+
           '</div>'+
           '<button class="secondary-button" type="button" data-meetinghouse="'+index+'">Seleccionar</button>'+
         '</article>'
@@ -1097,20 +1215,122 @@
     });
   }
 
-  function chooseMeetinghouse(item) {
+  function renderCatalogResults() {
+    const list = $("catalogResults");
+    const rows = state.catalogResults || [];
+
+    if (!rows.length) {
+      list.innerHTML = '<div class="empty">No encontramos coincidencias en el catálogo para esa búsqueda.</div>';
+      return;
+    }
+
+    list.innerHTML = rows.map((item,index)=>
+      '<article class="meetinghouse-item catalog-result-item">'+
+        '<div>'+
+          '<strong>'+escapeHtml(item.name)+'</strong>'+
+          (item.address?'<span>'+escapeHtml(item.address)+'</span>':'')+
+          (item.city?'<span>'+escapeHtml(item.city+(item.region?" · "+item.region:""))+'</span>':'')+
+          (item.units?.length
+            ? '<div class="catalog-unit-buttons">'+item.units.map(unit=>
+                '<button type="button" class="catalog-unit-button" data-catalog-index="'+index+'" data-unit-id="'+escapeHtml(unit.id)+'">'+
+                  escapeHtml(unit.name)+(unit.sundayService?' · '+escapeHtml(unit.sundayService):'')+
+                '</button>'
+              ).join("")+'</div>'
+            : '<small>Capilla registrada; si tu barrio todavía no está cargado podrás escribirlo al seleccionar.</small>')+
+        '</div>'+
+        (!item.units?.length
+          ? '<button class="secondary-button" type="button" data-catalog-meetinghouse="'+index+'">Seleccionar capilla</button>'
+          : '')+
+      '</article>'
+    ).join("");
+
+    list.querySelectorAll("[data-catalog-index]").forEach(button=>{
+      button.onclick = () => {
+        const item = rows[Number(button.dataset.catalogIndex)];
+        chooseMeetinghouse(item,button.dataset.unitId);
+      };
+    });
+
+    list.querySelectorAll("[data-catalog-meetinghouse]").forEach(button=>{
+      button.onclick = () => chooseMeetinghouse(rows[Number(button.dataset.catalogMeetinghouse)]);
+    });
+  }
+
+  async function searchManualCatalog() {
+    const countryCode = $("catalogCountry").value;
+    const city = $("catalogCity").value.trim();
+    const query = $("catalogQuery").value.trim();
+    const button = $("catalogSearchBtn");
+
+    if (!city && !query) {
+      $("catalogSearchStatus").textContent = "Escribe una ciudad, barrio, capilla o dirección.";
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Buscando…";
+    $("catalogSearchStatus").textContent = "Consultando catálogo…";
+
+    try {
+      if (city) {
+        await Promise.race([
+          syncOfficialDirectory({city,countryCode}),
+          new Promise(resolve=>setTimeout(()=>resolve(null),16000))
+        ]);
+      }
+
+      state.catalogResults = await searchCatalog({
+        query,
+        countryCode,
+        city,
+        limit:100
+      });
+
+      const counts = catalogCounts(state.catalogResults);
+      $("catalogSearchStatus").textContent = counts.meetinghouses
+        ? counts.meetinghouses+" capilla(s) y "+counts.units+" barrio(s)/rama(s) encontrados."
+        : "No hay coincidencias todavía. Puedes escribir tu barrio manualmente.";
+      renderCatalogResults();
+    } finally {
+      button.disabled = false;
+      button.textContent = "Buscar";
+    }
+  }
+
+  function chooseMeetinghouse(item,preferredUnitId=null) {
     state.selectedMeetinghouse = item || null;
 
     $("selectedMeetinghouseName").textContent = item?.name || "Ingreso manual";
     $("selectedMeetinghouseMeta").textContent = item
-      ? [item.address,item.distanceKm!==null?item.distanceKm.toFixed(1)+" km aprox.":""].filter(Boolean).join(" · ")
+      ? [item.address,item.city,Number.isFinite(item.distanceKm)?item.distanceKm.toFixed(1)+" km aprox.":""].filter(Boolean).join(" · ")
       : "Escribe el nombre correcto de tu barrio o rama.";
 
-    $("memberUnitName").value = item?.unitName || state.member?.church_unit_name || "";
+    const units = item?.units || [];
+    const selectWrap = $("memberUnitSelectWrap");
+    const inputWrap = $("memberUnitInputWrap");
+
+    if (units.length) {
+      $("memberUnitSelect").innerHTML = units.map(unit=>
+        '<option value="'+escapeHtml(unit.id)+'">'+escapeHtml(unit.name)+(unit.sundayService?' · '+escapeHtml(unit.sundayService):'')+'</option>'
+      ).join("");
+      if (preferredUnitId && units.some(unit=>unit.id===preferredUnitId)) {
+        $("memberUnitSelect").value = preferredUnitId;
+      }
+      selectWrap.classList.remove("hidden");
+      inputWrap.classList.add("hidden");
+      $("memberUnitName").value = "";
+    } else {
+      selectWrap.classList.add("hidden");
+      inputWrap.classList.remove("hidden");
+      $("memberUnitName").value = item?.unitName || state.member?.church_unit_name || "";
+    }
 
     const maps = $("selectedGoogleMapsLink");
     if (item && Number.isFinite(item.lat) && Number.isFinite(item.lon)) {
-      maps.href = "https://www.google.com/maps/search/?api=1&query="+
-        encodeURIComponent(item.lat+","+item.lon);
+      maps.href = "https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(item.lat+","+item.lon);
+      maps.classList.remove("hidden");
+    } else if (item?.address) {
+      maps.href = "https://www.google.com/maps/search/?api=1&query="+encodeURIComponent([item.address,item.city].filter(Boolean).join(", "));
       maps.classList.remove("hidden");
     } else {
       maps.classList.add("hidden");
@@ -1124,13 +1344,18 @@
   async function saveMemberUnit() {
     if (!state.member) return;
 
-    const unitName = $("memberUnitName").value.trim();
+    const item = state.selectedMeetinghouse;
+    const selectedUnitId = !$("memberUnitSelectWrap").classList.contains("hidden")
+      ? $("memberUnitSelect").value
+      : null;
+    const selectedUnit = item?.units?.find(unit=>unit.id===selectedUnitId) || null;
+    const unitName = selectedUnit?.name || $("memberUnitName").value.trim();
+
     if (unitName.length<2) {
-      setLocationStatus("Escribe el nombre de tu barrio o rama antes de guardar.","error");
+      setLocationStatus("Selecciona o escribe el nombre de tu barrio o rama antes de guardar.","error");
       return;
     }
 
-    const item = state.selectedMeetinghouse;
     const context = state.locationContext || {};
     const button = $("saveMemberUnit");
     button.disabled = true;
@@ -1162,20 +1387,6 @@
     renderMemberHome();
     $("unitConfirmPanel").classList.add("hidden");
     setLocationStatus("Barrio y capilla guardados correctamente.","success");
-
-    if (item?.bookingUrl) {
-      const current = location.href.split("#")[0].split("?")[0];
-      try {
-        const target = new URL(item.bookingUrl,location.href).href.split("#")[0].split("?")[0];
-        if (target!==current) {
-          const go = document.createElement("a");
-          go.className = "primary-button unit-route-button";
-          go.href = item.bookingUrl;
-          go.textContent = "Ir al sistema de "+unitName;
-          $("currentMemberUnit").appendChild(go);
-        }
-      } catch (_) {}
-    }
   }
 
   $("memberLoginForm").onsubmit = async event => {
@@ -1318,6 +1529,19 @@
     state.selectedMeetinghouse = null;
     chooseMeetinghouse(null);
   };
+  $("catalogSearchBtn").onclick = searchManualCatalog;
+  $("catalogQuery").addEventListener("keydown",event=>{
+    if (event.key==="Enter") {
+      event.preventDefault();
+      searchManualCatalog();
+    }
+  });
+  $("catalogCity").addEventListener("keydown",event=>{
+    if (event.key==="Enter") {
+      event.preventDefault();
+      searchManualCatalog();
+    }
+  });
   $("cancelMeetinghouseSelection").onclick = () => {
     $("unitConfirmPanel").classList.add("hidden");
     state.selectedMeetinghouse = null;
@@ -1381,6 +1605,7 @@
         const detectedIso = detectCountryIso();
         populateCountrySelect("memberLoginCountry",detectedIso);
         populateCountrySelect("memberRegisterCountry",detectedIso);
+        populateCatalogCountrySelect(detectedIso);
         bindCountrySelectors();
 
         const [sessionResult] = await Promise.all([
