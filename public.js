@@ -33,7 +33,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.9.1";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.9.2";
 
 
   const PHONE_COUNTRIES = [
@@ -535,9 +535,14 @@
     state.interviewTypes = typesResult.data || [];
     state.slots = slotsResult.data || [];
 
-    $("interviewType").innerHTML = state.interviewTypes.length
-      ? state.interviewTypes.map(x=>'<option value="'+x.id+'">'+escapeHtml(x.name)+'</option>').join("")
-      : '<option value="">No hay tipos disponibles</option>';
+    const defaultInterviewType = state.interviewTypes[0] || null;
+    if (defaultInterviewType) {
+      $("autoInterviewType").textContent = defaultInterviewType.name;
+      $("autoInterviewType").classList.remove("hidden");
+    } else {
+      $("autoInterviewType").textContent = "No hay un tipo de entrevista configurado para este líder.";
+      $("autoInterviewType").classList.remove("hidden");
+    }
 
     renderAvailableDays();
     $("publicDayPanel").classList.add("hidden");
@@ -1535,11 +1540,11 @@
       return;
     }
 
-    const interviewTypeId = $("interviewType").value;
+    const interviewTypeId = state.interviewTypes[0]?.id || null;
     const availabilityId = state.selectedSlot?.id;
 
     if (!state.selectedLeader || !interviewTypeId || !availabilityId) {
-      showBookingError("Selecciona líder, tipo de entrevista, día y hora.");
+      showBookingError("Selecciona líder, día y hora.");
       return;
     }
 
@@ -1656,6 +1661,8 @@
     state.selectedLeader = null;
     state.selectedDateKey = null;
     state.selectedSlot = null;
+    state.interviewTypes = [];
+    $("autoInterviewType")?.classList.add("hidden");
     document.querySelectorAll(".leader-card").forEach(el=>el.classList.remove("active"));
     showMemberView("booking");
   };
