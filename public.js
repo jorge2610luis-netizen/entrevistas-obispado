@@ -18,12 +18,14 @@
     selectedMeetinghouse:null,
     nearbyMeetinghouses:[],
     catalogResults:[],
+    unitSelectionSource:null,
+    manualCatalogOpen:false,
     booted:false
   };
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.7.0";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.7.1";
 
 
   const PHONE_COUNTRIES = [
@@ -1097,7 +1099,12 @@
   async function findNearbyMeetinghouses() {
     clearLocationStatus();
     $("nearbyMeetinghouses").innerHTML = "";
+    $("nearbyMeetinghouses").classList.remove("hidden");
     $("unitConfirmPanel").classList.add("hidden");
+    $("catalogSearchCard")?.classList.add("hidden");
+    state.manualCatalogOpen = false;
+    state.unitSelectionSource = null;
+    if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Mi barrio todavía no aparece: buscar manualmente";
 
     const button = $("useMemberLocation");
     button.disabled = true;
@@ -1156,6 +1163,8 @@
       renderNearbyMeetinghouses();
 
       if (state.nearbyMeetinghouses.length) {
+        $("catalogSearchCard")?.classList.add("hidden");
+        state.manualCatalogOpen = false;
         const counts = catalogCounts(state.nearbyMeetinghouses);
         setLocationStatus(
           "Encontramos "+counts.meetinghouses+" capilla(s)"+
@@ -1165,6 +1174,9 @@
           "success"
         );
       } else {
+        $("catalogSearchCard")?.classList.remove("hidden");
+        state.manualCatalogOpen = true;
+        if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Ocultar búsqueda manual";
         setLocationStatus(
           "No encontramos una capilla automáticamente para esta ubicación. Usa la búsqueda manual por ciudad, capilla o barrio.",
           "info"
@@ -1211,7 +1223,7 @@
       ).join("");
 
     list.querySelectorAll("[data-meetinghouse]").forEach(button=>{
-      button.onclick = () => chooseMeetinghouse(rows[Number(button.dataset.meetinghouse)]);
+      button.onclick = () => chooseMeetinghouse(rows[Number(button.dataset.meetinghouse)],null,"gps");
     });
   }
 
@@ -1247,12 +1259,12 @@
     list.querySelectorAll("[data-catalog-index]").forEach(button=>{
       button.onclick = () => {
         const item = rows[Number(button.dataset.catalogIndex)];
-        chooseMeetinghouse(item,button.dataset.unitId);
+        chooseMeetinghouse(item,button.dataset.unitId,"manual");
       };
     });
 
     list.querySelectorAll("[data-catalog-meetinghouse]").forEach(button=>{
-      button.onclick = () => chooseMeetinghouse(rows[Number(button.dataset.catalogMeetinghouse)]);
+      button.onclick = () => chooseMeetinghouse(rows[Number(button.dataset.catalogMeetinghouse)],null,"manual");
     });
   }
 
@@ -1297,8 +1309,13 @@
     }
   }
 
-  function chooseMeetinghouse(item,preferredUnitId=null) {
+  function chooseMeetinghouse(item,preferredUnitId=null,source="manual") {
     state.selectedMeetinghouse = item || null;
+    state.unitSelectionSource = source;
+
+    $("nearbyMeetinghouses")?.classList.add("hidden");
+    $("catalogSearchCard")?.classList.add("hidden");
+    if ($("manualUnitBtn")) $("manualUnitBtn").classList.add("hidden");
 
     $("selectedMeetinghouseName").textContent = item?.name || "Ingreso manual";
     $("selectedMeetinghouseMeta").textContent = item
@@ -1386,6 +1403,12 @@
     renderMemberUnit();
     renderMemberHome();
     $("unitConfirmPanel").classList.add("hidden");
+    $("nearbyMeetinghouses")?.classList.add("hidden");
+    $("catalogSearchCard")?.classList.add("hidden");
+    if ($("manualUnitBtn")) $("manualUnitBtn").classList.remove("hidden");
+    state.manualCatalogOpen = false;
+    state.unitSelectionSource = null;
+    if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Cambiar mi barrio o capilla";
     setLocationStatus("Barrio y capilla guardados correctamente.","success");
   }
 
@@ -1526,8 +1549,22 @@
 
   $("useMemberLocation").onclick = findNearbyMeetinghouses;
   $("manualUnitBtn").onclick = () => {
-    state.selectedMeetinghouse = null;
-    chooseMeetinghouse(null);
+    const card = $("catalogSearchCard");
+    state.manualCatalogOpen = !state.manualCatalogOpen;
+
+    if (state.manualCatalogOpen) {
+      card?.classList.remove("hidden");
+      $("nearbyMeetinghouses")?.classList.add("hidden");
+      $("unitConfirmPanel")?.classList.add("hidden");
+      state.selectedMeetinghouse = null;
+      state.unitSelectionSource = null;
+      $("manualUnitBtn").textContent = "Volver a capillas encontradas";
+      card?.scrollIntoView({behavior:"smooth",block:"nearest"});
+    } else {
+      card?.classList.add("hidden");
+      if (state.nearbyMeetinghouses?.length) $("nearbyMeetinghouses")?.classList.remove("hidden");
+      $("manualUnitBtn").textContent = "Mi barrio todavía no aparece: buscar manualmente";
+    }
   };
   $("catalogSearchBtn").onclick = searchManualCatalog;
   $("catalogQuery").addEventListener("keydown",event=>{
@@ -1545,6 +1582,22 @@
   $("cancelMeetinghouseSelection").onclick = () => {
     $("unitConfirmPanel").classList.add("hidden");
     state.selectedMeetinghouse = null;
+
+    if ($("manualUnitBtn")) $("manualUnitBtn").classList.remove("hidden");
+
+    if (state.unitSelectionSource==="manual") {
+      $("catalogSearchCard")?.classList.remove("hidden");
+      $("nearbyMeetinghouses")?.classList.add("hidden");
+      state.manualCatalogOpen = true;
+      if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Volver a capillas encontradas";
+    } else {
+      $("catalogSearchCard")?.classList.add("hidden");
+      if (state.nearbyMeetinghouses?.length) $("nearbyMeetinghouses")?.classList.remove("hidden");
+      state.manualCatalogOpen = false;
+      if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Mi barrio todavía no aparece: buscar manualmente";
+    }
+
+    state.unitSelectionSource = null;
   };
   $("saveMemberUnit").onclick = saveMemberUnit;
 
