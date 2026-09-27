@@ -13,10 +13,13 @@
     interviewTypes:[],
     slots:[],
     selectedDateKey:null,
-    selectedSlot:null
+    selectedSlot:null,
+    locationContext:null,
+    selectedMeetinghouse:null,
+    nearbyMeetinghouses:[]
   };
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.4.3";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.5.0";
 
 
   const PHONE_COUNTRIES = [
@@ -334,7 +337,7 @@
   async function loadMember(session) {
     state.session = session;
     const {data,error} = await db.from("member_profiles")
-      .select("id,phone,full_name")
+      .select("id,phone,full_name,church_unit_name,meetinghouse_name,location_city,location_country_code,unit_assignment_method,unit_updated_at")
       .eq("id",session.user.id)
       .maybeSingle();
 
@@ -350,6 +353,7 @@
     $("memberArea").classList.remove("hidden");
     $("memberAccountName").textContent = data.full_name;
     $("memberAccountPhone").textContent = "Usuario: "+prettyPhone(data.phone);
+    renderMemberUnit();
 
     await Promise.all([loadMemberAppointments(),loadLeaders()]);
   }
@@ -509,6 +513,385 @@
     $("publicDayPanel").classList.remove("hidden");
   }
 
+
+  function renderMemberUnit() {
+    const box = $("currentMemberUnit");
+    if (!box || !state.member) return;
+
+    if (state.member.church_unit_name) {
+      const chapel = state.member.meetinghouse_name
+        ? '<span>Capilla: '+escapeHtml(state.member.meetinghouse_name)+'</span>'
+        : '';
+      const place = [state.member.location_city,state.member.location_country_code].filter(Boolean).join(" · ");
+      box.innerHTML =
+        '<strong>'+escapeHtml(state.member.church_unit_name)+'</strong>'+
+        chapel+
+        (place?'<span>'+escapeHtml(place)+'</span>':'');
+      box.classList.add("configured");
+    } else {
+      box.innerHTML =
+        '<strong>Unidad todavía no configurada</strong>'+
+        '<span>Puedes buscar una capilla cercana o confirmar tu barrio manualmente.</span>';
+      box.classList.remove("configured");
+    }
+  }
+
+  function setLocationStatus(message,type="info") {
+    const el = $("memberLocationStatus");
+    el.textContent = message;
+    el.className = "alert "+type;
+  }
+
+  function clearLocationStatus() {
+    $("memberLocationStatus").className = "alert hidden";
+    $("memberLocationStatus").textContent = "";
+  }
+
+  function getPreciseLocation() {
+    return new Promise((resolve,reject)=>{
+      if (!navigator.geolocation) {
+        reject(new Error("Este navegador no permite obtener la ubicación."));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        position=>resolve({
+          lat:position.coords.latitude,
+          lon:position.coords.longitude,
+          accuracy:position.coords.accuracy
+        }),
+        error=>{
+          const messages = {
+            1:"Permiso de ubicación denegado. Puedes habilitarlo en el navegador o ingresar tu barrio manualmente.",
+            2:"No fue posible determinar tu ubicación.",
+            3:"La ubicación tardó demasiado en responder. Inténtalo nuevamente."
+          };
+          reject(new Error(messages[error.code] || "No se pudo obtener tu ubicación."));
+        },
+        {enableHighAccuracy:true,timeout:15000,maximumAge:30000}
+      );
+    });
+  }
+
+  function distanceKm(lat1,lon1,lat2,lon2) {
+    const rad = value=>value*Math.PI/180;
+    const R = 6371;
+    const dLat = rad(lat2-lat1);
+    const dLon = rad(lon2-lon1);
+    const a =
+      Math.sin(dLat/2)*Math.sin(dLat/2)+
+      Math.cos(rad(lat1))*Math.cos(rad(lat2))*
+      Math.sin(dLon/2)*Math.sin(dLon/2);
+    return 2*R*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  }
+
+  function pointInRing(point,ring) {
+    const [x,y] = point;
+    let inside = false;
+    for (let i=0,j=ring.length-1;i<ring.length;j=i++) {
+      const [xi,yi] = ring[i];
+      const [xj,yj] = ring[j];
+      const intersect = ((yi>y)!==(yj>y)) &&
+        (x < (xj-xi)*(y-yi)/((yj-yi)||1e-12)+xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  function pointInGeoJson(lon,lat,geojson) {
+    if (!geojson || !geojson.type) return false;
+    const point = [lon,lat];
+
+    if (geojson.type==="Polygon") {
+      return geojson.coordinates?.[0] ? pointInRing(point,geojson.coordinates[0]) : false;
+    }
+
+    if (geojson.type==="MultiPolygon") {
+      return (geojson.coordinates||[]).some(poly=>poly?.[0] && pointInRing(point,poly[0]));
+    }
+
+    if (geojson.type==="Feature") return pointInGeoJson(lon,lat,geojson.geometry);
+    if (geojson.type==="FeatureCollection") {
+      return (geojson.features||[]).some(feature=>pointInGeoJson(lon,lat,feature.geometry));
+    }
+
+    return false;
+  }
+
+  async function reverseLocation(lat,lon) {
+    try {
+      const url =
+        "https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=10&accept-language=es&lat="+
+        encodeURIComponent(lat)+"&lon="+encodeURIComponent(lon);
+      const response = await fetch(url,{headers:{"Accept":"application/json"}});
+      if (!response.ok) throw new Error("reverse failed");
+      const data = await response.json();
+      const address = data.address || {};
+      return {
+        city:address.city || address.town || address.village || address.municipality || address.county || "",
+        countryCode:String(address.country_code||"").toUpperCase()
+      };
+    } catch (_) {
+      return {city:"",countryCode:""};
+    }
+  }
+
+  async function configuredUnitsNear(lat,lon) {
+    const {data,error} = await db.from("church_units")
+      .select("id,unit_name,unit_type,stake_or_district,meetinghouse_name,address,city,country_code,latitude,longitude,boundary_geojson,booking_url")
+      .eq("is_active",true);
+
+    if (error) return [];
+
+    return (data||[]).map(unit=>{
+      const exact = pointInGeoJson(lon,lat,unit.boundary_geojson);
+      const hasCoords = Number.isFinite(unit.latitude) && Number.isFinite(unit.longitude);
+      return {
+        source:"configured",
+        exact,
+        unitName:unit.unit_name,
+        name:unit.meetinghouse_name || unit.unit_name,
+        address:unit.address || "",
+        city:unit.city || "",
+        countryCode:unit.country_code || "",
+        lat:hasCoords ? unit.latitude : null,
+        lon:hasCoords ? unit.longitude : null,
+        distanceKm:hasCoords ? distanceKm(lat,lon,unit.latitude,unit.longitude) : null,
+        bookingUrl:unit.booking_url || null
+      };
+    }).filter(item=>item.exact || item.distanceKm!==null);
+  }
+
+  async function osmMeetinghousesNear(lat,lon,radius=30000) {
+    const query =
+      '[out:json][timeout:20];('+
+      'nwr(around:'+radius+','+lat+','+lon+')['+
+        '"amenity"="place_of_worship"]["name"~"Jesucristo|Jesus Christ|Latter-day|Últimos Días|Santos de los",i];'+
+      'nwr(around:'+radius+','+lat+','+lon+')["denomination"~"mormon|latter.?day",i];'+
+      ');out center tags;';
+
+    const endpoint = "https://overpass-api.de/api/interpreter?data="+encodeURIComponent(query);
+    const response = await fetch(endpoint,{headers:{"Accept":"application/json"}});
+    if (!response.ok) throw new Error("No fue posible consultar centros de reuniones cercanos.");
+
+    const data = await response.json();
+    const seen = new Set();
+
+    return (data.elements||[]).map(item=>{
+      const plat = item.lat ?? item.center?.lat;
+      const plon = item.lon ?? item.center?.lon;
+      if (!Number.isFinite(plat) || !Number.isFinite(plon)) return null;
+
+      const tags = item.tags || {};
+      const key = Math.round(plat*100000)+":"+Math.round(plon*100000);
+      if (seen.has(key)) return null;
+      seen.add(key);
+
+      const address = [
+        tags["addr:street"],
+        tags["addr:housenumber"],
+        tags["addr:suburb"],
+        tags["addr:city"]
+      ].filter(Boolean).join(" ");
+
+      return {
+        source:"osm",
+        exact:false,
+        unitName:"",
+        name:tags.name || "Centro de reuniones",
+        address,
+        city:tags["addr:city"] || tags["addr:town"] || "",
+        countryCode:String(tags["addr:country"]||"").toUpperCase(),
+        lat:plat,
+        lon:plon,
+        distanceKm:distanceKm(lat,lon,plat,plon),
+        bookingUrl:null
+      };
+    }).filter(Boolean).sort((a,b)=>a.distanceKm-b.distanceKm);
+  }
+
+  async function findNearbyMeetinghouses() {
+    clearLocationStatus();
+    $("nearbyMeetinghouses").innerHTML = "";
+    $("unitConfirmPanel").classList.add("hidden");
+
+    const button = $("useMemberLocation");
+    button.disabled = true;
+    button.textContent = "Buscando ubicación…";
+
+    try {
+      const position = await getPreciseLocation();
+      setLocationStatus(
+        "Ubicación obtenida con una precisión aproximada de "+Math.round(position.accuracy)+" m. Buscando centros de reuniones…",
+        "info"
+      );
+
+      const [context,configured] = await Promise.all([
+        reverseLocation(position.lat,position.lon),
+        configuredUnitsNear(position.lat,position.lon)
+      ]);
+
+      state.locationContext = context;
+
+      let osm = [];
+      try {
+        osm = await osmMeetinghousesNear(position.lat,position.lon,30000);
+        if (!osm.length) osm = await osmMeetinghousesNear(position.lat,position.lon,80000);
+      } catch (_) {}
+
+      const exactConfigured = configured.filter(x=>x.exact);
+      const nearbyConfigured = configured
+        .filter(x=>!x.exact && x.distanceKm!==null)
+        .sort((a,b)=>a.distanceKm-b.distanceKm)
+        .slice(0,5);
+
+      const results = [...exactConfigured,...nearbyConfigured,...osm];
+
+      const deduped = [];
+      const seen = new Set();
+      for (const item of results) {
+        const key = (item.name+"|"+(item.lat??"")+"|"+(item.lon??"")).toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(item);
+      }
+
+      state.nearbyMeetinghouses = deduped.slice(0,10);
+      renderNearbyMeetinghouses();
+
+      if (exactConfigured.length) {
+        setLocationStatus(
+          "Encontramos una unidad configurada cuyo límite incluye tu ubicación. Confirma que sea correcta.",
+          "success"
+        );
+      } else if (state.nearbyMeetinghouses.length) {
+        setLocationStatus(
+          "Encontramos centros de reuniones cercanos. Selecciona tu capilla y confirma el nombre de tu barrio o rama.",
+          "success"
+        );
+      } else {
+        setLocationStatus(
+          "No encontramos una capilla automáticamente. Puedes usar el localizador oficial o ingresar tu barrio manualmente.",
+          "info"
+        );
+      }
+    } catch (error) {
+      setLocationStatus(error.message || "No se pudo obtener tu ubicación.","error");
+    } finally {
+      button.disabled = false;
+      button.textContent = "Usar mi ubicación";
+    }
+  }
+
+  function renderNearbyMeetinghouses() {
+    const list = $("nearbyMeetinghouses");
+    const rows = state.nearbyMeetinghouses || [];
+
+    if (!rows.length) {
+      list.innerHTML = "";
+      return;
+    }
+
+    list.innerHTML =
+      '<div class="subheading-row"><h3>Capillas cercanas</h3><span class="muted-text">Confirma antes de guardar</span></div>'+
+      rows.map((item,index)=>
+        '<article class="meetinghouse-item '+(item.exact?"exact-unit":"")+'">'+
+          '<div>'+
+            (item.exact?'<span class="match-badge">Coincide con límite configurado</span>':'')+
+            '<strong>'+escapeHtml(item.name)+'</strong>'+
+            (item.unitName?'<span>Barrio/Rama: '+escapeHtml(item.unitName)+'</span>':'')+
+            (item.address?'<span>'+escapeHtml(item.address)+'</span>':'')+
+            (item.distanceKm!==null?'<small>A '+escapeHtml(item.distanceKm.toFixed(1))+' km aprox.</small>':'')+
+          '</div>'+
+          '<button class="secondary-button" type="button" data-meetinghouse="'+index+'">Seleccionar</button>'+
+        '</article>'
+      ).join("");
+
+    list.querySelectorAll("[data-meetinghouse]").forEach(button=>{
+      button.onclick = () => chooseMeetinghouse(rows[Number(button.dataset.meetinghouse)]);
+    });
+  }
+
+  function chooseMeetinghouse(item) {
+    state.selectedMeetinghouse = item || null;
+
+    $("selectedMeetinghouseName").textContent = item?.name || "Ingreso manual";
+    $("selectedMeetinghouseMeta").textContent = item
+      ? [item.address,item.distanceKm!==null?item.distanceKm.toFixed(1)+" km aprox.":""].filter(Boolean).join(" · ")
+      : "Escribe el nombre correcto de tu barrio o rama.";
+
+    $("memberUnitName").value = item?.unitName || state.member?.church_unit_name || "";
+
+    const maps = $("selectedGoogleMapsLink");
+    if (item && Number.isFinite(item.lat) && Number.isFinite(item.lon)) {
+      maps.href = "https://www.google.com/maps/search/?api=1&query="+
+        encodeURIComponent(item.lat+","+item.lon);
+      maps.classList.remove("hidden");
+    } else {
+      maps.classList.add("hidden");
+      maps.removeAttribute("href");
+    }
+
+    $("unitConfirmPanel").classList.remove("hidden");
+    $("unitConfirmPanel").scrollIntoView({behavior:"smooth",block:"nearest"});
+  }
+
+  async function saveMemberUnit() {
+    if (!state.member) return;
+
+    const unitName = $("memberUnitName").value.trim();
+    if (unitName.length<2) {
+      setLocationStatus("Escribe el nombre de tu barrio o rama antes de guardar.","error");
+      return;
+    }
+
+    const item = state.selectedMeetinghouse;
+    const context = state.locationContext || {};
+    const button = $("saveMemberUnit");
+    button.disabled = true;
+    button.textContent = "Guardando…";
+
+    const {error} = await db.rpc("member_set_church_unit",{
+      p_unit_name:unitName,
+      p_meetinghouse_name:item?.name || null,
+      p_city:item?.city || context.city || null,
+      p_country_code:item?.countryCode || context.countryCode || null,
+      p_assignment_method:item?.exact ? "boundary" : item ? "nearby_meetinghouse" : "manual"
+    });
+
+    button.disabled = false;
+    button.textContent = "Guardar barrio";
+
+    if (error) {
+      setLocationStatus(error.message || "No se pudo guardar tu barrio.","error");
+      return;
+    }
+
+    state.member.church_unit_name = unitName;
+    state.member.meetinghouse_name = item?.name || null;
+    state.member.location_city = item?.city || context.city || null;
+    state.member.location_country_code = item?.countryCode || context.countryCode || null;
+    state.member.unit_assignment_method = item?.exact ? "boundary" : item ? "nearby_meetinghouse" : "manual";
+
+    renderMemberUnit();
+    $("unitConfirmPanel").classList.add("hidden");
+    setLocationStatus("Barrio y capilla guardados correctamente.","success");
+
+    if (item?.bookingUrl) {
+      const current = location.href.split("#")[0].split("?")[0];
+      try {
+        const target = new URL(item.bookingUrl,location.href).href.split("#")[0].split("?")[0];
+        if (target!==current) {
+          const go = document.createElement("a");
+          go.className = "primary-button unit-route-button";
+          go.href = item.bookingUrl;
+          go.textContent = "Ir al sistema de "+unitName;
+          $("currentMemberUnit").appendChild(go);
+        }
+      } catch (_) {}
+    }
+  }
+
   $("memberLoginForm").onsubmit = async event => {
     event.preventDefault();
     clearAuthMessage();
@@ -644,6 +1027,17 @@
     await loadMemberAppointments();
     $("successBox").scrollIntoView({behavior:"smooth"});
   };
+
+  $("useMemberLocation").onclick = findNearbyMeetinghouses;
+  $("manualUnitBtn").onclick = () => {
+    state.selectedMeetinghouse = null;
+    chooseMeetinghouse(null);
+  };
+  $("cancelMeetinghouseSelection").onclick = () => {
+    $("unitConfirmPanel").classList.add("hidden");
+    state.selectedMeetinghouse = null;
+  };
+  $("saveMemberUnit").onclick = saveMemberUnit;
 
   $("showMemberLogin").onclick = () => setAuthTab("login");
   $("showMemberRegister").onclick = () => setAuthTab("register");
