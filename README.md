@@ -1,82 +1,50 @@
 # Entrevistas del Obispado
 
-Aplicación web para solicitar, coordinar y dar seguimiento a entrevistas con el Obispado en Iquique.
+Aplicación web para solicitar, coordinar y dar seguimiento a entrevistas con el Obispado en **Iquique, Chile**.
 
-**Alcance actual:** Iquique únicamente. El trabajo multipaís quedó pausado y respaldado en la rama `archive/multipais-v4.2.2`.
-
-**Versión actual declarada:** v4.3.0
+**Versión actual:** v4.3.0  
 **Producción:** https://mientrevista.online  
 **Backend:** Supabase  
 **Deploy:** GitHub Pages desde `main`
 
-## Antes de modificar el proyecto
+## Alcance actual
 
-Lee primero:
+El sistema trabaja únicamente con estos seis barrios de Iquique:
 
-**[docs/PROJECT_HANDOFF.md](docs/PROJECT_HANDOFF.md)**
+- Barrio de Bilbao
+- Barrio de Gomez Carreño
+- Barrio de Lynch
+- Barrio de Playa Brava
+- Barrio de Renacimiento
+- Barrio de Zegers
 
-Ese documento contiene el contexto completo para IA/desarrolladores:
+El miembro inicia sesión, selecciona su barrio, ve los líderes disponibles y solicita una entrevista.
 
-- arquitectura actual;
-- autenticación de miembros y líderes;
-- roles y permisos;
-- multi-barrio;
-- horarios;
-- flujo de solicitudes;
-- GPS/directorio de capillas;
-- Chile/Bolivia;
-- Supabase/RLS/RPC;
-- Edge Functions;
-- historial de decisiones;
-- funciones eliminadas o reemplazadas;
-- migraciones aplicadas;
-- pendientes reales;
-- problemas conocidos;
-- checklist de publicación.
+El panel interno permite administrar liderazgo, horarios y solicitudes de esos barrios.
 
-## Arquitectura resumida
+## Importante
 
-```text
-País
-└─ Región / Departamento
-   └─ Ciudad
-      └─ Capilla
-         └─ Barrio / Rama
-            ├─ Obispo
-            ├─ Consejeros
-            ├─ Secretario(s)
-            ├─ Miembros
-            ├─ Horarios
-            └─ Solicitudes
-```
-
-El sistema separa los datos por unidad mediante Supabase RLS y asignaciones explícitas de liderazgo.
+- No hay GPS ni detección automática de barrio.
+- No hay selección de país, región o ciudad.
+- No hay importación ni sincronización de directorios externos.
+- No agregar unidades fuera de Iquique sin una decisión explícita de producto.
+- No borrar usuarios, entrevistas, horarios ni asignaciones reales de Iquique.
 
 ## Seguridad
 
 - Supabase Auth.
-- RLS en las tablas de aplicación.
-- La publishable key del frontend no es una clave secreta.
-- **Nunca** agregar `service_role`, contraseñas ni tokens privados al repositorio.
-- No almacenar motivos confidenciales de entrevistas ni coordenadas GPS precisas de miembros.
+- RLS para separación de datos.
+- La clave publicada en frontend es una publishable key, no `service_role`.
+- Nunca guardar secretos, contraseñas ni tokens privados en el repositorio.
 
-## Producción
+## Publicación
 
-El workflow `.github/workflows/pages.yml` despliega automáticamente cada push a `main`.
+Cada push a `main` ejecuta `.github/workflows/pages.yml` y publica GitHub Pages.
 
-Por eso, antes de publicar cambios:
+Antes de publicar:
 
-1. revisar el handoff;
-2. incrementar la versión;
-3. sincronizar query strings de assets;
-4. probar miembro + panel interno;
-5. revisar móvil y escritorio;
-6. comprobar GitHub Pages;
-7. ejecutar Supabase Security Advisor.
-
-## Estado del directorio geográfico
-
-Chile y Bolivia están en proceso de indexación/sincronización.
-
-**No asumir que todos los barrios/ramas ya están cargados.**  
-Consultar la sección “PENDIENTES / NO ASUMIR” del handoff antes de trabajar en cobertura geográfica.
+1. validar `public.js` y `panel.js`;
+2. comprobar selección de barrio del miembro;
+3. comprobar panel interno;
+4. mantener sincronizada la versión en `config.js`, `version.json`, HTML y assets;
+5. revisar Supabase Security Advisor.
