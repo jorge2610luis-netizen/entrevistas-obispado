@@ -37,7 +37,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.3.1";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.3.2";
 
 
   const PHONE_COUNTRIES = [
@@ -497,8 +497,7 @@
       code:row.code,
       title:row.title,
       sort_order:row.sort_order,
-      staff_profile_id:row.staff_profile_id,
-      staff_name:row.staff_name
+      staff_profile_id:row.staff_profile_id
     }));
 
     if (!state.leaders.length) {
@@ -516,9 +515,7 @@
       button.className = "leader-card";
       button.dataset.leaderId = leader.id;
       button.innerHTML =
-        '<strong>'+escapeHtml(leader.title)+'</strong>'+
-        '<span>'+escapeHtml(leader.staff_name||"Líder asignado")+'</span>'+
-        '<small>Ver días disponibles</small>';
+        '<strong>'+escapeHtml(leader.title)+'</strong>'+\n        '<small>Ver días disponibles</small>';
       button.onclick = () => selectLeader(leader,button);
       $("leaderGrid").appendChild(button);
     });
