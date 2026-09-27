@@ -999,7 +999,9 @@
           name:row.unit_name,
           type:row.unit_type,
           sundayService:row.sunday_service || "",
-          officialUrl:row.unit_official_url || null
+          officialUrl:row.unit_official_url || null,
+          coverageStatus:row.coverage_status || null,
+          leaderCount:Number(row.leader_count||0)
         });
       }
     }
@@ -1013,19 +1015,45 @@
   }
 
   async function searchCatalog({query="",countryCode="",city="",origin=null,limit=100}={}) {
-    const {data,error} = await db.rpc("search_church_catalog",{
-      p_query:query || null,
-      p_country_code:countryCode || null,
-      p_city:city || null,
-      p_limit:limit
-    });
+    const [catalogResult,coverageResult] = await Promise.all([
+      db.rpc("search_church_catalog",{
+        p_query:query || null,
+        p_country_code:countryCode || null,
+        p_city:city || null,
+        p_limit:limit
+      }),
+      db.rpc("search_church_catalog_v2",{
+        p_query:query || null,
+        p_country_code:countryCode || null,
+        p_region:null,
+        p_city:city || null,
+        p_coverage:null,
+        p_limit:limit,
+        p_offset:0
+      })
+    ]);
 
-    if (error) {
-      console.warn("catalog search failed",error);
+    if (catalogResult.error) {
+      console.warn("catalog search failed",catalogResult.error);
       return [];
     }
 
-    return groupCatalogRows(data||[],origin);
+    const coverageMap=new Map(
+      (coverageResult.data||[]).map(row=>[
+        row.unit_id,
+        {
+          coverage_status:row.coverage_status,
+          leader_count:Number(row.leader_count||0)
+        }
+      ])
+    );
+
+    const rows=(catalogResult.data||[]).map(row=>({
+      ...row,
+      ...(coverageMap.get(row.unit_id)||{})
+    }));
+
+    return groupCatalogRows(rows,origin);
   }
 
   async function configuredUnitsNear(lat,lon,context={}) {
@@ -1396,7 +1424,9 @@
           (item.units?.length
             ? '<div class="catalog-unit-buttons">'+item.units.map(unit=>
                 '<button type="button" class="catalog-unit-button" data-catalog-index="'+index+'" data-unit-id="'+escapeHtml(unit.id)+'">'+
-                  escapeHtml(unit.name)+(unit.sundayService?' · '+escapeHtml(unit.sundayService):'')+
+                  escapeHtml(unit.name)+
+                  (unit.sundayService?' · '+escapeHtml(unit.sundayService):'')+
+                  (unit.coverageStatus==="covered"?' · Con cobertura':' · Sin cobertura')+
                 '</button>'
               ).join("")+'</div>'
             : '<small>Capilla registrada; si tu barrio todavía no está cargado podrás escribirlo al seleccionar.</small>')+
