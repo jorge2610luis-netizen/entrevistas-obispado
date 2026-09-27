@@ -278,6 +278,76 @@
     ).join("");
   }
 
+  async function loadRegionsForCountry(countryCode) {
+    const {data,error}=await db.from("directory_regions")
+      .select("country_code,country_name,region_name,region_type,sort_order")
+      .eq("country_code",countryCode)
+      .order("sort_order");
+
+    if (error) {
+      state.regions=[];
+      return;
+    }
+
+    state.regions=data||[];
+    const select=$("adminUnitRegion");
+    if (!select) return;
+
+    const previous=select.value;
+    select.innerHTML='<option value="">Todas las '+(countryCode==="BO"?"departamentos":"regiones")+'</option>'+
+      state.regions.map(x=>'<option value="'+e(x.region_name)+'">'+e(x.region_name)+'</option>').join("");
+
+    if (previous && state.regions.some(x=>x.region_name===previous)) {
+      select.value=previous;
+    }
+  }
+
+  function populateAdministrativeUnitFilters() {
+    const options=state.accessibleUnits.map(unit=>{
+      const place=[unit.region,unit.city].filter(Boolean).join(" · ");
+      return '<option value="'+unit.unit_id+'">'+e(unit.unit_name)+(place?' · '+e(place):'')+'</option>';
+    }).join("");
+
+    const targets=[
+      ["directoryUnitFilter","Todos los barrios"],
+      ["requestUnitFilter","Todos los barrios"]
+    ];
+
+    for (const [id,label] of targets) {
+      const select=$(id);
+      if (!select) continue;
+      const previous=select.value;
+      select.innerHTML='<option value="">'+label+'</option>'+options;
+      if (previous && state.accessibleUnits.some(x=>x.unit_id===previous)) {
+        select.value=previous;
+      }
+    }
+  }
+
+  async function loadRequestLeaderOptions() {
+    const select=$("requestLeaderFilter");
+    if (!select) return;
+
+    const unitId=$("requestUnitFilter")?.value || "";
+    const previous=select.value;
+    select.innerHTML='<option value="">Todos los líderes</option>';
+
+    if (!unitId) {
+      if (isSecretaryAdmin()) {
+        const rows=state.profiles.filter(x=>LEADER_ROLES.has(x.role) && x.is_active);
+        select.innerHTML+=rows.map(x=>'<option value="'+x.id+'">'+e(x.display_name||roleText[x.role]||"Líder")+'</option>').join("");
+      }
+    } else {
+      const {data}=await db.rpc("staff_unit_team",{p_unit_id:unitId});
+      const rows=(data||[]).filter(x=>LEADER_ROLES.has(x.role));
+      select.innerHTML+=rows.map(x=>
+        '<option value="'+x.profile_id+'">'+e(roleText[x.role]||x.role)+' · '+e(x.display_name||"Líder")+'</option>'
+      ).join("");
+    }
+
+    if (previous && [...select.options].some(o=>o.value===previous)) select.value=previous;
+  }
+
   function fillUnitSelect(select,selectedId,{includeEmpty=false}={}) {
     if (!select) return;
 
