@@ -48,7 +48,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.2.2";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.3.0";
 
   const leaderRole = {
     bishop:"bishop",
@@ -952,7 +952,6 @@
       state.staffAssignments=[];
     }
 
-    populateCountrySelect();
     populateActiveUnitSelect();
     populateAdministrativeUnitFilters();
     await loadRequestLeaderOptions();
@@ -970,9 +969,8 @@
     }
 
     if (isSecretaryAdmin()) {
-      await loadRegionsForCountry($("adminUnitCountry")?.value||"BO");
-      await loadCountryPlaces($("adminUnitCountry")?.value||"BO");
       await loadDirectoryPage();
+      await searchAdminUnits();
       renderAdminSelectedUnit();
     }
   }
@@ -1230,63 +1228,44 @@
     if (!isSecretaryAdmin()) return;
 
     const button=$("adminUnitSearchBtn");
-    const countryCode=$("adminUnitCountry").value;
-    const region=$("adminUnitRegion")?.value || "";
-    const city=$("adminUnitCity").value.trim();
-    const query=$("adminUnitQuery").value.trim();
+    const query=$("adminUnitQuery")?.value.trim() || "";
     const coverage=$("adminCoverageFilter")?.value || "";
 
-    button.disabled=true;
-    button.textContent="Buscando…";
-    $("adminUnitSearchStatus").textContent="Buscando barrios y ramas…";
+    if (button) {
+      button.disabled=true;
+      button.textContent="Buscando…";
+    }
+    $("adminUnitSearchStatus").textContent="Buscando barrios de Iquique…";
 
     try {
-      const runLocalSearch = async () => {
-        const {data,error}=await db.rpc("search_church_catalog_v2",{
-          p_query:query || null,
-          p_country_code:countryCode || null,
-          p_region:region || null,
-          p_city:city || null,
-          p_coverage:coverage || null,
-          p_limit:100,
-          p_offset:0
-        });
-        if (error) throw error;
-        return groupAdminUnitRows(data||[]);
-      };
+      const {data,error}=await db.rpc("search_church_catalog_v2",{
+        p_query:query || null,
+        p_country_code:"CL",
+        p_region:null,
+        p_city:"Iquique",
+        p_coverage:coverage || null,
+        p_limit:20,
+        p_offset:0
+      });
+      if (error) throw error;
 
-      // La búsqueda normal siempre usa primero la base de datos.
-      state.adminUnitResults=await runLocalSearch();
-
-      // Si esa ciudad todavía no fue cargada, intentamos una sincronización puntual
-      // y consultamos nuevamente. La búsqueda no depende del botón de actualización.
-      if (!state.adminUnitResults.length && city) {
-        $("adminUnitSearchStatus").textContent="No hay barrios cacheados todavía. Sincronizando "+city+"…";
-        try {
-          await Promise.race([
-            db.functions.invoke("church-directory",{
-              body:{action:"sync-city",city,countryCode}
-            }),
-            new Promise(resolve=>setTimeout(()=>resolve(null),15000))
-          ]);
-        } catch (error) {
-          console.warn("city directory sync failed",error);
-        }
-        state.adminUnitResults=await runLocalSearch();
-      }
+      state.adminUnitResults=groupAdminUnitRows(data||[]).filter(unit=>
+        String(unit.city||"").trim().toLocaleLowerCase("es")==="iquique" &&
+        String(unit.country_code||"").toUpperCase()==="CL"
+      );
 
       $("adminUnitSearchStatus").textContent=state.adminUnitResults.length
-        ? state.adminUnitResults.length+" barrio(s)/rama(s) encontrado(s)."
-        : city
-          ? "La ciudad está disponible, pero sus barrios/ramas aún no se han sincronizado. Pulsa “Actualizar directorio oficial del país” e inténtalo nuevamente."
-          : "Selecciona una ciudad de la región o actualiza el directorio oficial.";
+        ? state.adminUnitResults.length+" barrio(s) de Iquique encontrado(s)."
+        : "No se encontraron barrios de Iquique con esos filtros.";
       renderAdminUnitResults();
     } catch (error) {
-      $("adminUnitSearchStatus").textContent=error?.message || "No se pudo buscar el barrio.";
+      $("adminUnitSearchStatus").textContent=error?.message || "No se pudieron cargar los barrios de Iquique.";
       $("adminUnitResults").innerHTML="";
     } finally {
-      button.disabled=false;
-      button.textContent="Buscar";
+      if (button) {
+        button.disabled=false;
+        button.textContent="Buscar";
+      }
     }
   }
 
@@ -2268,26 +2247,6 @@
   $("goAssignLeaders").onclick = () => setPanelView("units");
 
   $("adminUnitSearchBtn").onclick = searchAdminUnits;
-  $("syncOfficialDirectory").onclick = syncOfficialCountryDirectory;
-  $("adminUnitCountry").onchange = async () => {
-    $("adminUnitRegion").value="";
-    await loadRegionsForCountry($("adminUnitCountry").value);
-    await loadCountryPlaces($("adminUnitCountry").value);
-    state.adminUnitResults=[];
-    $("adminUnitResults").innerHTML="";
-    $("adminUnitSearchStatus").textContent="Selecciona región, ciudad o busca un barrio.";
-  };
-  $("adminUnitRegion").onchange = async () => {
-    const countryCode=$("adminUnitCountry").value;
-    const region=$("adminUnitRegion").value;
-    await loadCountryPlaces(countryCode,region);
-    state.adminUnitResults=[];
-    $("adminUnitResults").innerHTML="";
-    $("adminUnitSearchStatus").textContent=region
-      ? "Selecciona una ciudad de la región elegida."
-      : "Selecciona región, ciudad o busca un barrio.";
-  };
-  $("adminUnitCity").onchange = searchAdminUnits;
   $("adminCoverageFilter").onchange = searchAdminUnits;
   $("adminUnitQuery").addEventListener("keydown",event=>{
     if (event.key==="Enter") {
