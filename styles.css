@@ -317,3 +317,61 @@ footer .small{font-size:12px}
 .member-unit-card{
   contain:layout style;
 }
+
+/* v2.7.0 · Catálogo interno de capillas */
+.catalog-search-card{
+  margin-top:18px;
+  padding:18px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fbfcfd;
+}
+.catalog-search-heading h3{margin:5px 0}
+.catalog-search-heading p{margin:0 0 14px}
+.catalog-search-grid{
+  display:grid;
+  grid-template-columns:1fr 1.2fr 1.8fr auto;
+  gap:10px;
+  align-items:end;
+}
+.catalog-search-status{
+  min-height:22px;
+  margin:12px 0 4px;
+  color:var(--muted);
+  font-size:13px;
+  font-weight:650;
+}
+.catalog-result-item{align-items:flex-start}
+.catalog-unit-buttons{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin-top:9px;
+}
+.catalog-unit-button{
+  border:1px solid #b8ced8;
+  border-radius:999px;
+  padding:7px 10px;
+  background:#fff;
+  color:var(--blue);
+  font-size:12px;
+  font-weight:800;
+}
+.catalog-unit-button:hover{
+  background:var(--blue);
+  color:#fff;
+  border-color:var(--blue);
+}
+.unit-list-text{
+  margin-top:5px;
+  color:var(--blue)!important;
+}
+@media(max-width:900px){
+  .catalog-search-grid{grid-template-columns:1fr 1fr}
+  .catalog-query-label{grid-column:1/-1}
+  .catalog-search-grid .secondary-button{grid-column:1/-1}
+}
+@media(max-width:620px){
+  .catalog-search-grid{grid-template-columns:1fr}
+  .catalog-query-label,.catalog-search-grid .secondary-button{grid-column:auto}
+}
