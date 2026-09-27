@@ -7,7 +7,7 @@
   );
   const $=id=>document.getElementById(id);
   const state={user:null,profile:null,leaders:[],appointments:[],schedule:[],profiles:[]};
-  if($("panelVersion")) $("panelVersion").textContent=window.APP_CONFIG.version||"v2.1.0";
+  if($("panelVersion")) $("panelVersion").textContent=window.APP_CONFIG.version||"v2.1.1";
 
   const leaderRole={bishop:"bishop",first_counselor:"first_counselor",second_counselor:"second_counselor"};
   const titleByRole={
@@ -366,6 +366,7 @@
   $("userForm").onsubmit=async ev=>{
     ev.preventDefault();
     if(!isSecretaryAdmin()) return;
+    const form=ev.currentTarget;
     const button=$("createUserBtn");
     const result=$("userCreateResult");
     result.className="alert hidden";
@@ -396,8 +397,10 @@
         ?"Usuario creado y listo para iniciar sesión."
         :"Usuario creado. Supabase puede requerir que confirme su correo antes del primer ingreso.";
       result.className="alert success";
-      ev.currentTarget.reset();
+      form.reset();
       $("userRole").value="bishop";
+      $("userPassword").type="password";
+      $("toggleUserPassword").textContent="Mostrar";
       await refresh();
     }catch(err){
       result.textContent=err?.message||"No se pudo crear el usuario.";
