@@ -25,7 +25,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.7.1";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.7.2";
 
 
   const PHONE_COUNTRIES = [
@@ -367,6 +367,7 @@
     $("memberAuthCard")?.classList.toggle("hidden",!isGuest);
     $("publicInfoGrid")?.classList.toggle("hidden",!isGuest);
     $("memberArea")?.classList.toggle("hidden",!isMember);
+    $("memberMenuToggle")?.classList.toggle("hidden",!isMember);
 
     if (!isMember) closeMemberMenu();
   }
@@ -633,7 +634,10 @@
     $("memberSidebar")?.classList.remove("open");
     $("memberSidebarBackdrop")?.classList.remove("open");
     const toggle = $("memberMenuToggle");
-    if (toggle) toggle.setAttribute("aria-expanded","false");
+    if (toggle) {
+      toggle.setAttribute("aria-expanded","false");
+      toggle.setAttribute("aria-label","Abrir menú");
+    }
     document.body.classList.remove("member-menu-open");
   }
 
@@ -641,7 +645,10 @@
     $("memberSidebar")?.classList.add("open");
     $("memberSidebarBackdrop")?.classList.add("open");
     const toggle = $("memberMenuToggle");
-    if (toggle) toggle.setAttribute("aria-expanded","true");
+    if (toggle) {
+      toggle.setAttribute("aria-expanded","true");
+      toggle.setAttribute("aria-label","Cerrar menú");
+    }
     document.body.classList.add("member-menu-open");
   }
 
