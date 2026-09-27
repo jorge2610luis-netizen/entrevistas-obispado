@@ -218,7 +218,47 @@
     });
   }
 
-  function renderUsers(){\n    const list=$("usersList");\n    const rows=state.profiles.filter(x=>x.role!=="unassigned");\n    $("usersCount").textContent=rows.length+" usuario(s)";\n    list.innerHTML=rows.length?rows.map(x=>\n      '<div class="user-row">' +\n        '<div><strong>' + e(x.display_name||x.email||"Usuario") + '</strong><small>' + e(x.email||"Sin correo") + '</small></div>' +\n        '<div class="user-row-right">' +\n          '<span class="role-pill">' + e(roleText[x.role]||x.role) + '</span>' +\n          '<span class="' + (x.is_active?"status-active":"status-inactive") + '">' + (x.is_active?"Activo":"Inactivo") + '</span>' +\n          '<button class="edit-user-button" type="button" data-edit-user="' + e(x.id) + '">Editar</button>' +\n        '</div>' +\n      '</div>'\n    ).join(""):'<div class="empty">No hay usuarios configurados.</div>';\n\n    list.querySelectorAll("[data-edit-user]").forEach(button=>{\n      button.onclick=()=>openUserEditor(button.dataset.editUser);\n    });\n  }\n\n  function openUserEditor(userId){\n    if(!isSecretaryAdmin()) return;\n    const user=state.profiles.find(x=>x.id===userId);\n    if(!user) return;\n    $("editUserId").value=user.id;\n    $("editUserName").value=user.display_name||"";\n    $("editUserEmail").value=user.email||"";\n    $("editUserRole").value=user.role;\n    $("editUserActive").checked=Boolean(user.is_active);\n    $("editUserTitle").textContent=user.display_name||user.email||"Usuario";\n    $("editUserResult").className="alert hidden";\n    $("userEditPanel").classList.remove("hidden");\n    $("userEditPanel").scrollIntoView({behavior:"smooth",block:"center"});\n  }\n\n  function closeUserEditor(){\n    $("userEditPanel").classList.add("hidden");\n    $("editUserForm").reset();\n    $("editUserResult").className="alert hidden";\n  }\n  function selectedLeaderId(){
+  function renderUsers(){
+    const list=$("usersList");
+    const rows=state.profiles.filter(x=>x.role!=="unassigned");
+    $("usersCount").textContent=rows.length+" usuario(s)";
+    list.innerHTML=rows.length?rows.map(x=>
+      '<div class="user-row">' +
+        '<div><strong>' + e(x.display_name||x.email||"Usuario") + '</strong><small>' + e(x.email||"Sin correo") + '</small></div>' +
+        '<div class="user-row-right">' +
+          '<span class="role-pill">' + e(roleText[x.role]||x.role) + '</span>' +
+          '<span class="' + (x.is_active?"status-active":"status-inactive") + '">' + (x.is_active?"Activo":"Inactivo") + '</span>' +
+          '<button class="edit-user-button" type="button" data-edit-user="' + e(x.id) + '">Editar</button>' +
+        '</div>' +
+      '</div>'
+    ).join(""):'<div class="empty">No hay usuarios configurados.</div>';
+
+    list.querySelectorAll("[data-edit-user]").forEach(button=>{
+      button.onclick=()=>openUserEditor(button.dataset.editUser);
+    });
+  }
+
+  function openUserEditor(userId){
+    if(!isSecretaryAdmin()) return;
+    const user=state.profiles.find(x=>x.id===userId);
+    if(!user) return;
+    $("editUserId").value=user.id;
+    $("editUserName").value=user.display_name||"";
+    $("editUserEmail").value=user.email||"";
+    $("editUserRole").value=user.role;
+    $("editUserActive").checked=Boolean(user.is_active);
+    $("editUserTitle").textContent=user.display_name||user.email||"Usuario";
+    $("editUserResult").className="alert hidden";
+    $("userEditPanel").classList.remove("hidden");
+    $("userEditPanel").scrollIntoView({behavior:"smooth",block:"center"});
+  }
+
+  function closeUserEditor(){
+    $("userEditPanel").classList.add("hidden");
+    $("editUserForm").reset();
+    $("editUserResult").className="alert hidden";
+  }
+  function selectedLeaderId(){
     return isSecretaryStaff()?$("scheduleLeader").value:leaderForRole()?.id;
   }
 
@@ -392,7 +432,40 @@
     }
   };
 
-  $("editUserForm").onsubmit=async ev=>{\n    ev.preventDefault();\n    if(!isSecretaryAdmin()) return;\n    const button=$("saveEditUser");\n    const result=$("editUserResult");\n    button.disabled=true;\n    button.textContent="Guardando…";\n    result.className="alert hidden";\n\n    const {error}=await db.rpc("secretary_admin_update_profile",{\n      p_user_id:$("editUserId").value,\n      p_display_name:$("editUserName").value.trim(),\n      p_role:$("editUserRole").value,\n      p_is_active:$("editUserActive").checked\n    });\n\n    button.disabled=false;\n    button.textContent="Guardar cambios";\n\n    if(error){\n      result.textContent=error.message||"No se pudieron guardar los cambios.";\n      result.className="alert error";\n      return;\n    }\n\n    result.textContent="Usuario actualizado correctamente.";\n    result.className="alert success";\n    await refresh();\n    setTimeout(closeUserEditor,700);\n  };\n\n  $("cancelEditUser").onclick=closeUserEditor;\n  $("cancelEditUserTop").onclick=closeUserEditor;\n  $("toggleUserPassword").onclick=()=>{
+  $("editUserForm").onsubmit=async ev=>{
+    ev.preventDefault();
+    if(!isSecretaryAdmin()) return;
+    const button=$("saveEditUser");
+    const result=$("editUserResult");
+    button.disabled=true;
+    button.textContent="Guardando…";
+    result.className="alert hidden";
+
+    const {error}=await db.rpc("secretary_admin_update_profile",{
+      p_user_id:$("editUserId").value,
+      p_display_name:$("editUserName").value.trim(),
+      p_role:$("editUserRole").value,
+      p_is_active:$("editUserActive").checked
+    });
+
+    button.disabled=false;
+    button.textContent="Guardar cambios";
+
+    if(error){
+      result.textContent=error.message||"No se pudieron guardar los cambios.";
+      result.className="alert error";
+      return;
+    }
+
+    result.textContent="Usuario actualizado correctamente.";
+    result.className="alert success";
+    await refresh();
+    setTimeout(closeUserEditor,700);
+  };
+
+  $("cancelEditUser").onclick=closeUserEditor;
+  $("cancelEditUserTop").onclick=closeUserEditor;
+  $("toggleUserPassword").onclick=()=>{
     const input=$("userPassword");
     const show=input.type==="password";
     input.type=show?"text":"password";
