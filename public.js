@@ -2014,7 +2014,8 @@
 
         const [sessionResult] = await Promise.all([
           db.auth.getSession(),
-          loadSettings()
+          loadSettings(),
+          loadCatalogCities($("catalogCountry")?.value || detectedIso)
         ]);
 
         if (sessionResult.error) {
