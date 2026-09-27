@@ -16,7 +16,7 @@
     selectedSlot:null
   };
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.4.2";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.4.3";
 
 
   const PHONE_COUNTRIES = [
@@ -42,22 +42,17 @@
   function detectCountryIso() {
     const valid = new Set(PHONE_COUNTRIES.map(([iso])=>iso));
 
-    const localeCandidates = [
-      ...(navigator.languages || []),
-      navigator.language
-    ].filter(Boolean);
-
-    for (const locale of localeCandidates) {
-      const normalized = String(locale).replace("_","-");
-      const parts = normalized.split("-");
-      const region = parts.find((part,index)=>index>0 && /^[A-Za-z]{2}$/.test(part));
-      if (region && valid.has(region.toUpperCase())) return region.toUpperCase();
-    }
+    try {
+      const saved = localStorage.getItem("member_phone_country");
+      if (saved && valid.has(saved)) return saved;
+    } catch (_) {}
 
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
     const exact = {
       "America/La_Paz":"BO",
       "America/Santiago":"CL",
+      "America/Punta_Arenas":"CL",
+      "Pacific/Easter":"CL",
       "America/Lima":"PE",
       "America/Bogota":"CO",
       "America/Asuncion":"PY",
@@ -73,13 +68,23 @@
       "America/Santo_Domingo":"DO",
       "America/Puerto_Rico":"PR",
       "America/Mexico_City":"MX",
+      "America/Cancun":"MX",
+      "America/Monterrey":"MX",
+      "America/Chihuahua":"MX",
+      "America/Tijuana":"MX",
       "America/New_York":"US",
       "America/Chicago":"US",
       "America/Denver":"US",
       "America/Los_Angeles":"US",
+      "America/Phoenix":"US",
+      "America/Anchorage":"US",
+      "Pacific/Honolulu":"US",
       "America/Toronto":"CA",
       "America/Vancouver":"CA",
+      "America/Edmonton":"CA",
+      "America/Winnipeg":"CA",
       "Europe/Madrid":"ES",
+      "Atlantic/Canary":"ES",
       "Europe/Lisbon":"PT",
       "Europe/London":"GB",
       "Europe/Paris":"FR",
@@ -117,6 +122,7 @@
       "Asia/Singapore":"SG",
       "Australia/Sydney":"AU",
       "Australia/Melbourne":"AU",
+      "Australia/Perth":"AU",
       "Pacific/Auckland":"NZ",
       "Africa/Johannesburg":"ZA",
       "Africa/Cairo":"EG",
@@ -125,10 +131,22 @@
       "Africa/Nairobi":"KE",
       "Africa/Accra":"GH"
     };
-    if (exact[tz] && valid.has(exact[tz])) return exact[tz];
 
+    if (exact[tz] && valid.has(exact[tz])) return exact[tz];
     if (tz.startsWith("America/Argentina/")) return "AR";
-    if (tz.startsWith("America/Sao_Paulo") || tz.startsWith("America/Fortaleza") || tz.startsWith("America/Manaus")) return "BR";
+    if (/^America\/(Sao_Paulo|Fortaleza|Manaus|Recife|Belem|Bahia|Cuiaba|Campo_Grande|Porto_Velho|Rio_Branco)$/.test(tz)) return "BR";
+
+    const localeCandidates = [
+      ...(navigator.languages || []),
+      navigator.language
+    ].filter(Boolean);
+
+    for (const locale of localeCandidates) {
+      const normalized = String(locale).replace("_","-");
+      const parts = normalized.split("-");
+      const region = parts.find((part,index)=>index>0 && /^[A-Za-z]{2}$/.test(part));
+      if (region && valid.has(region.toUpperCase())) return region.toUpperCase();
+    }
 
     return "BO";
   }
@@ -141,15 +159,48 @@
       '<option value="'+code+'" data-iso="'+iso+'" '+(iso===detectedIso?'selected':'')+'>'+name+' ('+code+')</option>'
     ).join("");
 
-    if (!select.value) {
-      const fallback = PHONE_COUNTRIES.find(([iso])=>iso==="BO");
-      select.value = fallback?.[1] || "+591";
+    const target = [...select.options].find(option=>option.dataset.iso===detectedIso);
+    if (target) select.value = target.value;
+    else {
+      const fallback = [...select.options].find(option=>option.dataset.iso==="BO");
+      if (fallback) fallback.selected = true;
     }
   }
 
   function selectedCountryCode(selectId) {
     return $(selectId)?.value || "+591";
   }
+
+  function selectedCountryIso(selectId) {
+    return $(selectId)?.selectedOptions?.[0]?.dataset?.iso || "BO";
+  }
+
+  function setCountryByIso(selectId,iso) {
+    const select = $(selectId);
+    if (!select) return;
+    const option = [...select.options].find(item=>item.dataset.iso===iso);
+    if (option) select.selectedIndex = option.index;
+  }
+
+  function rememberCountry(iso) {
+    try { localStorage.setItem("member_phone_country",iso); } catch (_) {}
+  }
+
+  function bindCountrySelectors() {
+    const login = $("memberLoginCountry");
+    const register = $("memberRegisterCountry");
+
+    const sync = (source,targetId) => {
+      const iso = source.selectedOptions?.[0]?.dataset?.iso;
+      if (!iso) return;
+      rememberCountry(iso);
+      setCountryByIso(targetId,iso);
+    };
+
+    if (login) login.addEventListener("change",()=>sync(login,"memberRegisterCountry"));
+    if (register) register.addEventListener("change",()=>sync(register,"memberLoginCountry"));
+  }
+
   const statusText = {
     pending_secretary:"Pendiente de revisión del Secretario",
     contacted:"Contactado por el Secretario",
@@ -631,6 +682,7 @@
     const detectedIso = detectCountryIso();
     populateCountrySelect("memberLoginCountry",detectedIso);
     populateCountrySelect("memberRegisterCountry",detectedIso);
+    bindCountrySelectors();
     await loadSettings();
     const {data:{session}} = await db.auth.getSession();
     if (session) await loadMember(session);
