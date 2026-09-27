@@ -2003,8 +2003,41 @@
   $("refreshBtn").onclick = refresh;
   $("showLeaderUsers").onclick = () => setUserDirectoryMode("leaders");
   $("showMemberUsers").onclick = () => setUserDirectoryMode("members");
-  $("leaderRoleFilter").onchange = renderUsers;
-  $("memberUserFilter").oninput = renderMemberUsers;
+  $("leaderRoleFilter").onchange = () => loadDirectoryPage({reset:true});
+
+  let directorySearchTimer=null;
+  $("directoryGlobalSearch").oninput = () => {
+    clearTimeout(directorySearchTimer);
+    directorySearchTimer=setTimeout(()=>loadDirectoryPage({reset:true}),300);
+  };
+  $("directoryUnitFilter").onchange = () => loadDirectoryPage({reset:true});
+  $("directoryPrev").onclick = async () => {
+    if (state.directoryPage<=0) return;
+    state.directoryPage--;
+    await loadDirectoryPage();
+  };
+  $("directoryNext").onclick = async () => {
+    const totalPages=Math.ceil(state.directoryTotal/state.directoryPageSize);
+    if ((state.directoryPage+1)>=totalPages) return;
+    state.directoryPage++;
+    await loadDirectoryPage();
+  };
+
+  $("openUserCreateModal").onclick = () => {
+    $("userCreateResult").className="alert hidden";
+    $("userCreateModal").classList.remove("hidden");
+    document.body.classList.add("modal-open");
+  };
+  $("closeUserCreateModal").onclick = () => {
+    $("userCreateModal").classList.add("hidden");
+    document.body.classList.remove("modal-open");
+  };
+  $("userCreateModal").onclick = event => {
+    if (event.target===$("userCreateModal")) {
+      $("userCreateModal").classList.add("hidden");
+      document.body.classList.remove("modal-open");
+    }
+  };
 
   $("userRole").onchange = () => {
     const adminRole=$("userRole").value==="secretary_admin";
@@ -2031,8 +2064,8 @@
 
     state.selectedDates.clear();
     await loadActiveUnitTeam();
-    renderStats();
-    renderAppointments();
+    if (isSecretaryStaff()) await loadDashboardStats();
+    else renderStats();
     renderWeekStrip();
     await reloadSelectedSchedule();
   }
@@ -2048,6 +2081,16 @@
   $("goAssignLeaders").onclick = () => setPanelView("units");
 
   $("adminUnitSearchBtn").onclick = searchAdminUnits;
+  $("syncOfficialDirectory").onclick = syncOfficialCountryDirectory;
+  $("adminUnitCountry").onchange = async () => {
+    $("adminUnitRegion").value="";
+    await loadRegionsForCountry($("adminUnitCountry").value);
+    state.adminUnitResults=[];
+    $("adminUnitResults").innerHTML="";
+    $("adminUnitSearchStatus").textContent="Selecciona región, ciudad o busca un barrio.";
+  };
+  $("adminUnitRegion").onchange = searchAdminUnits;
+  $("adminCoverageFilter").onchange = searchAdminUnits;
   $("adminUnitQuery").addEventListener("keydown",event=>{
     if (event.key==="Enter") {
       event.preventDefault();
@@ -2070,7 +2113,33 @@
     $("adminUnitManager").classList.add("hidden");
   };
 
-  $("statusFilter").onchange = renderAppointments;
+  $("requestUnitFilter").onchange = async () => {
+    await loadRequestLeaderOptions();
+    await loadRequestPage({reset:true});
+  };
+  $("requestLeaderFilter").onchange = () => loadRequestPage({reset:true});
+  $("statusFilter").onchange = () => {
+    if (isSecretaryStaff()) loadRequestPage({reset:true});
+    else renderAppointments();
+  };
+
+  let requestSearchTimer=null;
+  $("requestSearch").oninput = () => {
+    clearTimeout(requestSearchTimer);
+    requestSearchTimer=setTimeout(()=>loadRequestPage({reset:true}),300);
+  };
+
+  $("requestPrev").onclick = async () => {
+    if (state.requestPage<=0) return;
+    state.requestPage--;
+    await loadRequestPage();
+  };
+  $("requestNext").onclick = async () => {
+    const totalPages=Math.ceil(state.requestTotal/state.requestPageSize);
+    if ((state.requestPage+1)>=totalPages) return;
+    state.requestPage++;
+    await loadRequestPage();
+  };
 
   $("scheduleLeader").onchange = async () => {
     state.selectedDates.clear();
