@@ -26,6 +26,7 @@
     selectedMeetinghouse:null,
     nearbyMeetinghouses:[],
     catalogResults:[],
+    iquiqueUnits:[],
     unitSelectionSource:null,
     manualCatalogOpen:false,
     currentView:"home",
@@ -36,7 +37,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.2.2";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.3.0";
 
 
   const PHONE_COUNTRIES = [
@@ -507,7 +508,7 @@
     $("memberAccountPhone").textContent = prettyPhone(data.phone);
     renderMemberUnit();
 
-    await Promise.all([loadMemberAppointments(),loadLeaders()]);
+    await Promise.all([loadMemberAppointments(),loadLeaders(),loadIquiqueUnits()]);
 
     setMemberAppMode("member");
     initializeMemberHistory();
@@ -717,9 +718,99 @@
     } else {
       box.innerHTML =
         '<strong>Unidad todavía no configurada</strong>'+
-        '<span>Puedes buscar una capilla cercana o confirmar tu barrio manualmente.</span>';
+        '<span>Selecciona tu barrio de Iquique en la lista disponible.</span>';
       box.classList.remove("configured");
     }
+  }
+
+  async function loadIquiqueUnits() {
+    const select = $("iquiqueUnitSelect");
+    if (!select) return;
+
+    select.disabled = true;
+    select.innerHTML = '<option value="">Cargando barrios de Iquique…</option>';
+
+    const {data,error}=await db.rpc("search_church_catalog_v2",{
+      p_query:null,
+      p_country_code:"CL",
+      p_region:null,
+      p_city:"Iquique",
+      p_coverage:null,
+      p_limit:20,
+      p_offset:0
+    });
+
+    if (error) {
+      console.warn("Iquique unit load failed",error);
+      select.innerHTML='<option value="">No se pudieron cargar los barrios</option>';
+      setLocationStatus("No se pudieron cargar los barrios de Iquique. Inténtalo nuevamente.","error");
+      select.disabled=false;
+      return;
+    }
+
+    state.iquiqueUnits=(data||[]).filter(row=>
+      String(row.city||"").trim().toLocaleLowerCase("es")==="iquique" &&
+      String(row.country_code||"").toUpperCase()==="CL"
+    );
+
+    select.innerHTML='<option value="">Selecciona tu barrio</option>'+
+      state.iquiqueUnits.map(unit=>
+        '<option value="'+escapeHtml(unit.unit_id)+'">'+
+          escapeHtml(unit.unit_name+(unit.meetinghouse_name?' · '+unit.meetinghouse_name:''))+
+        '</option>'
+      ).join("");
+
+    if (state.member?.church_unit_id && state.iquiqueUnits.some(x=>x.unit_id===state.member.church_unit_id)) {
+      select.value=state.member.church_unit_id;
+    }
+
+    select.disabled=false;
+  }
+
+  async function saveIquiqueUnit() {
+    if (!state.member) return;
+
+    const select=$("iquiqueUnitSelect");
+    const unit=state.iquiqueUnits.find(x=>x.unit_id===select?.value);
+
+    if (!unit) {
+      setLocationStatus("Selecciona uno de los barrios de Iquique antes de guardar.","error");
+      return;
+    }
+
+    const button=$("saveIquiqueUnit");
+    button.disabled=true;
+    button.textContent="Guardando…";
+    clearLocationStatus();
+
+    const {error}=await db.rpc("member_set_church_unit",{
+      p_unit_name:unit.unit_name,
+      p_meetinghouse_name:unit.meetinghouse_name || null,
+      p_city:"Iquique",
+      p_country_code:"CL",
+      p_assignment_method:"manual",
+      p_church_unit_id:unit.unit_id
+    });
+
+    button.disabled=false;
+    button.textContent="Guardar barrio";
+
+    if (error) {
+      setLocationStatus(error.message || "No se pudo guardar tu barrio.","error");
+      return;
+    }
+
+    state.member.church_unit_id=unit.unit_id;
+    state.member.church_unit_name=unit.unit_name;
+    state.member.meetinghouse_name=unit.meetinghouse_name || null;
+    state.member.location_city="Iquique";
+    state.member.location_country_code="CL";
+    state.member.unit_assignment_method="manual";
+
+    renderMemberUnit();
+    renderMemberHome();
+    await loadLeaders();
+    setLocationStatus("Barrio guardado. Ya puedes solicitar una entrevista con los líderes disponibles.","success");
   }
 
   function renderMemberHome() {
@@ -1894,69 +1985,7 @@
     $("successBox").scrollIntoView({behavior:"smooth"});
   };
 
-  $("useMemberLocation").onclick = findNearbyMeetinghouses;
-  $("manualUnitBtn").onclick = () => {
-    const card = $("catalogSearchCard");
-    state.manualCatalogOpen = !state.manualCatalogOpen;
-
-    if (state.manualCatalogOpen) {
-      card?.classList.remove("hidden");
-      $("nearbyMeetinghouses")?.classList.add("hidden");
-      $("unitConfirmPanel")?.classList.add("hidden");
-      state.selectedMeetinghouse = null;
-      state.unitSelectionSource = null;
-      $("manualUnitBtn").textContent = "Volver a capillas encontradas";
-      card?.scrollIntoView({behavior:"smooth",block:"nearest"});
-    } else {
-      card?.classList.add("hidden");
-      if (state.nearbyMeetinghouses?.length) $("nearbyMeetinghouses")?.classList.remove("hidden");
-      $("manualUnitBtn").textContent = "Mi barrio todavía no aparece: buscar manualmente";
-    }
-  };
-  $("catalogSearchBtn").onclick = searchManualCatalog;
-  $("catalogCountry").onchange = async () => {
-    state.catalogResults = [];
-    $("catalogResults").innerHTML = "";
-    $("catalogSearchStatus").textContent = "Cargando ciudades del país…";
-    await loadCatalogCities($("catalogCountry").value);
-    $("catalogSearchStatus").textContent = "Selecciona una ciudad para ver sus barrios/ramas.";
-  };
-  $("catalogCity").onchange = async () => {
-    if (!$("catalogCity").value) {
-      state.catalogResults = [];
-      $("catalogResults").innerHTML = "";
-      return;
-    }
-    await searchManualCatalog();
-  };
-  $("catalogQuery").addEventListener("keydown",event=>{
-    if (event.key==="Enter") {
-      event.preventDefault();
-      searchManualCatalog();
-    }
-  });
-
-  $("cancelMeetinghouseSelection").onclick = () => {
-    $("unitConfirmPanel").classList.add("hidden");
-    state.selectedMeetinghouse = null;
-
-    if ($("manualUnitBtn")) $("manualUnitBtn").classList.remove("hidden");
-
-    if (state.unitSelectionSource==="manual") {
-      $("catalogSearchCard")?.classList.remove("hidden");
-      $("nearbyMeetinghouses")?.classList.add("hidden");
-      state.manualCatalogOpen = true;
-      if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Volver a capillas encontradas";
-    } else {
-      $("catalogSearchCard")?.classList.add("hidden");
-      if (state.nearbyMeetinghouses?.length) $("nearbyMeetinghouses")?.classList.remove("hidden");
-      state.manualCatalogOpen = false;
-      if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Mi barrio todavía no aparece: buscar manualmente";
-    }
-
-    state.unitSelectionSource = null;
-  };
-  $("saveMemberUnit").onclick = saveMemberUnit;
+  if ($("saveIquiqueUnit")) $("saveIquiqueUnit").onclick = saveIquiqueUnit;
 
   $("memberMenuToggle").onclick = () => {
     const open = $("memberSidebar")?.classList.contains("open");
@@ -2019,13 +2048,11 @@
         const detectedIso = detectCountryIso();
         populateCountrySelect("memberLoginCountry",detectedIso);
         populateCountrySelect("memberRegisterCountry",detectedIso);
-        populateCatalogCountrySelect(detectedIso);
         bindCountrySelectors();
 
         const [sessionResult] = await Promise.all([
           db.auth.getSession(),
-          loadSettings(),
-          loadCatalogCities($("catalogCountry")?.value || detectedIso)
+          loadSettings()
         ]);
 
         if (sessionResult.error) {
