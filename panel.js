@@ -14,10 +14,11 @@
     appointments:[],
     schedule:[],
     profiles:[],
+    memberProfiles:[],
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version || "v2.3.0";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v2.5.0";
 
   const leaderRole = {
     bishop:"bishop",
@@ -205,7 +206,7 @@
     const requests = [
       db.from("leaders").select("id,code,title,sort_order").eq("is_active",true).order("sort_order"),
       db.from("appointments")
-        .select("id,status,member_name,member_phone,member_email,created_at,availability(id,start_at,end_at,leader_id),interview_types(id,name,leaders(id,code,title))")
+        .select("id,status,member_user_id,member_name,member_phone,member_email,created_at,availability(id,start_at,end_at,leader_id),interview_types(id,name,leaders(id,code,title))")
         .order("created_at",{ascending:false}),
       db.from("availability")
         .select("id,leader_id,start_at,end_at,is_active,is_booked,leaders(id,code,title)")
@@ -237,6 +238,14 @@
     state.appointments = appointmentsResult.data || [];
     state.schedule = scheduleResult.data || [];
     state.profiles = profilesResult?.data || [];
+
+    if (isSecretaryStaff()) {
+      const {data:memberProfiles} = await db.from("member_profiles")
+        .select("id,full_name,phone,church_unit_name,meetinghouse_name,location_city,location_country_code");
+      state.memberProfiles = memberProfiles || [];
+    } else {
+      state.memberProfiles = [];
+    }
 
     if (isSecretaryStaff()) {
       $("leaderSelectorWrap").classList.remove("hidden");
@@ -336,6 +345,13 @@
               e(a.interview_types?.name||"Entrevista")+' · '+e(a.interview_types?.leaders?.title||"")+'<br>'+
               (a.availability?.start_at?e(fmt(a.availability.start_at)):"Sin horario")+'<br>'+
               e(a.member_phone)+(a.member_email?' · '+e(a.member_email):'')+
+              (() => {
+                if (!isSecretaryStaff()) return "";
+                const mp = state.memberProfiles.find(x=>x.id===a.member_user_id);
+                if (!mp?.church_unit_name) return "";
+                return '<br><strong>Barrio/Rama:</strong> '+e(mp.church_unit_name)+
+                  (mp.meetinghouse_name?' · '+e(mp.meetinghouse_name):'');
+              })()+
             '</div>'+
           '</div>'+
           '<span class="badge '+e(a.status)+'">'+e(statusText[a.status]||a.status)+'</span>'+
