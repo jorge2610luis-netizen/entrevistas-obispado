@@ -306,3 +306,14 @@ footer .small{font-size:12px}
 .member-boot-loading h2{margin:6px 0 0}
 .member-boot-loading p{margin:0;max-width:440px}
 .member-boot-loading .loading-spinner{margin-bottom:8px}
+
+/* v2.6.3 · Estabilidad de búsqueda */
+.member-unit-card,
+#memberLocationStatus,
+#nearbyMeetinghouses,
+.unit-confirm-panel{
+  overflow-anchor:none;
+}
+.member-unit-card{
+  contain:layout style;
+}
