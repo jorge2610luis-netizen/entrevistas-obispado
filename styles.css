@@ -375,3 +375,139 @@ footer .small{font-size:12px}
   .catalog-search-grid{grid-template-columns:1fr}
   .catalog-query-label,.catalog-search-grid .secondary-button{grid-column:auto}
 }
+
+/* v2.7.2 · Menú móvil integrado en el encabezado */
+.topbar-menu-toggle{
+  flex:0 0 auto;
+  width:44px;
+  height:44px;
+  padding:0;
+  margin:0;
+  border:0;
+  border-radius:12px;
+  align-items:center;
+  justify-content:center;
+  background:var(--blue);
+  color:#fff;
+  box-shadow:none;
+}
+.hamburger-lines{
+  width:22px;
+  display:grid;
+  gap:4px;
+}
+.hamburger-lines i{
+  display:block;
+  height:2.5px;
+  border-radius:99px;
+  background:currentColor;
+}
+
+@media(min-width:901px){
+  .topbar-menu-toggle{display:none!important}
+}
+
+@media(max-width:900px){
+  .topbar{
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr) auto;
+    align-items:center;
+    gap:10px;
+    padding:12px 16px;
+  }
+  .topbar-menu-toggle{
+    display:flex;
+    position:static;
+    top:auto;
+    z-index:auto;
+    width:44px;
+    margin:0;
+    padding:0;
+    box-shadow:none;
+  }
+  .brand{
+    min-width:0;
+    gap:9px;
+  }
+  .brand-mark{
+    width:40px;
+    height:40px;
+    flex:0 0 40px;
+  }
+  .brand>div:last-child{
+    min-width:0;
+  }
+  .brand strong{
+    line-height:1.05;
+  }
+  .topbar>.link-button{
+    white-space:nowrap;
+    text-align:center;
+  }
+}
+
+@media(max-width:620px){
+  #memberArea{margin-top:0}
+  .topbar{
+    grid-template-columns:40px minmax(0,1fr) auto;
+    gap:8px;
+    padding:10px 12px;
+  }
+  .topbar-menu-toggle{
+    width:40px;
+    height:40px;
+    border-radius:11px;
+  }
+  .hamburger-lines{width:20px}
+  .brand{gap:7px}
+  .brand-mark{
+    width:38px;
+    height:38px;
+    flex-basis:38px;
+    border-radius:11px;
+    font-size:20px;
+  }
+  .brand strong{
+    font-size:13px;
+    line-height:1.05;
+  }
+  .brand small{
+    font-size:10px;
+    line-height:1.15;
+  }
+  .version-label{
+    font-size:9px!important;
+    margin-top:1px;
+  }
+  .topbar>.link-button{
+    padding:9px 10px;
+    border-radius:10px;
+    font-size:12px;
+    line-height:1.1;
+  }
+}
+
+@media(max-width:390px){
+  .topbar{
+    grid-template-columns:38px minmax(0,1fr) auto;
+    padding-left:9px;
+    padding-right:9px;
+    gap:6px;
+  }
+  .topbar-menu-toggle{
+    width:38px;
+    height:38px;
+  }
+  .brand-mark{
+    width:34px;
+    height:34px;
+    flex-basis:34px;
+    font-size:18px;
+  }
+  .brand strong{font-size:12px}
+  .brand small{font-size:9px}
+  .topbar>.link-button{
+    padding:8px 7px;
+    font-size:11px;
+  }
+}
