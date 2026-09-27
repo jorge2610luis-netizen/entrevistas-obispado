@@ -8,7 +8,7 @@
   <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#005581">
   <title>Panel | Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=2.7.3">
+  <link rel="stylesheet" href="styles.css?v=2.8.0">
 </head>
 <body>
 <header class="topbar panel-topbar">
@@ -17,10 +17,10 @@
     <div>
       <strong>Panel de Entrevistas</strong>
       <small id="panelUnit">Barrio / Rama</small>
-      <small id="panelVersion" class="version-label">v2.7.3</small>
+      <small id="panelVersion" class="version-label">v2.8.0</small>
     </div>
   </div>
-  <a class="link-button" href="index.html?v=2.7.3">Página pública</a>
+  <a class="link-button" href="index.html?v=2.8.0">Página pública</a>
 </header>
 
 <main class="container">
@@ -64,60 +64,32 @@
     <div id="globalAlert" class="alert hidden"></div>
 
     <section id="userAdminCard" class="card user-admin-card hidden">
-      <div class="card-header">
+      <div class="card-header user-directory-header">
         <div>
           <span class="eyebrow">Solo Secretario Administrador</span>
-          <h2>Usuarios internos</h2>
-          <p>Crea y edita accesos para Obispo, Consejeros y Secretarios.</p>
+          <h2>Cuentas del sistema</h2>
+          <p>Separa los miembros que solicitan entrevistas de los líderes y secretarios que administran el sistema.</p>
         </div>
       </div>
 
-      <form id="userForm" class="user-create-form">
-        <label>Nombre<input id="userDisplayName" maxlength="120" required placeholder="Ej. Obispo"></label>
-        <label>Correo<input id="userEmail" type="email" required autocomplete="off" placeholder="correo@ejemplo.com"></label>
-        <label>Rol
-          <select id="userRole" required>
-            <option value="bishop">Obispo</option>
-            <option value="first_counselor">Primer Consejero</option>
-            <option value="second_counselor">Segundo Consejero</option>
-            <option value="secretary">Secretario</option>
-            <option value="secretary_admin">Secretario Administrador</option>
-          </select>
-        </label>
-        <label>Contraseña temporal
-          <div class="password-row">
-            <input id="userPassword" type="password" minlength="8" required autocomplete="new-password" placeholder="Mínimo 8 caracteres">
-            <button id="toggleUserPassword" class="mini-button" type="button">Mostrar</button>
-          </div>
-        </label>
-        <button id="createUserBtn" class="primary-button" type="submit">Crear usuario</button>
-      </form>
-
-      <div id="userCreateResult" class="alert hidden"></div>
-
-      <div class="subheading-row">
-        <h3>Usuarios configurados</h3>
-        <span id="usersCount" class="muted-text"></span>
+      <div class="user-directory-tabs" role="tablist" aria-label="Tipo de cuenta">
+        <button id="showLeaderUsers" class="user-directory-tab active" type="button" data-directory-mode="leaders">
+          Líderes internos <span id="leaderUsersBadge">0</span>
+        </button>
+        <button id="showMemberUsers" class="user-directory-tab" type="button" data-directory-mode="members">
+          Miembros <span id="memberUsersBadge">0</span>
+        </button>
       </div>
-      <div id="usersList" class="users-list"><div class="empty">Cargando usuarios…</div></div>
 
-      <section id="userEditPanel" class="user-edit-panel hidden">
-        <div class="edit-panel-header">
+      <section id="leaderUsersView" class="user-directory-view">
+        <div class="directory-view-heading">
           <div>
-            <span class="eyebrow">Editar usuario</span>
-            <h3 id="editUserTitle">Usuario</h3>
+            <h3>Líderes y secretarios</h3>
+            <p>Crea, edita y filtra las cuentas con acceso al panel interno.</p>
           </div>
-          <button id="cancelEditUserTop" class="mini-button" type="button">Cerrar</button>
-        </div>
-        <form id="editUserForm" class="edit-user-form">
-          <input id="editUserId" type="hidden">
-          <label>Nombre<input id="editUserName" maxlength="120" required></label>
-          <label>Correo de acceso
-            <input id="editUserEmail" type="email" readonly>
-            <small>El correo no se cambia desde esta edición.</small>
-          </label>
-          <label>Rol
-            <select id="editUserRole" required>
+          <label class="directory-filter-label">Filtrar por rol
+            <select id="leaderRoleFilter">
+              <option value="all">Todos los roles</option>
               <option value="bishop">Obispo</option>
               <option value="first_counselor">Primer Consejero</option>
               <option value="second_counselor">Segundo Consejero</option>
@@ -125,17 +97,93 @@
               <option value="secretary_admin">Secretario Administrador</option>
             </select>
           </label>
-          <label class="active-toggle"><input id="editUserActive" type="checkbox"><span>Usuario activo</span></label>
-          <div class="edit-user-actions">
-            <button id="cancelEditUser" class="secondary-button" type="button">Cancelar</button>
-            <button id="saveEditUser" class="primary-button" type="submit">Guardar cambios</button>
-          </div>
+        </div>
+
+        <form id="userForm" class="user-create-form">
+          <label>Nombre<input id="userDisplayName" maxlength="120" required placeholder="Ej. Obispo"></label>
+          <label>Correo<input id="userEmail" type="email" required autocomplete="off" placeholder="correo@ejemplo.com"></label>
+          <label>Rol
+            <select id="userRole" required>
+              <option value="bishop">Obispo</option>
+              <option value="first_counselor">Primer Consejero</option>
+              <option value="second_counselor">Segundo Consejero</option>
+              <option value="secretary">Secretario</option>
+              <option value="secretary_admin">Secretario Administrador</option>
+            </select>
+          </label>
+          <label>Contraseña temporal
+            <div class="password-row">
+              <input id="userPassword" type="password" minlength="8" required autocomplete="new-password" placeholder="Mínimo 8 caracteres">
+              <button id="toggleUserPassword" class="mini-button" type="button">Mostrar</button>
+            </div>
+          </label>
+          <button id="createUserBtn" class="primary-button" type="submit">Crear usuario</button>
         </form>
-        <div id="editUserResult" class="alert hidden"></div>
+
+        <div id="userCreateResult" class="alert hidden"></div>
+
+        <div class="subheading-row">
+          <h3>Usuarios internos configurados</h3>
+          <span id="usersCount" class="muted-text"></span>
+        </div>
+        <div id="usersList" class="users-list"><div class="empty">Cargando líderes…</div></div>
+
+        <section id="userEditPanel" class="user-edit-panel hidden">
+          <div class="edit-panel-header">
+            <div>
+              <span class="eyebrow">Editar usuario</span>
+              <h3 id="editUserTitle">Usuario</h3>
+            </div>
+            <button id="cancelEditUserTop" class="mini-button" type="button">Cerrar</button>
+          </div>
+          <form id="editUserForm" class="edit-user-form">
+            <input id="editUserId" type="hidden">
+            <label>Nombre<input id="editUserName" maxlength="120" required></label>
+            <label>Correo de acceso
+              <input id="editUserEmail" type="email" readonly>
+              <small>El correo no se cambia desde esta edición.</small>
+            </label>
+            <label>Rol
+              <select id="editUserRole" required>
+                <option value="bishop">Obispo</option>
+                <option value="first_counselor">Primer Consejero</option>
+                <option value="second_counselor">Segundo Consejero</option>
+                <option value="secretary">Secretario</option>
+                <option value="secretary_admin">Secretario Administrador</option>
+              </select>
+            </label>
+            <label class="active-toggle"><input id="editUserActive" type="checkbox"><span>Usuario activo</span></label>
+            <div class="edit-user-actions">
+              <button id="cancelEditUser" class="secondary-button" type="button">Cancelar</button>
+              <button id="saveEditUser" class="primary-button" type="submit">Guardar cambios</button>
+            </div>
+          </form>
+          <div id="editUserResult" class="alert hidden"></div>
+        </section>
+      </section>
+
+      <section id="memberUsersView" class="user-directory-view hidden">
+        <div class="directory-view-heading">
+          <div>
+            <h3>Miembros registrados</h3>
+            <p>Usuarios que ingresan con teléfono para solicitar y seguir sus entrevistas.</p>
+          </div>
+          <label class="directory-member-search">Buscar miembro
+            <input id="memberUserFilter" type="search" placeholder="Nombre, teléfono, barrio o capilla">
+          </label>
+        </div>
+
+        <div class="subheading-row">
+          <h3>Miembros</h3>
+          <span id="memberUsersCount" class="muted-text"></span>
+        </div>
+        <div id="memberUsersList" class="users-list member-users-list">
+          <div class="empty">Cargando miembros…</div>
+        </div>
       </section>
     </section>
 
-    <div id="stats" class="stats"></div>
+        <div id="stats" class="stats"></div>
 
     <div class="dashboard-grid">
       <section class="card">
@@ -211,7 +259,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=2.7.3"></script>
-<script src="panel.js?v=2.7.3"></script>
+<script src="config.js?v=2.8.0"></script>
+<script src="panel.js?v=2.8.0"></script>
 </body>
 </html>
