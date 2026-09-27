@@ -25,7 +25,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.8.0";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.8.1";
 
 
   const PHONE_COUNTRIES = [
@@ -368,6 +368,7 @@
     $("publicInfoGrid")?.classList.toggle("hidden",!isGuest);
     $("memberArea")?.classList.toggle("hidden",!isMember);
     $("memberMenuToggle")?.classList.toggle("hidden",!isMember);
+    $("publicTopbar")?.classList.toggle("member-menu-enabled",isMember);
 
     if (!isMember) closeMemberMenu();
   }
