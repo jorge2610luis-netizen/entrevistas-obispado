@@ -48,7 +48,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.2.0";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.2.1";
 
   const leaderRole = {
     bishop:"bishop",
@@ -344,15 +344,24 @@
         if (!city) continue;
         // Nunca permitir combinar una región elegida con una ciudad de otra.
         // Las ciudades sin región aún se completan mediante la sincronización oficial.
-        if (selectedRegion && region!==selectedRegion) continue;
+        if (selectedRegion && region && region!==selectedRegion) continue;
         const key=city.toLocaleLowerCase("es");
         if (!unique.has(key)) unique.set(key,{city,region});
       }
-      const rows=[...unique.values()].sort((a,b)=>a.city.localeCompare(b.city,"es"));
+      const rows=[...unique.values()].sort((a,b)=>{
+        if (selectedRegion) {
+          const aRank=a.region===selectedRegion ? 0 : 1;
+          const bRank=b.region===selectedRegion ? 0 : 1;
+          if (aRank!==bRank) return aRank-bRank;
+        }
+        return a.city.localeCompare(b.city,"es");
+      });
       list.innerHTML='<option value="">'+(selectedRegion && !rows.length
         ? "Sin ciudades clasificadas todavía"
         : "Todas las ciudades")+'</option>'+
-        rows.map(x=>'<option value="'+e(x.city)+'">'+e(x.city+(x.region?' · '+x.region:''))+'</option>').join("");
+        rows.map(x=>'<option value="'+e(x.city)+'">'+e(
+          x.city+(x.region?' · '+x.region:(selectedRegion?' · Región por clasificar':''))
+        )+'</option>').join("");
       list.disabled=Boolean(selectedRegion && !rows.length);
       if (previous && rows.some(x=>x.city===previous)) list.value=previous;
     }

@@ -2,7 +2,7 @@
 
 Aplicación web multi-barrio para solicitar, coordinar y dar seguimiento a entrevistas con el Obispado.
 
-**Versión actual declarada:** v4.2.0
+**Versión actual declarada:** v4.2.1
 **Producción:** https://mientrevista.online  
 **Backend:** Supabase  
 **Deploy:** GitHub Pages desde `main`
