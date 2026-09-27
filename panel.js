@@ -33,12 +33,22 @@
     adminUnitResults:[],
     adminSelectedUnit:null,
     adminUnitTeam:[],
+    regions:[],
+    directoryRows:[],
+    directoryTotal:0,
+    directoryPage:0,
+    directoryPageSize:25,
+    requestRows:[],
+    requestTotal:0,
+    requestPage:0,
+    requestPageSize:25,
+    dashboardCounts:{total:0,in_progress:0,approved:0,future_slots:0},
     userDirectoryMode:"leaders",
     panelView:"overview",
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v3.3.5";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.0.0";
 
   const leaderRole = {
     bishop:"bishop",
