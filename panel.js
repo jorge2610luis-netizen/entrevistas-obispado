@@ -334,11 +334,20 @@
       } catch (_) {}
     }
 
-    const list=$("adminCityOptions");
+    const list=$("adminUnitCity");
     if (list) {
-      list.innerHTML=(data||[]).map(x=>
-        '<option value="'+e(x.city_name)+'">'+e(x.region||"")+'</option>'
-      ).join("");
+      const previous=list.value;
+      const unique=new Map();
+      for (const row of data||[]) {
+        const city=String(row.city_name||"").trim();
+        if (!city) continue;
+        const key=city.toLocaleLowerCase("es");
+        if (!unique.has(key)) unique.set(key,{city,region:String(row.region||"").trim()});
+      }
+      const rows=[...unique.values()].sort((a,b)=>a.city.localeCompare(b.city,"es"));
+      list.innerHTML='<option value="">Todas las ciudades</option>'+
+        rows.map(x=>'<option value="'+e(x.city)+'">'+e(x.city+(x.region?' · '+x.region:''))+'</option>').join("");
+      if (previous && rows.some(x=>x.city===previous)) list.value=previous;
     }
 
     if ($("directorySyncStatus") && data?.length) {
@@ -2192,14 +2201,9 @@
     $("adminUnitSearchStatus").textContent="Selecciona región, ciudad o busca un barrio.";
   };
   $("adminUnitRegion").onchange = searchAdminUnits;
+  $("adminUnitCity").onchange = searchAdminUnits;
   $("adminCoverageFilter").onchange = searchAdminUnits;
   $("adminUnitQuery").addEventListener("keydown",event=>{
-    if (event.key==="Enter") {
-      event.preventDefault();
-      searchAdminUnits();
-    }
-  });
-  $("adminUnitCity").addEventListener("keydown",event=>{
     if (event.key==="Enter") {
       event.preventDefault();
       searchAdminUnits();
