@@ -263,9 +263,9 @@
   }
 
   function canManage(appointment) {
+    if (isSecretaryStaff()) return true;
     const unitId=currentUnitId();
     if (unitId && appointment.church_unit_id!==unitId) return false;
-    if (isSecretaryStaff()) return true;
     return appointment.assigned_profile_id===state.user?.id;
   }
 
