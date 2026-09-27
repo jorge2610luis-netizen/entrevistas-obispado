@@ -722,3 +722,45 @@ footer .small{font-size:12px}
     grid-template-columns:38px minmax(0,1fr) auto;
   }
 }
+
+/* v2.9.1 · Acceso de miembro limpio */
+.member-auth-card{
+  max-width:560px;
+  margin:24px auto;
+}
+.member-auth-heading{
+  display:block;
+}
+.member-auth-heading .auth-tabs{
+  margin-top:18px;
+  width:100%;
+}
+.member-auth-heading .auth-tab{
+  flex:1;
+}
+.member-auth-form,
+#memberRegisterForm{
+  grid-template-columns:1fr;
+}
+.member-auth-form .primary-button,
+#memberRegisterForm .primary-button{
+  width:100%;
+}
+@media(max-width:620px){
+  .container{
+    padding-top:24px;
+  }
+  .member-auth-card{
+    margin:8px auto 24px;
+    padding:22px 18px;
+  }
+  .member-auth-heading{
+    margin-bottom:16px;
+  }
+  .member-auth-heading h2{
+    font-size:31px;
+  }
+  .member-auth-heading p{
+    margin-bottom:0;
+  }
+}
