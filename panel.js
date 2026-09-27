@@ -26,6 +26,7 @@
     schedule:[],
     profiles:[],
     memberProfiles:[],
+    staffAssignments:[],
     accessibleUnits:[],
     unitTeam:[],
     activeUnitId:null,
@@ -37,7 +38,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v3.1.0";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v3.2.0";
 
   const leaderRole = {
     bishop:"bishop",
@@ -69,7 +70,7 @@
     bishop:"Obispo",
     first_counselor:"Primer Consejero",
     second_counselor:"Segundo Consejero",
-    unassigned:"Sin rol"
+    unassigned:"Miembro / Sin cargo"
   };
 
   const statusText = {
@@ -179,6 +180,51 @@
   function currentUnit() {
     const id=currentUnitId();
     return state.accessibleUnits.find(x=>x.unit_id===id) || null;
+  }
+
+  function assignmentForProfile(profileId) {
+    return state.staffAssignments.find(x=>
+      x.profile_id===profileId && x.is_active
+    ) || null;
+  }
+
+  function memberForProfile(profileId) {
+    return state.memberProfiles.find(x=>x.id===profileId) || null;
+  }
+
+  function populateEditUserUnit(userId) {
+    const assignment=assignmentForProfile(userId);
+    const member=memberForProfile(userId);
+    const selectedUnitId=assignment?.church_unit_id || member?.church_unit_id || "";
+
+    $("editUserUnit").innerHTML=
+      '<option value="">Sin barrio asignado</option>'+
+      state.accessibleUnits.map(unit=>
+        '<option value="'+unit.unit_id+'">'+e(unit.unit_name)+(unit.city?' · '+e(unit.city):'')+'</option>'
+      ).join("");
+
+    if (selectedUnitId && state.accessibleUnits.some(x=>x.unit_id===selectedUnitId)) {
+      $("editUserUnit").value=selectedUnitId;
+    }
+  }
+
+  function syncEditUserUnitVisibility() {
+    const role=$("editUserRole").value;
+    const isAdmin=role==="secretary_admin";
+    $("editUserUnitWrap").classList.toggle("hidden",isAdmin);
+  }
+
+  function staffAuthEmail(identity) {
+    const raw=String(identity||"").trim();
+    if (!raw) throw new Error("Ingresa tu correo o teléfono.");
+    if (raw.includes("@")) return raw.toLowerCase();
+
+    const digits=raw.replace(/\D/g,"");
+    if (digits.length<8 || digits.length>15) {
+      throw new Error("Ingresa el teléfono con código internacional, por ejemplo +56912345678.");
+    }
+
+    return "m"+digits+"@members.expressdelivery.pro";
   }
 
   function selectedScheduleAssignment() {
@@ -455,7 +501,10 @@
       requests.push(
         db.from("profiles")
           .select("id,email,display_name,role,is_active,created_at")
-          .order("created_at",{ascending:true})
+          .order("created_at",{ascending:true}),
+        db.from("unit_staff_assignments")
+          .select("id,profile_id,role,church_unit_id,is_active,church_units(id,unit_name,meetinghouse_name,city,country_code)")
+          .eq("is_active",true)
       );
     }
 
@@ -464,7 +513,8 @@
       appointmentsResult,
       scheduleResult,
       unitsResult,
-      profilesResult
+      profilesResult,
+      assignmentsResult
     ] = await Promise.all(requests);
 
     if (
@@ -472,7 +522,8 @@
       appointmentsResult.error ||
       scheduleResult.error ||
       unitsResult.error ||
-      (profilesResult && profilesResult.error)
+      (profilesResult && profilesResult.error) ||
+      (assignmentsResult && assignmentsResult.error)
     ) {
       alertGlobal("No se pudieron cargar todos los datos del panel.","error");
       return;
@@ -483,6 +534,7 @@
     state.schedule = scheduleResult.data || [];
     state.accessibleUnits = unitsResult.data || [];
     state.profiles = profilesResult?.data || [];
+    state.staffAssignments = assignmentsResult?.data || [];
 
     populateCountrySelect();
     populateActiveUnitSelect();
@@ -655,16 +707,23 @@
     $("memberUsersBadge").textContent = state.memberProfiles.length;
     $("usersCount").textContent = rows.length+" de "+allRows.length+" líder(es) / secretario(s)";
 
-    $("usersList").innerHTML = rows.length ? rows.map(x=>
-      '<div class="user-row">'+
-        '<div><strong>'+e(x.display_name||x.email||"Usuario")+'</strong><small>'+e(x.email||"Sin correo")+'</small></div>'+
+    $("usersList").innerHTML = rows.length ? rows.map(x=>{
+      const assignment=assignmentForProfile(x.id);
+      const unitName=assignment?.church_units?.unit_name || (x.role==="secretary_admin" ? "Acceso general" : "Sin barrio asignado");
+
+      return '<div class="user-row">'+
+        '<div class="user-row-main">'+
+          '<strong>'+e(x.display_name||x.email||"Usuario")+'</strong>'+
+          '<small>'+e(x.email||"Sin correo")+'</small>'+
+          '<span class="user-assignment-line">'+e(unitName)+'</span>'+
+        '</div>'+
         '<div class="user-row-right">'+
           '<span class="role-pill">'+e(roleText[x.role]||x.role)+'</span>'+
           '<span class="'+(x.is_active?"status-active":"status-inactive")+'">'+(x.is_active?"Activo":"Inactivo")+'</span>'+
-          '<button class="edit-user-button" type="button" data-edit-user="'+e(x.id)+'">Editar</button>'+
+          '<button class="edit-user-button" type="button" data-edit-user="'+e(x.id)+'">Cambiar cargo / barrio</button>'+
         '</div>'+
-      '</div>'
-    ).join("") : '<div class="empty">No hay líderes con este filtro.</div>';
+      '</div>';
+    }).join("") : '<div class="empty">No hay líderes con este filtro.</div>';
 
     $("usersList").querySelectorAll("[data-edit-user]").forEach(button=>{
       button.onclick = () => openUserEditor(button.dataset.editUser);
@@ -676,15 +735,21 @@
     const allRows = state.memberProfiles || [];
 
     const rows = allRows.filter(member=>{
+      const profile=state.profiles.find(x=>x.id===member.id);
+      const assignment=assignmentForProfile(member.id);
       if (!query) return true;
+
       const haystack = [
         member.full_name,
         member.phone,
         member.church_unit_name,
         member.meetinghouse_name,
         member.location_city,
-        member.location_country_code
+        member.location_country_code,
+        profile?.role ? roleText[profile.role] : "",
+        assignment?.church_units?.unit_name
       ].filter(Boolean).join(" ").toLowerCase();
+
       return haystack.includes(query);
     });
 
@@ -693,9 +758,14 @@
     $("memberUsersCount").textContent = rows.length+" de "+allRows.length+" miembro(s)";
 
     $("memberUsersList").innerHTML = rows.length ? rows.map(member=>{
-      const unit = member.church_unit_name || "Barrio/Rama sin configurar";
+      const profile=state.profiles.find(x=>x.id===member.id);
+      const assignment=assignmentForProfile(member.id);
+      const role=profile?.role || "unassigned";
+      const roleLabel=roleText[role] || "Miembro";
+      const unit = assignment?.church_units?.unit_name || member.church_unit_name || "Barrio/Rama sin configurar";
       const chapel = member.meetinghouse_name ? " · "+member.meetinghouse_name : "";
       const place = [member.location_city,member.location_country_code].filter(Boolean).join(" · ");
+      const hasCalling=role!=="unassigned";
 
       return '<div class="user-row member-user-row">'+
         '<div class="member-user-main">'+
@@ -705,10 +775,17 @@
           (place?'<span class="member-location-line">'+e(place)+'</span>':'')+
         '</div>'+
         '<div class="user-row-right">'+
-          '<span class="role-pill member-role-pill">Miembro</span>'+
+          '<span class="role-pill '+(hasCalling?"":"member-role-pill")+'">'+e(roleLabel)+'</span>'+
+          '<button class="edit-user-button" type="button" data-promote-member="'+e(member.id)+'">'+
+            (hasCalling?"Editar cargo / barrio":"Asignar cargo")+
+          '</button>'+
         '</div>'+
       '</div>';
     }).join("") : '<div class="empty">No hay miembros que coincidan con la búsqueda.</div>';
+
+    $("memberUsersList").querySelectorAll("[data-promote-member]").forEach(button=>{
+      button.onclick=()=>openUserEditor(button.dataset.promoteMember);
+    });
   }
 
   function groupAdminUnitRows(rows) {
@@ -1007,12 +1084,21 @@
     const user = state.profiles.find(x=>x.id===userId);
     if (!user) return;
 
+    const member=memberForProfile(userId);
+
     $("editUserId").value = user.id;
-    $("editUserName").value = user.display_name || "";
-    $("editUserEmail").value = user.email || "";
-    $("editUserRole").value = user.role;
+    $("editUserName").value = user.display_name || member?.full_name || "";
+    $("editUserEmail").value = member?.phone || user.email || "";
+    $("editUserLoginHint").textContent = member?.phone
+      ? "Esta persona conserva su teléfono y contraseña como usuario. También podrá usar ese teléfono para entrar al panel si tiene un cargo."
+      : "El correo de acceso no se cambia desde esta edición.";
+    $("editUserRole").value = user.role || "unassigned";
     $("editUserActive").checked = Boolean(user.is_active);
-    $("editUserTitle").textContent = user.display_name || user.email || "Usuario";
+    $("editUserTitle").textContent = user.display_name || member?.full_name || user.email || "Usuario";
+
+    populateEditUserUnit(userId);
+    syncEditUserUnitVisibility();
+
     $("editUserResult").className = "alert hidden";
     $("userEditPanel").classList.remove("hidden");
     $("userEditPanel").scrollIntoView({behavior:"smooth",block:"center"});
@@ -1254,8 +1340,19 @@
     button.disabled = true;
     button.textContent = "Ingresando…";
 
+    let authEmail;
+    try {
+      authEmail=staffAuthEmail($("loginEmail").value);
+    } catch (identityError) {
+      button.disabled=false;
+      button.textContent="Ingresar";
+      $("loginError").textContent=identityError.message;
+      $("loginError").classList.remove("hidden");
+      return;
+    }
+
     const {data,error} = await db.auth.signInWithPassword({
-      email:$("loginEmail").value.trim(),
+      email:authEmail,
       password:$("loginPassword").value
     });
 
@@ -1355,10 +1452,22 @@
     button.textContent = "Guardando…";
     result.className = "alert hidden";
 
-    const {error} = await db.rpc("secretary_admin_update_profile",{
+    const role=$("editUserRole").value;
+    const unitId=role==="secretary_admin" ? null : ($("editUserUnit").value || null);
+
+    if (["secretary","bishop","first_counselor","second_counselor"].includes(role) && !unitId) {
+      button.disabled=false;
+      button.textContent="Guardar cambios";
+      result.textContent="Selecciona el barrio o rama para este cargo.";
+      result.className="alert error";
+      return;
+    }
+
+    const {error} = await db.rpc("admin_rotate_user",{
       p_user_id:$("editUserId").value,
       p_display_name:$("editUserName").value.trim(),
-      p_role:$("editUserRole").value,
+      p_role:role,
+      p_unit_id:unitId,
       p_is_active:$("editUserActive").checked
     });
 
@@ -1366,15 +1475,17 @@
     button.textContent = "Guardar cambios";
 
     if (error) {
-      result.textContent = error.message || "No se pudieron guardar los cambios.";
+      result.textContent = error.message || "No se pudieron guardar el cargo y el barrio.";
       result.className = "alert error";
       return;
     }
 
-    result.textContent = "Usuario actualizado correctamente.";
+    result.textContent = role==="unassigned"
+      ? "La persona quedó como miembro / sin cargo interno."
+      : "Cargo y barrio actualizados correctamente.";
     result.className = "alert success";
     await refresh();
-    setTimeout(closeUserEditor,700);
+    setTimeout(closeUserEditor,900);
   };
 
   $("scheduleForm").onsubmit = async event => {
@@ -1455,6 +1566,8 @@
     const adminRole=$("userRole").value==="secretary_admin";
     $("userUnitWrap")?.classList.toggle("hidden",adminRole);
   };
+
+  $("editUserRole").onchange = syncEditUserUnitVisibility;
 
   $("activeUnitSelect").onchange = async () => {
     state.activeUnitId=$("activeUnitSelect").value || null;
