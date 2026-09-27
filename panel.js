@@ -942,50 +942,84 @@
   }
 
   function renderAppointments() {
-    const filter = $("statusFilter").value;
-    const rows = state.appointments.filter(a=>
-      canManage(a) && (filter==="all" || a.status===filter)
-    );
+    const list=$("requestsList");
+    let rows;
 
-    $("requestsHint").textContent = rows.length+" solicitud(es) visibles";
-    const list = $("requestsList");
+    if (isSecretaryStaff()) {
+      rows=state.requestRows||[];
+      $("requestsHint").textContent=state.requestTotal+" solicitud(es) encontradas";
 
-    list.innerHTML = rows.length ? rows.map(a=>
-      '<article class="request-item">'+
-        '<div class="request-top">'+
-          '<div>'+
-            '<h3>'+e(a.member_name)+'</h3>'+
-            '<div class="request-meta">'+
-              e(a.interview_types?.name||"Entrevista")+' · '+e(a.interview_types?.leaders?.title||"")+'<br>'+
-              (a.church_units?.unit_name?'<strong>Barrio/Rama:</strong> '+e(a.church_units.unit_name)+'<br>':'')+
-              (a.availability?.start_at?e(fmt(a.availability.start_at)):"Sin horario")+'<br>'+
-              e(a.member_phone)+(a.member_email?' · '+e(a.member_email):'')+
-              (() => {
-                if (!isSecretaryStaff()) return "";
-                const mp = state.memberProfiles.find(x=>x.id===a.member_user_id);
-                if (!mp?.church_unit_name) return "";
-                return '<br><strong>Barrio/Rama:</strong> '+e(mp.church_unit_name)+
-                  (mp.meetinghouse_name?' · '+e(mp.meetinghouse_name):'');
-              })()+
+      const totalPages=Math.max(1,Math.ceil(state.requestTotal/state.requestPageSize));
+      $("requestPageInfo").textContent="Página "+(state.requestPage+1)+" de "+totalPages;
+      $("requestPrev").disabled=state.requestPage<=0;
+      $("requestNext").disabled=(state.requestPage+1)>=totalPages;
+
+      list.innerHTML=rows.length ? rows.map(a=>
+        '<article class="request-item">'+
+          '<div class="request-top">'+
+            '<div>'+
+              '<h3>'+e(a.member_name)+'</h3>'+
+              '<div class="request-meta">'+
+                (a.leader_title?e(a.leader_title)+'<br>':'')+
+                (a.unit_name?'<strong>Barrio/Rama:</strong> '+e(a.unit_name)+'<br>':'')+
+                (a.assigned_name?'<strong>Líder:</strong> '+e(a.assigned_name)+'<br>':'')+
+                (a.start_at?e(fmt(a.start_at)):"Sin horario")+'<br>'+
+                e(a.member_phone||"")+
+              '</div>'+
             '</div>'+
+            '<span class="badge '+e(a.status)+'">'+e(statusText[a.status]||a.status)+'</span>'+
           '</div>'+
-          '<span class="badge '+e(a.status)+'">'+e(statusText[a.status]||a.status)+'</span>'+
-        '</div>'+
-        '<div class="actions">'+actions(a)+'</div>'+
-      '</article>'
-    ).join("") : '<div class="empty">No hay solicitudes para este filtro.</div>';
+          '<div class="actions">'+actions(a)+'</div>'+
+        '</article>'
+      ).join("") : '<div class="empty">No hay solicitudes para estos filtros.</div>';
+    } else {
+      const filter=$("statusFilter").value;
+      rows=state.appointments.filter(a=>
+        canManage(a) && (filter==="all" || a.status===filter)
+      );
+
+      $("requestsHint").textContent=rows.length+" solicitud(es) visibles";
+      $("requestPageInfo").textContent="";
+      $("requestPrev").disabled=true;
+      $("requestNext").disabled=true;
+
+      list.innerHTML=rows.length ? rows.map(a=>
+        '<article class="request-item">'+
+          '<div class="request-top">'+
+            '<div>'+
+              '<h3>'+e(a.member_name)+'</h3>'+
+              '<div class="request-meta">'+
+                e(a.interview_types?.leaders?.title||"Entrevista")+'<br>'+
+                (a.church_units?.unit_name?'<strong>Barrio/Rama:</strong> '+e(a.church_units.unit_name)+'<br>':'')+
+                (a.availability?.start_at?e(fmt(a.availability.start_at)):"Sin horario")+'<br>'+
+                e(a.member_phone||"")+
+              '</div>'+
+            '</div>'+
+            '<span class="badge '+e(a.status)+'">'+e(statusText[a.status]||a.status)+'</span>'+
+          '</div>'+
+          '<div class="actions">'+actions(a)+'</div>'+
+        '</article>'
+      ).join("") : '<div class="empty">No hay solicitudes para este filtro.</div>';
+    }
 
     list.querySelectorAll("button[data-id]").forEach(button=>{
-      button.onclick = async () => {
-        button.disabled = true;
-        const {error} = await db.from("appointments")
+      button.onclick=async()=>{
+        button.disabled=true;
+        const {error}=await db.from("appointments")
           .update({status:button.dataset.status})
           .eq("id",button.dataset.id);
-        button.disabled = false;
+        button.disabled=false;
 
-        if (error) alertGlobal(error.message || "No se pudo actualizar la solicitud.","error");
-        else {
-          alertGlobal("Solicitud actualizada.","success");
+        if (error) {
+          alertGlobal(error.message||"No se pudo actualizar la solicitud.","error");
+          return;
+        }
+
+        alertGlobal("Solicitud actualizada.","success");
+        if (isSecretaryStaff()) {
+          await loadRequestPage();
+          await loadDashboardStats();
+        } else {
           await refresh();
         }
       };
@@ -994,7 +1028,8 @@
 
   function setUserDirectoryMode(mode) {
     if (!isSecretaryAdmin()) return;
-    state.userDirectoryMode = mode==="members" ? "members" : "leaders";
+    state.userDirectoryMode=mode==="members" ? "members" : "leaders";
+    state.directoryPage=0;
 
     $("leaderUsersView").classList.toggle("hidden",state.userDirectoryMode!=="leaders");
     $("memberUsersView").classList.toggle("hidden",state.userDirectoryMode!=="members");
@@ -1003,94 +1038,60 @@
       button.classList.toggle("active",button.dataset.directoryMode===state.userDirectoryMode);
     });
 
-    if (state.userDirectoryMode==="leaders") renderUsers();
-    else renderMemberUsers();
+    loadDirectoryPage({reset:true});
   }
 
   function renderUsers() {
-    const roleFilter = $("leaderRoleFilter")?.value || "all";
-    const allRows = state.profiles.filter(x=>x.role!=="unassigned");
-    const rows = allRows.filter(x=>roleFilter==="all" || x.role===roleFilter);
+    const rows=state.directoryRows||[];
+    $("leaderUsersBadge").textContent=state.userDirectoryMode==="leaders" ? state.directoryTotal : $("leaderUsersBadge").textContent;
+    $("usersCount").textContent=state.directoryTotal+" líder(es) / secretario(s)";
 
-    $("leaderUsersBadge").textContent = allRows.length;
-    $("memberUsersBadge").textContent = state.memberProfiles.length;
-    $("usersCount").textContent = rows.length+" de "+allRows.length+" líder(es) / secretario(s)";
-
-    $("usersList").innerHTML = rows.length ? rows.map(x=>{
-      const assignment=assignmentForProfile(x.id);
-      const unitName=assignment?.church_units?.unit_name || (x.role==="secretary_admin" ? "Acceso general" : "Sin barrio asignado");
-
-      return '<div class="user-row">'+
+    $("usersList").innerHTML=rows.length ? rows.map(x=>
+      '<div class="user-row">'+
         '<div class="user-row-main">'+
           '<strong>'+e(x.display_name||x.email||"Usuario")+'</strong>'+
-          '<small>'+e(x.email||"Sin correo")+'</small>'+
-          '<span class="user-assignment-line">'+e(unitName)+'</span>'+
+          '<small>'+e(x.email||x.phone||"Sin usuario")+'</small>'+
+          '<span class="user-assignment-line">'+e(x.role==="secretary_admin"?"Acceso general":(x.unit_name||"Sin barrio asignado"))+'</span>'+
         '</div>'+
         '<div class="user-row-right">'+
           '<span class="role-pill">'+e(roleText[x.role]||x.role)+'</span>'+
           '<span class="'+(x.is_active?"status-active":"status-inactive")+'">'+(x.is_active?"Activo":"Inactivo")+'</span>'+
-          '<button class="edit-user-button" type="button" data-edit-user="'+e(x.id)+'">Cambiar cargo / barrio</button>'+
+          '<button class="edit-user-button" type="button" data-edit-user="'+e(x.user_id)+'">Cambiar cargo / barrio</button>'+
         '</div>'+
-      '</div>';
-    }).join("") : '<div class="empty">No hay líderes con este filtro.</div>';
+      '</div>'
+    ).join("") : '<div class="empty">No hay líderes con estos filtros.</div>';
 
     $("usersList").querySelectorAll("[data-edit-user]").forEach(button=>{
-      button.onclick = () => openUserEditor(button.dataset.editUser);
+      button.onclick=()=>openUserEditor(button.dataset.editUser);
     });
   }
 
   function renderMemberUsers() {
-    const query = ($("memberUserFilter")?.value || "").trim().toLowerCase();
-    const allRows = state.memberProfiles || [];
+    const rows=state.directoryRows||[];
+    $("memberUsersBadge").textContent=state.userDirectoryMode==="members" ? state.directoryTotal : $("memberUsersBadge").textContent;
+    $("memberUsersCount").textContent=state.directoryTotal+" miembro(s)";
 
-    const rows = allRows.filter(member=>{
-      const profile=state.profiles.find(x=>x.id===member.id);
-      const assignment=assignmentForProfile(member.id);
-      if (!query) return true;
-
-      const haystack = [
-        member.full_name,
-        member.phone,
-        member.church_unit_name,
-        member.meetinghouse_name,
-        member.location_city,
-        member.location_country_code,
-        profile?.role ? roleText[profile.role] : "",
-        assignment?.church_units?.unit_name
-      ].filter(Boolean).join(" ").toLowerCase();
-
-      return haystack.includes(query);
-    });
-
-    $("leaderUsersBadge").textContent = state.profiles.filter(x=>x.role!=="unassigned").length;
-    $("memberUsersBadge").textContent = allRows.length;
-    $("memberUsersCount").textContent = rows.length+" de "+allRows.length+" miembro(s)";
-
-    $("memberUsersList").innerHTML = rows.length ? rows.map(member=>{
-      const profile=state.profiles.find(x=>x.id===member.id);
-      const assignment=assignmentForProfile(member.id);
-      const role=profile?.role || "unassigned";
-      const roleLabel=roleText[role] || "Miembro";
-      const unit = assignment?.church_units?.unit_name || member.church_unit_name || "Barrio/Rama sin configurar";
-      const chapel = member.meetinghouse_name ? " · "+member.meetinghouse_name : "";
-      const place = [member.location_city,member.location_country_code].filter(Boolean).join(" · ");
+    $("memberUsersList").innerHTML=rows.length ? rows.map(member=>{
+      const role=member.role||"unassigned";
       const hasCalling=role!=="unassigned";
+      const unit=member.unit_name||"Barrio/Rama sin configurar";
+      const place=[member.city,member.country_code].filter(Boolean).join(" · ");
 
       return '<div class="user-row member-user-row">'+
         '<div class="member-user-main">'+
-          '<strong>'+e(member.full_name||"Miembro")+'</strong>'+
-          '<small>'+e(member.phone||"Sin teléfono")+'</small>'+
-          '<span class="member-unit-line"><strong>'+e(unit)+'</strong>'+e(chapel)+'</span>'+
+          '<strong>'+e(member.display_name||"Miembro")+'</strong>'+
+          '<small>'+e(member.phone||member.email||"Sin usuario")+'</small>'+
+          '<span class="member-unit-line"><strong>'+e(unit)+'</strong></span>'+
           (place?'<span class="member-location-line">'+e(place)+'</span>':'')+
         '</div>'+
         '<div class="user-row-right">'+
-          '<span class="role-pill '+(hasCalling?"":"member-role-pill")+'">'+e(roleLabel)+'</span>'+
-          '<button class="edit-user-button" type="button" data-promote-member="'+e(member.id)+'">'+
+          '<span class="role-pill '+(hasCalling?"":"member-role-pill")+'">'+e(roleText[role]||"Miembro")+'</span>'+
+          '<button class="edit-user-button" type="button" data-promote-member="'+e(member.user_id)+'">'+
             (hasCalling?"Editar cargo / barrio":"Asignar cargo")+
           '</button>'+
         '</div>'+
       '</div>';
-    }).join("") : '<div class="empty">No hay miembros que coincidan con la búsqueda.</div>';
+    }).join("") : '<div class="empty">No hay miembros con estos filtros.</div>';
 
     $("memberUsersList").querySelectorAll("[data-promote-member]").forEach(button=>{
       button.onclick=()=>openUserEditor(button.dataset.promoteMember);
