@@ -1300,3 +1300,38 @@ body.panel-menu-open{
     gap:7px;
   }
 }
+
+/* v3.2.0 · Rotación de cargos */
+.user-row-main{
+  display:grid;
+  gap:3px;
+  min-width:0;
+}
+.user-assignment-line{
+  margin-top:5px;
+  color:var(--blue);
+  font-size:12px;
+  font-weight:750;
+}
+#editUserUnitWrap small,
+#editUserLoginHint{
+  color:var(--muted);
+  font-size:11px;
+  line-height:1.4;
+}
+.member-user-row .edit-user-button{
+  white-space:nowrap;
+}
+@media(max-width:620px){
+  .user-row,
+  .member-user-row{
+    align-items:stretch;
+  }
+  .user-row-right{
+    justify-content:flex-start;
+  }
+  .member-user-row .edit-user-button,
+  .user-row .edit-user-button{
+    width:100%;
+  }
+}
