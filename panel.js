@@ -1873,6 +1873,10 @@
       if ($("userUnitWrap")) $("userUnitWrap").classList.remove("hidden");
 
       await refresh();
+      setTimeout(()=>{
+        $("userCreateModal").classList.add("hidden");
+        document.body.classList.remove("modal-open");
+      },700);
     } catch (error) {
       result.textContent = error?.message || "No se pudo crear el usuario.";
       result.className = "alert error";
