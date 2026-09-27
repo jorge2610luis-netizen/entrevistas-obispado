@@ -38,7 +38,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v3.3.4";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v3.3.5";
 
   const leaderRole = {
     bishop:"bishop",
@@ -1366,6 +1366,49 @@
     );
   }
 
+  async function reloadSelectedSchedule() {
+    const assignment=selectedScheduleAssignment();
+    const leaderId=selectedLeaderId();
+    const unitId=currentUnitId();
+    const weekKey=$("scheduleWeek").value;
+
+    if (!assignment || !leaderId || !unitId || !weekKey) {
+      renderSchedule();
+      return;
+    }
+
+    const start=new Date(weekKey+"T04:00:00Z");
+    const end=new Date(start);
+    end.setUTCDate(end.getUTCDate()+7);
+
+    const {data,error}=await db.from("availability")
+      .select("id,leader_id,church_unit_id,assigned_profile_id,start_at,end_at,is_active,is_booked,leaders(id,code,title)")
+      .eq("church_unit_id",unitId)
+      .eq("assigned_profile_id",assignment.profile_id)
+      .eq("leader_id",leaderId)
+      .gte("start_at",start.toISOString())
+      .lt("start_at",end.toISOString())
+      .order("start_at");
+
+    if (error) {
+      const localAlert=$("scheduleInlineAlert");
+      localAlert.textContent=error.message || "Los horarios se guardaron, pero no se pudieron recargar.";
+      localAlert.className="alert error";
+      return;
+    }
+
+    state.schedule=state.schedule.filter(slot=>!(
+      slot.church_unit_id===unitId &&
+      slot.assigned_profile_id===assignment.profile_id &&
+      slot.leader_id===leaderId &&
+      new Date(slot.start_at)>=start &&
+      new Date(slot.start_at)<end
+    )).concat(data||[]);
+
+    renderSchedule();
+    renderStats();
+  }
+
   function renderSchedule() {
     updateScheduleContext();
     const rows = scheduleForSelectedWeek();
@@ -1599,11 +1642,15 @@
 
       const created=Number(data||0);
       localAlert.textContent=created>0
-        ? "Listo. Se crearon "+created+" horario(s)."
-        : "No se creó ningún horario nuevo porque esos horarios ya existían.";
+        ? "Listo. Se crearon "+created+" horario(s). Cargando la lista…"
+        : "No se creó ningún horario nuevo porque esos horarios ya existían. Cargando la lista…";
       localAlert.className=created>0 ? "alert success" : "alert";
-      await refresh();
-      renderSchedule();
+
+      await reloadSelectedSchedule();
+
+      localAlert.textContent=created>0
+        ? "Listo. Se crearon "+created+" horario(s) y ya aparecen abajo."
+        : "Esos horarios ya existían. La lista de abajo está actualizada.";
     } catch (error) {
       console.error("schedule generation failed",error);
       localAlert.textContent=error?.message || "No se pudieron generar los horarios.";
@@ -1685,7 +1732,7 @@
     renderStats();
     renderAppointments();
     renderWeekStrip();
-    renderSchedule();
+    await reloadSelectedSchedule();
   }
 
   $("activeUnitSelect").onchange = async () => {
@@ -1723,19 +1770,19 @@
 
   $("statusFilter").onchange = renderAppointments;
 
-  $("scheduleLeader").onchange = () => {
+  $("scheduleLeader").onchange = async () => {
     state.selectedDates.clear();
     updateScheduleContext();
     renderWeekStrip();
-    renderSchedule();
+    await reloadSelectedSchedule();
   };
 
   $("scheduleMonth").onchange = populateWeeks;
 
-  $("scheduleWeek").onchange = () => {
+  $("scheduleWeek").onchange = async () => {
     state.selectedDates.clear();
     renderWeekStrip();
-    renderSchedule();
+    await reloadSelectedSchedule();
   };
 
   $("scheduleStartTime").oninput = updateScheduleSummary;
