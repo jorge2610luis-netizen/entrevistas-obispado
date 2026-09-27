@@ -334,11 +334,20 @@
       } catch (_) {}
     }
 
-    const list=$("adminCityOptions");
+    const list=$("adminUnitCity");
     if (list) {
-      list.innerHTML=(data||[]).map(x=>
-        '<option value="'+e(x.city_name)+'">'+e(x.region||"")+'</option>'
-      ).join("");
+      const previous=list.value;
+      const unique=new Map();
+      for (const row of data||[]) {
+        const city=String(row.city_name||"").trim();
+        if (!city) continue;
+        const key=city.toLocaleLowerCase("es");
+        if (!unique.has(key)) unique.set(key,{city,region:String(row.region||"").trim()});
+      }
+      const rows=[...unique.values()].sort((a,b)=>a.city.localeCompare(b.city,"es"));
+      list.innerHTML='<option value="">Todas las ciudades</option>'+
+        rows.map(x=>'<option value="'+e(x.city)+'">'+e(x.city+(x.region?' · '+x.region:''))+'</option>').join("");
+      if (previous && rows.some(x=>x.city===previous)) list.value=previous;
     }
 
     if ($("directorySyncStatus") && data?.length) {
@@ -1216,7 +1225,27 @@
     $("adminUnitSearchStatus").textContent="Buscando barrios y ramas…";
 
     try {
-      if (city) {
+      const runLocalSearch = async () => {
+        const {data,error}=await db.rpc("search_church_catalog_v2",{
+          p_query:query || null,
+          p_country_code:countryCode || null,
+          p_region:region || null,
+          p_city:city || null,
+          p_coverage:coverage || null,
+          p_limit:100,
+          p_offset:0
+        });
+        if (error) throw error;
+        return groupAdminUnitRows(data||[]);
+      };
+
+      // La búsqueda normal siempre usa primero la base de datos.
+      state.adminUnitResults=await runLocalSearch();
+
+      // Si esa ciudad todavía no fue cargada, intentamos una sincronización puntual
+      // y consultamos nuevamente. La búsqueda no depende del botón de actualización.
+      if (!state.adminUnitResults.length && city) {
+        $("adminUnitSearchStatus").textContent="No hay barrios cacheados todavía. Sincronizando "+city+"…";
         try {
           await Promise.race([
             db.functions.invoke("church-directory",{
@@ -1224,25 +1253,15 @@
             }),
             new Promise(resolve=>setTimeout(()=>resolve(null),15000))
           ]);
-        } catch (_) {}
+        } catch (error) {
+          console.warn("city directory sync failed",error);
+        }
+        state.adminUnitResults=await runLocalSearch();
       }
 
-      const {data,error}=await db.rpc("search_church_catalog_v2",{
-        p_query:query || null,
-        p_country_code:countryCode || null,
-        p_region:region || null,
-        p_city:city || null,
-        p_coverage:coverage || null,
-        p_limit:100,
-        p_offset:0
-      });
-
-      if (error) throw error;
-
-      state.adminUnitResults=groupAdminUnitRows(data||[]);
       $("adminUnitSearchStatus").textContent=state.adminUnitResults.length
         ? state.adminUnitResults.length+" barrio(s)/rama(s) encontrado(s)."
-        : "No encontramos barrios con esos filtros. Puedes sincronizar el directorio oficial del país.";
+        : "La ciudad está disponible en el directorio, pero sus barrios/ramas todavía no están cacheados. Puedes actualizar el directorio oficial o probar otra ciudad.";
       renderAdminUnitResults();
     } catch (error) {
       $("adminUnitSearchStatus").textContent=error?.message || "No se pudo buscar el barrio.";
@@ -1327,7 +1346,56 @@
 
       if (total && offset>=total) {
         localStorage.removeItem(progressKey);
-        status.textContent="Directorio oficial actualizado. "+total+" zonas revisadas.";
+        status.textContent="Zonas revisadas. Indexando barrios y ramas oficiales…";
+      } else {
+        status.textContent="Zonas parcialmente revisadas. Indexando también barrios y ramas oficiales…";
+      }
+
+      let unitIndex=null;
+      try {
+        const indexResult=await db.functions.invoke("church-directory",{
+          body:{action:"unit-index",countryCode}
+        });
+        if (!indexResult.error) unitIndex=indexResult.data || null;
+      } catch (error) {
+        console.warn("unit directory index failed",error);
+      }
+
+      let unitProcessed=0;
+      let unitRemaining=null;
+      for (let batchIndex=0;batchIndex<25;batchIndex++) {
+        try {
+          const {data,error}=await db.functions.invoke("church-directory",{
+            body:{action:"sync-unit-batch",countryCode,limit:4}
+          });
+          if (error) throw error;
+          if (!data) break;
+
+          unitProcessed+=Number(data.processed||0);
+          unitRemaining=Number(data.remaining||0);
+
+          status.textContent="Directorio "+countryCode+": "+
+            (total?Math.min(offset,total)+" de "+total+" zonas · ":"")+
+            unitProcessed+" barrio(s)/rama(s) procesados en esta tanda"+
+            (unitRemaining!==null?" · "+unitRemaining+" pendientes":"")+".";
+
+          if (data.done || !data.processed) break;
+        } catch (error) {
+          console.warn("unit directory batch failed",error);
+          break;
+        }
+      }
+
+      if (unitIndex?.discovered && unitRemaining===0) {
+        status.textContent="Directorio oficial actualizado: "+unitIndex.discovered+
+          " páginas de barrio/rama indexadas para "+countryCode+".";
+      } else if (unitProcessed>0) {
+        status.textContent="Directorio actualizado parcialmente: "+unitProcessed+
+          " barrio(s)/rama(s) procesados en esta tanda"+
+          (unitRemaining!==null?" · "+unitRemaining+" pendientes.":".")+
+          " Pulsa nuevamente para continuar.";
+      } else if (total && offset>=total) {
+        status.textContent="Directorio de ciudades y capillas actualizado. Los barrios/ramas se completarán en las siguientes tandas.";
       } else {
         status.textContent="Sincronización pausada. Se revisaron "+processedTotal+" zona(s) en esta tanda; pulsa nuevamente para continuar.";
       }
@@ -2192,14 +2260,9 @@
     $("adminUnitSearchStatus").textContent="Selecciona región, ciudad o busca un barrio.";
   };
   $("adminUnitRegion").onchange = searchAdminUnits;
+  $("adminUnitCity").onchange = searchAdminUnits;
   $("adminCoverageFilter").onchange = searchAdminUnits;
   $("adminUnitQuery").addEventListener("keydown",event=>{
-    if (event.key==="Enter") {
-      event.preventDefault();
-      searchAdminUnits();
-    }
-  });
-  $("adminUnitCity").addEventListener("keydown",event=>{
     if (event.key==="Enter") {
       event.preventDefault();
       searchAdminUnits();

@@ -198,6 +198,66 @@
     }
   }
 
+  async function loadCatalogCities(countryCode,preferredCity="") {
+    const select = $("catalogCity");
+    if (!select) return;
+
+    select.disabled = true;
+    select.innerHTML = '<option value="">Cargando ciudades…</option>';
+
+    try {
+      let {data,error} = await db.from("church_directory_places")
+        .select("city_name,region")
+        .eq("country_code",countryCode)
+        .order("city_name")
+        .limit(500);
+
+      if (!error && (!data || !data.length)) {
+        try {
+          await Promise.race([
+            db.functions.invoke("church-directory",{body:{action:"country-index",countryCode}}),
+            new Promise(resolve=>setTimeout(()=>resolve(null),16000))
+          ]);
+          const retry = await db.from("church_directory_places")
+            .select("city_name,region")
+            .eq("country_code",countryCode)
+            .order("city_name")
+            .limit(500);
+          data = retry.data || [];
+          error = retry.error;
+        } catch (_) {}
+      }
+
+      if (error) throw error;
+
+      const unique = new Map();
+      for (const row of data||[]) {
+        const city = String(row.city_name||"").trim();
+        if (!city) continue;
+        const key = city.toLocaleLowerCase("es");
+        if (!unique.has(key)) unique.set(key,{city,region:String(row.region||"").trim()});
+      }
+
+      const rows = [...unique.values()].sort((a,b)=>a.city.localeCompare(b.city,"es"));
+      select.innerHTML = '<option value="">Selecciona una ciudad</option>'+
+        rows.map(row=>'<option value="'+escapeHtml(row.city)+'">'+
+          escapeHtml(row.city+(row.region?" · "+row.region:""))+
+        '</option>').join("");
+
+      if (preferredCity) {
+        const exact = [...select.options].find(option=>
+          option.value.toLocaleLowerCase("es")===String(preferredCity).toLocaleLowerCase("es")
+        );
+        if (exact) select.value = exact.value;
+      }
+    } catch (error) {
+      console.warn("city catalog failed",error);
+      select.innerHTML = '<option value="">No se pudieron cargar las ciudades</option>';
+    } finally {
+      select.disabled = false;
+    }
+  }
+
   function selectedCountryCode(selectId) {
     return $(selectId)?.value || "+591";
   }
@@ -929,18 +989,35 @@
   async function reverseLocation(lat,lon) {
     try {
       const url =
-        "https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=10&accept-language=es&lat="+
+        "https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&accept-language=es&lat="+
         encodeURIComponent(lat)+"&lon="+encodeURIComponent(lon);
       const response = await fetch(url,{headers:{"Accept":"application/json"}});
       if (!response.ok) throw new Error("reverse failed");
       const data = await response.json();
       const address = data.address || {};
       return {
-        city:address.city || address.town || address.village || address.municipality || address.county || "",
-        countryCode:String(address.country_code||"").toUpperCase()
+        city:address.city || address.town || address.village || address.municipality || "",
+        countryCode:String(address.country_code||"").toUpperCase(),
+        region:address.state || address.region || "",
+        district:address.state_district || address.county || "",
+        neighbourhood:
+          address.neighbourhood ||
+          address.suburb ||
+          address.quarter ||
+          address.city_district ||
+          address.hamlet ||
+          "",
+        displayName:String(data.display_name||"")
       };
     } catch (_) {
-      return {city:"",countryCode:""};
+      return {
+        city:"",
+        countryCode:"",
+        region:"",
+        district:"",
+        neighbourhood:"",
+        displayName:""
+      };
     }
   }
 
@@ -973,7 +1050,9 @@
         const hasCoords = Number.isFinite(row.latitude) && Number.isFinite(row.longitude);
         map.set(key,{
           source:"catalog",
-          exact:false,
+          exact:Boolean(row.boundary_match),
+          matchMethod:row.match_method || null,
+          confidence:row.confidence || null,
           meetinghouseId:row.meetinghouse_id,
           unitName:"",
           units:[],
@@ -985,14 +1064,27 @@
           lat:hasCoords ? row.latitude : null,
           lon:hasCoords ? row.longitude : null,
           officialUrl:row.official_url || null,
-          distanceKm:hasCoords && origin
-            ? distanceKm(origin.lat,origin.lon,row.latitude,row.longitude)
-            : null,
+          distanceKm:Number.isFinite(row.distance_km)
+            ? row.distance_km
+            : (hasCoords && origin
+                ? distanceKm(origin.lat,origin.lon,row.latitude,row.longitude)
+                : null),
           bookingUrl:null
         });
       }
 
       const item = map.get(key);
+      if (row.boundary_match) {
+        item.exact = true;
+        item.matchMethod = "boundary";
+        item.confidence = "exact";
+      } else {
+        item.matchMethod ||= row.match_method || null;
+        item.confidence ||= row.confidence || null;
+      }
+      if (Number.isFinite(row.distance_km)) {
+        item.distanceKm = row.distance_km;
+      }
       if (row.unit_id && !item.units.some(unit=>unit.id===row.unit_id)) {
         item.units.push({
           id:row.unit_id,
@@ -1001,7 +1093,10 @@
           sundayService:row.sunday_service || "",
           officialUrl:row.unit_official_url || null,
           coverageStatus:row.coverage_status || null,
-          leaderCount:Number(row.leader_count||0)
+          leaderCount:Number(row.leader_count||0),
+          boundaryMatch:Boolean(row.boundary_match),
+          matchMethod:row.match_method || null,
+          confidence:row.confidence || null
         });
       }
     }
@@ -1056,7 +1151,51 @@
     return groupCatalogRows(rows,origin);
   }
 
+  async function resolveUnitsByLocation(lat,lon,context={}) {
+    try {
+      const {data,error} = await db.rpc("find_church_units_by_location",{
+        p_lat:lat,
+        p_lon:lon,
+        p_country_code:context.countryCode || null,
+        p_city:context.city || null,
+        p_limit:20
+      });
+
+      if (error) {
+        console.warn("location resolver unavailable",error);
+        return [];
+      }
+
+      return groupCatalogRows((data||[]).map(row=>({
+        meetinghouse_id:row.meetinghouse_id,
+        meetinghouse_name:row.meetinghouse_name,
+        address:row.address,
+        city:row.city,
+        region:row.region,
+        country_code:row.country_code,
+        latitude:row.latitude,
+        longitude:row.longitude,
+        official_url:row.official_url,
+        unit_id:row.unit_id,
+        unit_name:row.unit_name,
+        unit_type:row.unit_type,
+        sunday_service:row.sunday_service,
+        unit_official_url:row.official_url,
+        boundary_match:Boolean(row.boundary_match),
+        distance_km:Number.isFinite(row.distance_km)?row.distance_km:null,
+        match_method:row.match_method || null,
+        confidence:row.confidence || null
+      })),{lat,lon});
+    } catch (error) {
+      console.warn("location resolver failed",error);
+      return [];
+    }
+  }
+
   async function configuredUnitsNear(lat,lon,context={}) {
+    const resolved = await resolveUnitsByLocation(lat,lon,context);
+    if (resolved.length) return resolved;
+
     return await searchCatalog({
       countryCode:context.countryCode || "",
       city:context.city || "",
@@ -1307,13 +1446,19 @@
 
       if (context.countryCode && $("catalogCountry")) {
         $("catalogCountry").value = context.countryCode;
-      }
-      if (context.city && $("catalogCity")) {
-        $("catalogCity").value = context.city;
+        await loadCatalogCities(context.countryCode,context.city);
+      } else if ($("catalogCountry")) {
+        await loadCatalogCities($("catalogCountry").value,context.city);
       }
 
+      const detectedArea = [
+        context.neighbourhood,
+        context.city,
+        context.region
+      ].filter(Boolean).filter((value,index,array)=>array.indexOf(value)===index).join(" · ");
+
       setLocationStatus(
-        "Ubicación lista"+(context.city?" en "+context.city:"")+". Consultando nuestro catálogo y el directorio oficial…",
+        "Ubicación lista"+(detectedArea?" en "+detectedArea:"")+". Consultando nuestro catálogo y el directorio oficial…",
         "info"
       );
 
@@ -1345,11 +1490,14 @@
         $("catalogSearchCard")?.classList.add("hidden");
         state.manualCatalogOpen = false;
         const counts = catalogCounts(state.nearbyMeetinghouses);
+        const exactMatches = state.nearbyMeetinghouses.filter(item=>item.exact);
         setLocationStatus(
-          "Encontramos "+counts.meetinghouses+" capilla(s)"+
-          (counts.units ? " y "+counts.units+" barrio(s)/rama(s)" : "")+
-          (context.city ? " en o cerca de "+context.city : "")+
-          ". Revisa la dirección y selecciona tu unidad.",
+          exactMatches.length
+            ? "Detectamos "+counts.units+" barrio(s)/rama(s) candidato(s) y una coincidencia territorial exacta. Confirma tu unidad antes de guardarla."
+            : "Encontramos "+counts.meetinghouses+" capilla(s)"+
+              (counts.units ? " y "+counts.units+" barrio(s)/rama(s)" : "")+
+              (context.city ? " en o cerca de "+context.city : "")+
+              ". La cercanía de una capilla no define tu barrio; revisa y confirma la unidad correcta.",
           "success"
         );
       } else {
@@ -1390,7 +1538,7 @@
       rows.map((item,index)=>
         '<article class="meetinghouse-item '+(item.exact?"exact-unit":"")+'">'+
           '<div>'+
-            (item.exact?'<span class="match-badge">Coincide con límite configurado</span>':'')+
+            (item.exact?'<span class="match-badge">Coincidencia territorial exacta</span>':'')+
             '<strong>'+escapeHtml(item.name)+'</strong>'+
             (item.address?'<span>'+escapeHtml(item.address)+'</span>':'')+
             (item.city?'<span>'+escapeHtml(item.city+(item.region?" · "+item.region:""))+'</span>':'')+
@@ -1456,7 +1604,7 @@
     const button = $("catalogSearchBtn");
 
     if (!city && !query) {
-      $("catalogSearchStatus").textContent = "Escribe una ciudad, barrio, capilla o dirección.";
+      $("catalogSearchStatus").textContent = "Selecciona una ciudad o escribe un barrio, capilla o dirección.";
       return;
     }
 
@@ -1465,19 +1613,29 @@
     $("catalogSearchStatus").textContent = "Consultando catálogo…";
 
     try {
-      if (city) {
-        await Promise.race([
-          syncOfficialDirectory({city,countryCode}),
-          new Promise(resolve=>setTimeout(()=>resolve(null),16000))
-        ]);
-      }
-
+      // Primero usamos la base local. Solo consultamos el directorio oficial
+      // cuando la ciudad todavía no está cacheada o no tiene coincidencias.
       state.catalogResults = await searchCatalog({
         query,
         countryCode,
         city,
         limit:100
       });
+
+      if (!state.catalogResults.length && city) {
+        $("catalogSearchStatus").textContent = "La ciudad todavía no está cargada. Sincronizando el directorio oficial…";
+        await Promise.race([
+          syncOfficialDirectory({city,countryCode}),
+          new Promise(resolve=>setTimeout(()=>resolve(null),16000))
+        ]);
+
+        state.catalogResults = await searchCatalog({
+          query,
+          countryCode,
+          city,
+          limit:100
+        });
+      }
 
       const counts = catalogCounts(state.catalogResults);
       $("catalogSearchStatus").textContent = counts.meetinghouses
@@ -1756,18 +1914,28 @@
     }
   };
   $("catalogSearchBtn").onclick = searchManualCatalog;
+  $("catalogCountry").onchange = async () => {
+    state.catalogResults = [];
+    $("catalogResults").innerHTML = "";
+    $("catalogSearchStatus").textContent = "Cargando ciudades del país…";
+    await loadCatalogCities($("catalogCountry").value);
+    $("catalogSearchStatus").textContent = "Selecciona una ciudad para ver sus barrios/ramas.";
+  };
+  $("catalogCity").onchange = async () => {
+    if (!$("catalogCity").value) {
+      state.catalogResults = [];
+      $("catalogResults").innerHTML = "";
+      return;
+    }
+    await searchManualCatalog();
+  };
   $("catalogQuery").addEventListener("keydown",event=>{
     if (event.key==="Enter") {
       event.preventDefault();
       searchManualCatalog();
     }
   });
-  $("catalogCity").addEventListener("keydown",event=>{
-    if (event.key==="Enter") {
-      event.preventDefault();
-      searchManualCatalog();
-    }
-  });
+
   $("cancelMeetinghouseSelection").onclick = () => {
     $("unitConfirmPanel").classList.add("hidden");
     state.selectedMeetinghouse = null;
@@ -1856,7 +2024,8 @@
 
         const [sessionResult] = await Promise.all([
           db.auth.getSession(),
-          loadSettings()
+          loadSettings(),
+          loadCatalogCities($("catalogCountry")?.value || detectedIso)
         ]);
 
         if (sessionResult.error) {
