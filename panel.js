@@ -1,23 +1,40 @@
 (() => {
-  const db=window.supabase.createClient(window.APP_CONFIG.supabaseUrl,window.APP_CONFIG.supabasePublishableKey);
-  const signupClient=window.supabase.createClient(
+  const $ = id => document.getElementById(id);
+  const db = window.supabase.createClient(window.APP_CONFIG.supabaseUrl,window.APP_CONFIG.supabasePublishableKey);
+  const signupClient = window.supabase.createClient(
     window.APP_CONFIG.supabaseUrl,
     window.APP_CONFIG.supabasePublishableKey,
     {auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}}
   );
-  const $=id=>document.getElementById(id);
-  const state={user:null,profile:null,leaders:[],appointments:[],schedule:[],profiles:[]};
-  if($("panelVersion")) $("panelVersion").textContent=window.APP_CONFIG.version||"v2.1.3";
 
-  const leaderRole={bishop:"bishop",first_counselor:"first_counselor",second_counselor:"second_counselor"};
-  const titleByRole={
+  const state = {
+    user:null,
+    profile:null,
+    leaders:[],
+    appointments:[],
+    schedule:[],
+    profiles:[],
+    calendarMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),
+    selectedDateKey:null
+  };
+
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version || "v2.2.0";
+
+  const leaderRole = {
+    bishop:"bishop",
+    first_counselor:"first_counselor",
+    second_counselor:"second_counselor"
+  };
+
+  const titleByRole = {
     secretary_admin:"Panel del Secretario Administrador",
     secretary:"Panel del Secretario",
     bishop:"Panel del Obispo",
     first_counselor:"Panel del Primer Consejero",
     second_counselor:"Panel del Segundo Consejero"
   };
-  const roleText={
+
+  const roleText = {
     secretary_admin:"Secretario Administrador",
     secretary:"Secretario",
     bishop:"Obispo",
@@ -25,7 +42,8 @@
     second_counselor:"Segundo Consejero",
     unassigned:"Sin rol"
   };
-  const statusText={
+
+  const statusText = {
     pending_secretary:"Pendiente de secretario",
     contacted:"Contactado",
     pending_leader:"Pendiente de líder",
@@ -35,560 +53,701 @@
     completed:"Completado",
     cancelled:"Cancelado"
   };
-  const e=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-  const fmt=v=>new Intl.DateTimeFormat("es-BO",{timeZone:"America/La_Paz",dateStyle:"medium",timeStyle:"short"}).format(new Date(v));
-  const isSecretaryStaff=()=>["secretary_admin","secretary"].includes(state.profile?.role);
-  const isSecretaryAdmin=()=>state.profile?.role==="secretary_admin";
 
-  function alertGlobal(msg,type="info"){
-    const x=$("globalAlert");
-    x.textContent=msg;
-    x.className="alert "+type;
-  }
-  function clearGlobalAlert(){
-    $("globalAlert").className="alert hidden";
-    $("globalAlert").textContent="";
-  }
-  function leaderForRole(){
-    return state.leaders.find(x=>x.code===leaderRole[state.profile?.role]);
-  }
-  function canManage(a){
-    if(isSecretaryStaff()) return true;
-    return a.interview_types?.leaders?.code===leaderRole[state.profile?.role];
+  const e = value => String(value ?? "").replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[c]));
+
+  const fmt = value => new Intl.DateTimeFormat("es-BO",{
+    timeZone:"America/La_Paz",
+    dateStyle:"medium",
+    timeStyle:"short"
+  }).format(new Date(value));
+
+  const isSecretaryStaff = () => ["secretary_admin","secretary"].includes(state.profile?.role);
+  const isSecretaryAdmin = () => state.profile?.role === "secretary_admin";
+
+  function alertGlobal(message,type="info") {
+    const el = $("globalAlert");
+    el.textContent = message;
+    el.className = "alert "+type;
   }
 
-  function hideAuthLoading(){const v=$("authLoadingView");if(v)v.classList.add("hidden");}
-  function showLogin(){
+  function clearGlobalAlert() {
+    $("globalAlert").className = "alert hidden";
+    $("globalAlert").textContent = "";
+  }
+
+  function dateKeyBolivia(value) {
+    return new Intl.DateTimeFormat("en-CA",{
+      timeZone:"America/La_Paz",
+      year:"numeric",
+      month:"2-digit",
+      day:"2-digit"
+    }).format(new Date(value));
+  }
+
+  function localDateKey(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth()+1).padStart(2,"0");
+    const d = String(date.getDate()).padStart(2,"0");
+    return y+"-"+m+"-"+d;
+  }
+
+  function monthTitle(date) {
+    return new Intl.DateTimeFormat("es-BO",{month:"long",year:"numeric"})
+      .format(date)
+      .replace(/^./,c=>c.toUpperCase());
+  }
+
+  function longDateFromKey(key) {
+    const [y,m,d] = key.split("-").map(Number);
+    return new Intl.DateTimeFormat("es-BO",{
+      weekday:"long",day:"numeric",month:"long",year:"numeric"
+    }).format(new Date(y,m-1,d)).replace(/^./,c=>c.toUpperCase());
+  }
+
+  function timeLabel(value) {
+    return new Intl.DateTimeFormat("es-BO",{
+      timeZone:"America/La_Paz",
+      hour:"2-digit",
+      minute:"2-digit"
+    }).format(new Date(value));
+  }
+
+  function leaderForRole() {
+    return state.leaders.find(x => x.code===leaderRole[state.profile?.role]);
+  }
+
+  function selectedLeaderId() {
+    return isSecretaryStaff() ? $("scheduleLeader").value : leaderForRole()?.id;
+  }
+
+  function canManage(appointment) {
+    if (isSecretaryStaff()) return true;
+    return appointment.interview_types?.leaders?.code===leaderRole[state.profile?.role];
+  }
+
+  function hideAuthLoading() {
+    $("authLoadingView")?.classList.add("hidden");
+  }
+
+  function showLogin() {
     hideAuthLoading();
     $("loginView").classList.remove("hidden");
     $("unauthorizedView").classList.add("hidden");
     $("dashboard").classList.add("hidden");
   }
-  function showUnauthorized(){
+
+  function showUnauthorized() {
     hideAuthLoading();
     $("loginView").classList.add("hidden");
     $("dashboard").classList.add("hidden");
     $("unauthorizedView").classList.remove("hidden");
   }
 
-  async function enterAuthenticated(session){
-    state.user=session.user;
-    const {data:profile,error}=await db.from("profiles").select("role,display_name,is_active").eq("id",session.user.id).maybeSingle();
-    if(error||!profile?.role||profile.is_active===false){showUnauthorized();return;}
+  async function enterAuthenticated(session) {
+    state.user = session.user;
 
-    state.profile=profile;
+    const {data:profile,error} = await db.from("profiles")
+      .select("role,display_name,is_active")
+      .eq("id",session.user.id)
+      .maybeSingle();
+
+    if (error || !profile?.role || profile.is_active===false) {
+      showUnauthorized();
+      return;
+    }
+
+    state.profile = profile;
     hideAuthLoading();
     $("loginView").classList.add("hidden");
     $("unauthorizedView").classList.add("hidden");
     $("dashboard").classList.remove("hidden");
     $("userAdminCard").classList.toggle("hidden",!isSecretaryAdmin());
 
-    $("roleTitle").textContent=titleByRole[profile.role]||"Panel";
-    $("roleSubtitle").textContent=isSecretaryAdmin()
-      ?"Administración general: usuarios, solicitudes y horarios de todos los líderes."
+    $("roleTitle").textContent = titleByRole[profile.role] || "Panel";
+    $("roleSubtitle").textContent = isSecretaryAdmin()
+      ? "Administración general: usuarios, solicitudes y calendarios de todos los líderes."
       : profile.role==="secretary"
-        ?"Revisa solicitudes y administra los horarios de todos los líderes."
-        :"Revisa tus solicitudes y administra tus propios horarios.";
+        ? "Revisa solicitudes y administra los calendarios de todos los líderes."
+        : "Revisa tus solicitudes y administra tu calendario.";
 
-    const {data:settings}=await db.from("settings").select("unit_name").eq("id",1).maybeSingle();
-    if(settings?.unit_name)$("panelUnit").textContent=settings.unit_name;
+    const {data:settings} = await db.from("settings").select("unit_name").eq("id",1).maybeSingle();
+    if (settings?.unit_name) $("panelUnit").textContent = settings.unit_name;
+
     await refresh();
   }
 
-  async function boot(){
-    setInitialMonth();
-    try{
-      const {data:{session},error}=await db.auth.getSession();
-      if(error||!session){showLogin();return;}
+  async function boot() {
+    try {
+      const {data:{session},error} = await db.auth.getSession();
+      if (error || !session) {
+        showLogin();
+        return;
+      }
       await enterAuthenticated(session);
-    }catch(err){
-      console.error(err);
+    } catch (error) {
+      console.error(error);
       showLogin();
     }
   }
 
-  async function refresh(){
+  async function refresh() {
     clearGlobalAlert();
-    const requests=[
+
+    const requests = [
       db.from("leaders").select("id,code,title,sort_order").eq("is_active",true).order("sort_order"),
-      db.from("appointments").select("id,status,member_name,member_phone,member_email,created_at,availability(id,start_at,end_at,leader_id),interview_types(id,name,leaders(id,code,title))").order("created_at",{ascending:false}),
-      db.from("availability").select("id,leader_id,start_at,end_at,is_active,is_booked,leaders(id,code,title)").gte("start_at",new Date(Date.now()-86400000).toISOString()).order("start_at")
+      db.from("appointments")
+        .select("id,status,member_name,member_phone,member_email,created_at,availability(id,start_at,end_at,leader_id),interview_types(id,name,leaders(id,code,title))")
+        .order("created_at",{ascending:false}),
+      db.from("availability")
+        .select("id,leader_id,start_at,end_at,is_active,is_booked,leaders(id,code,title)")
+        .gte("start_at",new Date(Date.now()-86400000).toISOString())
+        .order("start_at")
     ];
-    if(isSecretaryAdmin()){
-      requests.push(db.from("profiles").select("id,email,display_name,role,is_active,created_at").order("created_at",{ascending:true}));
+
+    if (isSecretaryAdmin()) {
+      requests.push(
+        db.from("profiles")
+          .select("id,email,display_name,role,is_active,created_at")
+          .order("created_at",{ascending:true})
+      );
     }
 
-    const results=await Promise.all(requests);
-    const [l,a,s,p]=results;
-    if(l.error||a.error||s.error||(p&&p.error)){
+    const results = await Promise.all(requests);
+    const [leadersResult,appointmentsResult,scheduleResult,profilesResult] = results;
+
+    if (
+      leadersResult.error ||
+      appointmentsResult.error ||
+      scheduleResult.error ||
+      (profilesResult && profilesResult.error)
+    ) {
       alertGlobal("No se pudieron cargar todos los datos del panel.","error");
       return;
     }
 
-    state.leaders=l.data||[];
-    state.appointments=a.data||[];
-    state.schedule=s.data||[];
-    state.profiles=p?.data||[];
+    state.leaders = leadersResult.data || [];
+    state.appointments = appointmentsResult.data || [];
+    state.schedule = scheduleResult.data || [];
+    state.profiles = profilesResult?.data || [];
 
-    if(isSecretaryStaff()){
+    if (isSecretaryStaff()) {
       $("leaderSelectorWrap").classList.remove("hidden");
-      const current=$("scheduleLeader").value;
-      $("scheduleLeader").innerHTML=state.leaders.map(x=>`<option value="${x.id}">${e(x.title)}</option>`).join("");
-      if(current&&state.leaders.some(x=>x.id===current)) $("scheduleLeader").value=current;
-    }else{
+      const current = $("scheduleLeader").value;
+      $("scheduleLeader").innerHTML = state.leaders
+        .map(x=>'<option value="'+x.id+'">'+e(x.title)+'</option>')
+        .join("");
+      if (current && state.leaders.some(x=>x.id===current)) $("scheduleLeader").value = current;
+    } else {
       $("leaderSelectorWrap").classList.add("hidden");
     }
 
     renderStats();
     renderAppointments();
-    renderSchedule();
-    if(isSecretaryAdmin()) renderUsers();
+    renderAdminCalendar();
+    renderSelectedDay();
+    if (isSecretaryAdmin()) renderUsers();
   }
 
-  function renderStats(){
-    const rows=state.appointments.filter(canManage);
-    const open=rows.filter(x=>!["completed","cancelled","rejected"].includes(x.status)).length;
-    const approved=rows.filter(x=>x.status==="approved").length;
-    const relevantSchedules=state.schedule.filter(x=>isSecretaryStaff()||x.leaders?.code===leaderRole[state.profile.role]);
-    $("stats").innerHTML=`
-      <div class="stat"><span>Total</span><strong>${rows.length}</strong></div>
-      <div class="stat"><span>En curso</span><strong>${open}</strong></div>
-      <div class="stat"><span>Aprobadas</span><strong>${approved}</strong></div>
-      <div class="stat"><span>Horarios</span><strong>${relevantSchedules.length}</strong></div>
-    `;
+  function renderStats() {
+    const rows = state.appointments.filter(canManage);
+    const open = rows.filter(x=>!["completed","cancelled","rejected"].includes(x.status)).length;
+    const approved = rows.filter(x=>x.status==="approved").length;
+    const relevantSchedules = state.schedule.filter(x =>
+      isSecretaryStaff() || x.leaders?.code===leaderRole[state.profile.role]
+    );
+
+    $("stats").innerHTML =
+      '<div class="stat"><span>Total</span><strong>'+rows.length+'</strong></div>'+
+      '<div class="stat"><span>En curso</span><strong>'+open+'</strong></div>'+
+      '<div class="stat"><span>Aprobadas</span><strong>'+approved+'</strong></div>'+
+      '<div class="stat"><span>Horarios</span><strong>'+relevantSchedules.length+'</strong></div>';
   }
 
-  function actions(a){
-    if(!canManage(a))return "";
-    if(isSecretaryStaff()){
-      if(a.status==="pending_secretary"){
-        return `<button data-id="${a.id}" data-status="contacted">Contactado</button><button data-id="${a.id}" data-status="rejected" class="danger">Rechazar</button><button data-id="${a.id}" data-status="cancelled" class="danger">Cancelar</button>`;
+  function actions(appointment) {
+    if (!canManage(appointment)) return "";
+
+    const button = (label,status,cls="") =>
+      '<button data-id="'+appointment.id+'" data-status="'+status+'" class="'+cls+'">'+label+'</button>';
+
+    if (isSecretaryStaff()) {
+      if (appointment.status==="pending_secretary") {
+        return button("Contactado","contacted","primary")+
+          button("Rechazar","rejected","danger")+
+          button("Cancelar","cancelled","danger");
       }
-      if(a.status==="contacted"){
-        return `<button data-id="${a.id}" data-status="pending_leader" class="primary">Enviar al líder</button><button data-id="${a.id}" data-status="reschedule">Reprogramar</button><button data-id="${a.id}" data-status="rejected" class="danger">Rechazar</button>`;
+      if (appointment.status==="contacted") {
+        return button("Enviar al líder","pending_leader","primary")+
+          button("Reprogramar","reschedule")+
+          button("Rechazar","rejected","danger");
       }
-      if(a.status==="pending_leader"){
-        return `<button data-id="${a.id}" data-status="reschedule">Reprogramar</button><button data-id="${a.id}" data-status="cancelled" class="danger">Cancelar</button>`;
+      if (appointment.status==="pending_leader") {
+        return button("Reprogramar","reschedule")+
+          button("Cancelar","cancelled","danger");
       }
-      if(a.status==="approved"){
-        return `<button data-id="${a.id}" data-status="completed" class="primary">Completar</button><button data-id="${a.id}" data-status="reschedule">Reprogramar</button><button data-id="${a.id}" data-status="cancelled" class="danger">Cancelar</button>`;
+      if (appointment.status==="approved") {
+        return button("Completar","completed","primary")+
+          button("Reprogramar","reschedule")+
+          button("Cancelar","cancelled","danger");
       }
-      if(a.status==="reschedule"){
-        return `<button data-id="${a.id}" data-status="pending_secretary" class="primary">Volver a revisión</button><button data-id="${a.id}" data-status="cancelled" class="danger">Cancelar</button>`;
+      if (appointment.status==="reschedule") {
+        return button("Volver a revisión","pending_secretary","primary")+
+          button("Cancelar","cancelled","danger");
       }
       return "";
     }
-    if(a.status==="pending_leader"){
-      return `<button data-id="${a.id}" data-status="approved" class="primary">Aprobar</button><button data-id="${a.id}" data-status="reschedule">Reprogramar</button><button data-id="${a.id}" data-status="rejected" class="danger">Rechazar</button>`;
+
+    if (appointment.status==="pending_leader") {
+      return button("Aprobar","approved","primary")+
+        button("Reprogramar","reschedule")+
+        button("Rechazar","rejected","danger");
     }
-    if(a.status==="approved"){
-      return `<button data-id="${a.id}" data-status="completed" class="primary">Completar</button><button data-id="${a.id}" data-status="reschedule">Reprogramar</button><button data-id="${a.id}" data-status="cancelled" class="danger">Cancelar</button>`;
+
+    if (appointment.status==="approved") {
+      return button("Completar","completed","primary")+
+        button("Reprogramar","reschedule")+
+        button("Cancelar","cancelled","danger");
     }
+
     return "";
   }
 
-  function renderAppointments(){
-    const f=$("statusFilter").value;
-    const rows=state.appointments.filter(a=>canManage(a)&&(f==="all"||a.status===f));
-    const list=$("requestsList");
-    $("requestsHint").textContent=`${rows.length} solicitud(es) visibles`;
-    list.innerHTML=rows.length?rows.map(a=>`
-      <article class="request-item">
-        <div class="request-top">
-          <div>
-            <h3>${e(a.member_name)}</h3>
-            <div class="request-meta">
-              ${e(a.interview_types?.name||"Entrevista")} · ${e(a.interview_types?.leaders?.title||"")}<br>
-              ${a.availability?.start_at?e(fmt(a.availability.start_at)):"Sin horario"}<br>
-              ${e(a.member_phone)}${a.member_email?" · "+e(a.member_email):""}
-            </div>
-          </div>
-          <span class="badge ${e(a.status)}">${e(statusText[a.status]||a.status)}</span>
-        </div>
-        <div class="actions">${actions(a)}</div>
-      </article>
-    `).join(""):'<div class="empty">No hay solicitudes para este filtro.</div>';
+  function renderAppointments() {
+    const filter = $("statusFilter").value;
+    const rows = state.appointments.filter(a =>
+      canManage(a) && (filter==="all" || a.status===filter)
+    );
 
-    list.querySelectorAll("button[data-id]").forEach(b=>b.onclick=async()=>{
-      b.disabled=true;
-      const {error}=await db.from("appointments").update({status:b.dataset.status}).eq("id",b.dataset.id);
-      b.disabled=false;
-      if(error) alertGlobal(error.message||"No se pudo actualizar la solicitud.","error");
-      else{alertGlobal("Solicitud actualizada.","success");await refresh();}
+    $("requestsHint").textContent = rows.length+" solicitud(es) visibles";
+    const list = $("requestsList");
+
+    list.innerHTML = rows.length ? rows.map(a =>
+      '<article class="request-item">'+
+        '<div class="request-top">'+
+          '<div>'+
+            '<h3>'+e(a.member_name)+'</h3>'+
+            '<div class="request-meta">'+
+              e(a.interview_types?.name||"Entrevista")+' · '+e(a.interview_types?.leaders?.title||"")+'<br>'+
+              (a.availability?.start_at?e(fmt(a.availability.start_at)):"Sin horario")+'<br>'+
+              e(a.member_phone)+(a.member_email?' · '+e(a.member_email):'')+
+            '</div>'+
+          '</div>'+
+          '<span class="badge '+e(a.status)+'">'+e(statusText[a.status]||a.status)+'</span>'+
+        '</div>'+
+        '<div class="actions">'+actions(a)+'</div>'+
+      '</article>'
+    ).join("") : '<div class="empty">No hay solicitudes para este filtro.</div>';
+
+    list.querySelectorAll("button[data-id]").forEach(button => {
+      button.onclick = async () => {
+        button.disabled = true;
+        const {error} = await db.from("appointments")
+          .update({status:button.dataset.status})
+          .eq("id",button.dataset.id);
+        button.disabled = false;
+
+        if (error) alertGlobal(error.message || "No se pudo actualizar la solicitud.","error");
+        else {
+          alertGlobal("Solicitud actualizada.","success");
+          await refresh();
+        }
+      };
     });
   }
 
-  function renderUsers(){
-    const list=$("usersList");
-    const rows=state.profiles.filter(x=>x.role!=="unassigned");
-    $("usersCount").textContent=rows.length+" usuario(s)";
-    list.innerHTML=rows.length?rows.map(x=>
-      '<div class="user-row">' +
-        '<div><strong>' + e(x.display_name||x.email||"Usuario") + '</strong><small>' + e(x.email||"Sin correo") + '</small></div>' +
-        '<div class="user-row-right">' +
-          '<span class="role-pill">' + e(roleText[x.role]||x.role) + '</span>' +
-          '<span class="' + (x.is_active?"status-active":"status-inactive") + '">' + (x.is_active?"Activo":"Inactivo") + '</span>' +
-          '<button class="edit-user-button" type="button" data-edit-user="' + e(x.id) + '">Editar</button>' +
-        '</div>' +
+  function renderUsers() {
+    const list = $("usersList");
+    const rows = state.profiles.filter(x=>x.role!=="unassigned");
+    $("usersCount").textContent = rows.length+" usuario(s)";
+
+    list.innerHTML = rows.length ? rows.map(x =>
+      '<div class="user-row">'+
+        '<div><strong>'+e(x.display_name||x.email||"Usuario")+'</strong><small>'+e(x.email||"Sin correo")+'</small></div>'+
+        '<div class="user-row-right">'+
+          '<span class="role-pill">'+e(roleText[x.role]||x.role)+'</span>'+
+          '<span class="'+(x.is_active?"status-active":"status-inactive")+'">'+(x.is_active?"Activo":"Inactivo")+'</span>'+
+          '<button class="edit-user-button" type="button" data-edit-user="'+e(x.id)+'">Editar</button>'+
+        '</div>'+
       '</div>'
-    ).join(""):'<div class="empty">No hay usuarios configurados.</div>';
+    ).join("") : '<div class="empty">No hay usuarios configurados.</div>';
 
-    list.querySelectorAll("[data-edit-user]").forEach(button=>{
-      button.onclick=()=>openUserEditor(button.dataset.editUser);
+    list.querySelectorAll("[data-edit-user]").forEach(button => {
+      button.onclick = () => openUserEditor(button.dataset.editUser);
     });
   }
 
-  function openUserEditor(userId){
-    if(!isSecretaryAdmin()) return;
-    const user=state.profiles.find(x=>x.id===userId);
-    if(!user) return;
-    $("editUserId").value=user.id;
-    $("editUserName").value=user.display_name||"";
-    $("editUserEmail").value=user.email||"";
-    $("editUserRole").value=user.role;
-    $("editUserActive").checked=Boolean(user.is_active);
-    $("editUserTitle").textContent=user.display_name||user.email||"Usuario";
-    $("editUserResult").className="alert hidden";
+  function openUserEditor(userId) {
+    if (!isSecretaryAdmin()) return;
+    const user = state.profiles.find(x=>x.id===userId);
+    if (!user) return;
+
+    $("editUserId").value = user.id;
+    $("editUserName").value = user.display_name || "";
+    $("editUserEmail").value = user.email || "";
+    $("editUserRole").value = user.role;
+    $("editUserActive").checked = Boolean(user.is_active);
+    $("editUserTitle").textContent = user.display_name || user.email || "Usuario";
+    $("editUserResult").className = "alert hidden";
     $("userEditPanel").classList.remove("hidden");
     $("userEditPanel").scrollIntoView({behavior:"smooth",block:"center"});
   }
 
-  function closeUserEditor(){
+  function closeUserEditor() {
     $("userEditPanel").classList.add("hidden");
     $("editUserForm").reset();
-    $("editUserResult").className="alert hidden";
-  }
-  function selectedLeaderId(){
-    return isSecretaryStaff()?$("scheduleLeader").value:leaderForRole()?.id;
+    $("editUserResult").className = "alert hidden";
   }
 
-  function setInitialMonth(){
-    const now=new Date();
-    const y=now.getFullYear();
-    const m=String(now.getMonth()+1).padStart(2,"0");
-    $("scheduleMonth").value=`${y}-${m}`;
-    populateWeeks();
+  function schedulesForLeader() {
+    const leaderId = selectedLeaderId();
+    return state.schedule.filter(x=>x.leader_id===leaderId);
   }
 
-
-  function dateKeyUTC(date){
-    return date.toISOString().slice(0,10);
+  function scheduleMap() {
+    const map = new Map();
+    schedulesForLeader().forEach(slot => {
+      const key = dateKeyBolivia(slot.start_at);
+      if (!map.has(key)) map.set(key,[]);
+      map.get(key).push(slot);
+    });
+    return map;
   }
 
-  function shortDateUTC(date){
-    return new Intl.DateTimeFormat("es-BO",{
-      timeZone:"UTC",
-      day:"numeric",
-      month:"short"
-    }).format(date).replace(".","");
-  }
+  function renderAdminCalendar() {
+    const month = state.calendarMonth;
+    $("adminMonthTitle").textContent = monthTitle(month);
 
-  function longWeekdayDateUTC(date){
-    return new Intl.DateTimeFormat("es-BO",{
-      timeZone:"UTC",
-      weekday:"short",
-      day:"numeric",
-      month:"short"
-    }).format(date).replace(".","");
-  }
+    const year = month.getFullYear();
+    const monthIndex = month.getMonth();
+    const firstDow = new Date(year,monthIndex,1).getDay();
+    const daysInMonth = new Date(year,monthIndex+1,0).getDate();
+    const previousDays = new Date(year,monthIndex,0).getDate();
+    const byDate = scheduleMap();
+    const cells = [];
 
-  function populateWeeks(){
-    const value=$("scheduleMonth").value;
-    if(!value)return;
-
-    const [year,month]=value.split("-").map(Number);
-    const firstOfMonth=new Date(Date.UTC(year,month-1,1));
-    const lastOfMonth=new Date(Date.UTC(year,month,0));
-
-    const firstDow=firstOfMonth.getUTCDay();
-    const daysBackToMonday=(firstDow+6)%7;
-    const firstMonday=new Date(firstOfMonth);
-    firstMonday.setUTCDate(firstMonday.getUTCDate()-daysBackToMonday);
-
-    const weeks=[];
-    let cursor=new Date(firstMonday);
-    let weekNumber=1;
-
-    while(cursor<=lastOfMonth){
-      const weekStart=new Date(cursor);
-      const weekEnd=new Date(cursor);
-      weekEnd.setUTCDate(weekEnd.getUTCDate()+6);
-
-      weeks.push({
-        value:dateKeyUTC(weekStart),
-        label:`Semana ${weekNumber} · ${shortDateUTC(weekStart)}–${shortDateUTC(weekEnd)}`
-      });
-
-      cursor.setUTCDate(cursor.getUTCDate()+7);
-      weekNumber++;
+    for (let i=firstDow-1;i>=0;i--) {
+      cells.push({day:previousDays-i,muted:true,date:new Date(year,monthIndex-1,previousDays-i)});
     }
 
-    $("scheduleWeek").innerHTML=weeks.map(w=>
-      `<option value="${w.value}">${e(w.label)}</option>`
-    ).join("");
-
-    updateScheduleSummary();
-  }
-
-  function selectedWeekdays(){
-    return [...document.querySelectorAll('input[name="weekday"]:checked')].map(x=>Number(x.value));
-  }
-
-  function selectedDatesForWeek(){
-    const weekStartValue=$("scheduleWeek").value;
-    const weekdays=selectedWeekdays();
-    if(!weekStartValue||!weekdays.length) return [];
-
-    const weekStart=new Date(weekStartValue+"T00:00:00Z");
-    const dates=[];
-
-    for(let i=0;i<7;i++){
-      const d=new Date(weekStart);
-      d.setUTCDate(d.getUTCDate()+i);
-      if(weekdays.includes(d.getUTCDay())) dates.push(d);
-    }
-    return dates;
-  }
-
-  function updateScheduleSummary(){
-    const weekLabel=$("scheduleWeek").selectedOptions[0]?.textContent||"";
-    const dates=selectedDatesForWeek();
-    const from=$("scheduleStartTime").value;
-    const to=$("scheduleEndTime").value;
-    const duration=$("scheduleDuration").value;
-
-    if(dates.length&&from&&to){
-      $("scheduleSummary").textContent=
-        `${weekLabel}: ${dates.map(longWeekdayDateUTC).join(", ")} · ${from}–${to} · cada ${duration} min.`;
-    }else{
-      $("scheduleSummary").textContent="Selecciona la semana, los días y el rango horario.";
-    }
-  }
-
-  function buildWeeklySlots(){
-    const leader_id=selectedLeaderId();
-    const weekStartValue=$("scheduleWeek").value;
-    const weekdays=selectedWeekdays();
-    const startTime=$("scheduleStartTime").value;
-    const endTime=$("scheduleEndTime").value;
-    const duration=Number($("scheduleDuration").value||30);
-
-    if(!leader_id||!weekStartValue||!weekdays.length||!startTime||!endTime){
-      throw new Error("Completa líder, semana, días y rango horario.");
+    for (let day=1;day<=daysInMonth;day++) {
+      cells.push({day,muted:false,date:new Date(year,monthIndex,day)});
     }
 
-    const [sh,sm]=startTime.split(":").map(Number);
-    const [eh,em]=endTime.split(":").map(Number);
-    const startMinutes=sh*60+sm;
-    const endMinutes=eh*60+em;
+    while (cells.length % 7 !== 0 || cells.length < 42) {
+      const day = cells.length - (firstDow + daysInMonth) + 1;
+      cells.push({day,muted:true,date:new Date(year,monthIndex+1,day)});
+    }
 
-    if(endMinutes<=startMinutes) throw new Error("La hora final debe ser posterior a la hora inicial.");
-    if(duration<10||duration>180) throw new Error("Duración no válida.");
+    $("adminCalendar").innerHTML = cells.map(cell => {
+      const key = localDateKey(cell.date);
+      const rows = byDate.get(key) || [];
+      const available = rows.filter(x=>x.is_active&&!x.is_booked).length;
+      const booked = rows.filter(x=>x.is_booked).length;
+      const inactive = rows.filter(x=>!x.is_active&&!x.is_booked).length;
 
-    const weekStart=new Date(weekStartValue+"T00:00:00Z");
-    const slots=[];
-    const now=Date.now();
+      const classes = [
+        "calendar-day",
+        "admin-day",
+        cell.muted ? "outside-month" : "",
+        rows.length ? "has-schedule" : "",
+        state.selectedDateKey===key ? "selected" : ""
+      ].filter(Boolean).join(" ");
 
-    for(let i=0;i<7;i++){
-      const dayDate=new Date(weekStart);
-      dayDate.setUTCDate(dayDate.getUTCDate()+i);
-      if(!weekdays.includes(dayDate.getUTCDay())) continue;
+      return '<button type="button" class="'+classes+'" data-date="'+key+'">'+
+        '<span class="day-number">'+cell.day+'</span>'+
+        '<span class="admin-day-counts">'+
+          (available?'<small class="count-available">'+available+' disp.</small>':'')+
+          (booked?'<small class="count-booked">'+booked+' ocup.</small>':'')+
+          (inactive?'<small class="count-inactive">'+inactive+' off</small>':'')+
+        '</span>'+
+      '</button>';
+    }).join("");
 
-      const year=dayDate.getUTCFullYear();
-      const month=dayDate.getUTCMonth()+1;
-      const day=dayDate.getUTCDate();
+    $("adminCalendar").querySelectorAll("[data-date]").forEach(button => {
+      button.onclick = () => selectAdminDay(button.dataset.date);
+    });
+  }
 
-      for(let minutes=startMinutes;minutes+duration<=endMinutes;minutes+=duration){
-        const hh=String(Math.floor(minutes/60)).padStart(2,"0");
-        const mm=String(minutes%60).padStart(2,"0");
-        const end=minutes+duration;
-        const ehh=String(Math.floor(end/60)).padStart(2,"0");
-        const emm=String(end%60).padStart(2,"0");
-        const dd=String(day).padStart(2,"0");
-        const mon=String(month).padStart(2,"0");
+  function selectAdminDay(key) {
+    state.selectedDateKey = key;
+    renderAdminCalendar();
+    renderSelectedDay();
+    $("calendarDayEditor").classList.remove("hidden");
+    $("calendarDayEditor").scrollIntoView({behavior:"smooth",block:"nearest"});
+  }
 
-        const start_at=new Date(`${year}-${mon}-${dd}T${hh}:${mm}:00-04:00`).toISOString();
-        const end_at=new Date(`${year}-${mon}-${dd}T${ehh}:${emm}:00-04:00`).toISOString();
+  function renderSelectedDay() {
+    const key = state.selectedDateKey;
+    if (!key) {
+      $("calendarDayEditor").classList.add("hidden");
+      return;
+    }
 
-        if(new Date(start_at).getTime()<=now) continue;
-        slots.push({leader_id,start_at,end_at,is_active:true});
-      }
+    $("calendarSelectedDate").textContent = longDateFromKey(key);
+    const rows = schedulesForLeader()
+      .filter(x=>dateKeyBolivia(x.start_at)===key)
+      .sort((a,b)=>new Date(a.start_at)-new Date(b.start_at));
+
+    $("dayScheduleCount").textContent = rows.length+" horario(s)";
+    $("dayScheduleList").innerHTML = rows.length ? rows.map(slot =>
+      '<div class="slot-row">'+
+        '<div>'+
+          '<strong>'+e(timeLabel(slot.start_at))+'–'+e(timeLabel(slot.end_at))+'</strong><br>'+
+          '<small>'+(slot.is_booked?"Ocupado / solicitado":slot.is_active?"Disponible":"Desactivado")+'</small>'+
+        '</div>'+
+        (slot.is_booked ? '' :
+          '<button data-slot="'+slot.id+'" data-active="'+(slot.is_active?"0":"1")+'">'+
+            (slot.is_active?"Desactivar":"Activar")+
+          '</button>')+
+      '</div>'
+    ).join("") : '<div class="empty">Todavía no hay horarios para este día.</div>';
+
+    $("dayScheduleList").querySelectorAll("[data-slot]").forEach(button => {
+      button.onclick = async () => {
+        const {error} = await db.from("availability")
+          .update({is_active:button.dataset.active==="1"})
+          .eq("id",button.dataset.slot);
+
+        if (error) alertGlobal(error.message || "No se pudo cambiar el horario.","error");
+        else await refresh();
+      };
+    });
+  }
+
+  function buildDaySlots() {
+    const leaderId = selectedLeaderId();
+    const dateKey = state.selectedDateKey;
+    const startTime = $("dayStartTime").value;
+    const endTime = $("dayEndTime").value;
+    const duration = Number($("dayDuration").value || 30);
+
+    if (!leaderId || !dateKey || !startTime || !endTime) {
+      throw new Error("Selecciona un día y completa el rango horario.");
+    }
+
+    const [sh,sm] = startTime.split(":").map(Number);
+    const [eh,em] = endTime.split(":").map(Number);
+    const startMinutes = sh*60+sm;
+    const endMinutes = eh*60+em;
+
+    if (endMinutes<=startMinutes) {
+      throw new Error("La hora final debe ser posterior a la hora inicial.");
+    }
+
+    const slots = [];
+
+    for (let minutes=startMinutes;minutes+duration<=endMinutes;minutes+=duration) {
+      const hh = String(Math.floor(minutes/60)).padStart(2,"0");
+      const mm = String(minutes%60).padStart(2,"0");
+      const end = minutes+duration;
+      const ehh = String(Math.floor(end/60)).padStart(2,"0");
+      const emm = String(end%60).padStart(2,"0");
+
+      const start_at = new Date(dateKey+"T"+hh+":"+mm+":00-04:00").toISOString();
+      const end_at = new Date(dateKey+"T"+ehh+":"+emm+":00-04:00").toISOString();
+
+      if (new Date(start_at).getTime()<=Date.now()) continue;
+      slots.push({leader_id:leaderId,start_at,end_at,is_active:true});
     }
 
     return slots;
   }
 
-  function renderSchedule(){
-    const id=selectedLeaderId();
-    const rows=state.schedule.filter(x=>x.leader_id===id);
-    const list=$("scheduleList");
-    $("scheduleCount").textContent=`${rows.length} horario(s)`;
-    list.innerHTML=rows.length?rows.map(x=>`
-      <div class="slot-row">
-        <div>
-          <strong>${e(fmt(x.start_at))}</strong><br>
-          <small>${x.is_booked?"Ocupado / solicitado":x.is_active?"Disponible":"Desactivado"}</small>
-        </div>
-        ${x.is_booked?"":`<button data-slot="${x.id}" data-active="${x.is_active?"0":"1"}">${x.is_active?"Desactivar":"Activar"}</button>`}
-      </div>
-    `).join(""):'<div class="empty">No hay horarios cargados para este líder.</div>';
-
-    list.querySelectorAll("button[data-slot]").forEach(b=>b.onclick=async()=>{
-      const {error}=await db.from("availability").update({is_active:b.dataset.active==="1"}).eq("id",b.dataset.slot);
-      if(error)alertGlobal(error.message||"No se pudo cambiar el horario.","error");
-      else await refresh();
-    });
-  }
-
-  $("loginForm").onsubmit=async ev=>{
-    ev.preventDefault();
-    const form=ev.currentTarget,button=form.querySelector('button[type="submit"]');
+  $("loginForm").onsubmit = async event => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector('button[type="submit"]');
     $("loginError").classList.add("hidden");
-    button.disabled=true;button.textContent="Ingresando…";
-    const {data,error}=await db.auth.signInWithPassword({email:$("loginEmail").value.trim(),password:$("loginPassword").value});
-    button.disabled=false;button.textContent="Ingresar";
-    if(error){
-      $("loginError").textContent="Correo o contraseña incorrectos.";
+    button.disabled = true;
+    button.textContent = "Ingresando…";
+
+    const {data,error} = await db.auth.signInWithPassword({
+      email:$("loginEmail").value.trim(),
+      password:$("loginPassword").value
+    });
+
+    button.disabled = false;
+    button.textContent = "Ingresar";
+
+    if (error) {
+      $("loginError").textContent = "Correo o contraseña incorrectos.";
       $("loginError").classList.remove("hidden");
       return;
     }
-    if(data?.session) await enterAuthenticated(data.session);
+
+    if (data?.session) await enterAuthenticated(data.session);
   };
 
-  $("userForm").onsubmit=async ev=>{
-    ev.preventDefault();
-    if(!isSecretaryAdmin()) return;
-    const form=ev.currentTarget;
-    const button=$("createUserBtn");
-    const result=$("userCreateResult");
-    result.className="alert hidden";
-    button.disabled=true;button.textContent="Creando…";
+  $("userForm").onsubmit = async event => {
+    event.preventDefault();
+    if (!isSecretaryAdmin()) return;
 
-    const display_name=$("userDisplayName").value.trim();
-    const email=$("userEmail").value.trim().toLowerCase();
-    const role=$("userRole").value;
-    const password=$("userPassword").value;
+    const form = event.currentTarget;
+    const button = $("createUserBtn");
+    const result = $("userCreateResult");
+    result.className = "alert hidden";
+    button.disabled = true;
+    button.textContent = "Creando…";
 
-    try{
-      const {data,error}=await signupClient.auth.signUp({
+    try {
+      const display_name = $("userDisplayName").value.trim();
+      const email = $("userEmail").value.trim().toLowerCase();
+      const role = $("userRole").value;
+      const password = $("userPassword").value;
+
+      const {data,error} = await signupClient.auth.signUp({
         email,
         password,
         options:{data:{full_name:display_name}}
       });
-      if(error) throw error;
-      if(!data?.user?.id) throw new Error("No se pudo crear el usuario.");
 
-      const {error:roleError}=await db.rpc("secretary_admin_assign_role",{
+      if (error) throw error;
+      if (!data?.user?.id) throw new Error("No se pudo crear el usuario.");
+
+      const {error:roleError} = await db.rpc("secretary_admin_assign_role",{
         p_user_id:data.user.id,
         p_role:role,
         p_display_name:display_name
       });
-      if(roleError) throw new Error("El usuario fue creado, pero no se pudo asignar el rol. Puede que el correo ya exista.");
 
-      result.textContent=data.session
-        ?"Usuario creado y listo para iniciar sesión."
-        :"Usuario creado. Supabase puede requerir que confirme su correo antes del primer ingreso.";
-      result.className="alert success";
+      if (roleError) throw new Error("El usuario fue creado, pero no se pudo asignar el rol.");
+
+      result.textContent = data.session
+        ? "Usuario creado y listo para iniciar sesión."
+        : "Usuario creado. Puede requerir confirmación del correo.";
+      result.className = "alert success";
       form.reset();
-      $("userRole").value="bishop";
-      $("userPassword").type="password";
-      $("toggleUserPassword").textContent="Mostrar";
+      $("userRole").value = "bishop";
+      $("userPassword").type = "password";
+      $("toggleUserPassword").textContent = "Mostrar";
       await refresh();
-    }catch(err){
-      result.textContent=err?.message||"No se pudo crear el usuario.";
-      result.className="alert error";
-    }finally{
-      button.disabled=false;button.textContent="Crear usuario";
+    } catch (error) {
+      result.textContent = error?.message || "No se pudo crear el usuario.";
+      result.className = "alert error";
+    } finally {
+      button.disabled = false;
+      button.textContent = "Crear usuario";
     }
   };
 
-  $("editUserForm").onsubmit=async ev=>{
-    ev.preventDefault();
-    if(!isSecretaryAdmin()) return;
-    const button=$("saveEditUser");
-    const result=$("editUserResult");
-    button.disabled=true;
-    button.textContent="Guardando…";
-    result.className="alert hidden";
+  $("editUserForm").onsubmit = async event => {
+    event.preventDefault();
+    if (!isSecretaryAdmin()) return;
 
-    const {error}=await db.rpc("secretary_admin_update_profile",{
+    const button = $("saveEditUser");
+    const result = $("editUserResult");
+    button.disabled = true;
+    button.textContent = "Guardando…";
+    result.className = "alert hidden";
+
+    const {error} = await db.rpc("secretary_admin_update_profile",{
       p_user_id:$("editUserId").value,
       p_display_name:$("editUserName").value.trim(),
       p_role:$("editUserRole").value,
       p_is_active:$("editUserActive").checked
     });
 
-    button.disabled=false;
-    button.textContent="Guardar cambios";
+    button.disabled = false;
+    button.textContent = "Guardar cambios";
 
-    if(error){
-      result.textContent=error.message||"No se pudieron guardar los cambios.";
-      result.className="alert error";
+    if (error) {
+      result.textContent = error.message || "No se pudieron guardar los cambios.";
+      result.className = "alert error";
       return;
     }
 
-    result.textContent="Usuario actualizado correctamente.";
-    result.className="alert success";
+    result.textContent = "Usuario actualizado correctamente.";
+    result.className = "alert success";
     await refresh();
     setTimeout(closeUserEditor,700);
   };
 
-  $("cancelEditUser").onclick=closeUserEditor;
-  $("cancelEditUserTop").onclick=closeUserEditor;
-  $("toggleUserPassword").onclick=()=>{
-    const input=$("userPassword");
-    const show=input.type==="password";
-    input.type=show?"text":"password";
-    $("toggleUserPassword").textContent=show?"Ocultar":"Mostrar";
-  };
+  $("dayScheduleForm").onsubmit = async event => {
+    event.preventDefault();
 
-  async function logout(){
-    await db.auth.signOut();
-    state.user=null;state.profile=null;
-    showLogin();
-  }
-
-  $("logoutBtn").onclick=logout;
-  $("unauthorizedLogout").onclick=logout;
-  $("refreshBtn").onclick=refresh;
-  $("statusFilter").onchange=renderAppointments;
-  $("scheduleLeader").onchange=renderSchedule;
-  $("scheduleMonth").onchange=()=>{populateWeeks();updateScheduleSummary();};
-  $("scheduleWeek").onchange=updateScheduleSummary;
-  $("scheduleStartTime").oninput=updateScheduleSummary;
-  $("scheduleEndTime").oninput=updateScheduleSummary;
-  $("scheduleDuration").onchange=updateScheduleSummary;
-  document.querySelectorAll('input[name="weekday"]').forEach(x=>x.onchange=updateScheduleSummary);
-
-  $("scheduleForm").onsubmit=async ev=>{
-    ev.preventDefault();
-    let slots=[];
-    try{
-      slots=buildWeeklySlots();
-      if(!slots.length) throw new Error("No se generaron horarios futuros con esa selección.");
-    }catch(err){
-      alertGlobal(err.message||"Revisa la configuración de horarios.","error");
+    let slots;
+    try {
+      slots = buildDaySlots();
+      if (!slots.length) throw new Error("No se generaron horarios futuros con ese rango.");
+    } catch (error) {
+      alertGlobal(error.message || "Revisa la configuración del día.","error");
       return;
     }
 
-    const button=ev.currentTarget.querySelector('button[type="submit"]');
-    button.disabled=true;button.textContent="Generando…";
-    const {data,error}=await db.from("availability")
+    const button = event.currentTarget.querySelector('button[type="submit"]');
+    button.disabled = true;
+    button.textContent = "Agregando…";
+
+    const {data,error} = await db.from("availability")
       .upsert(slots,{onConflict:"leader_id,start_at",ignoreDuplicates:true})
       .select("id");
-    button.disabled=false;button.textContent="Generar horarios de la semana";
 
-    if(error){
-      alertGlobal(error.message||"No se pudieron generar los horarios.","error");
+    button.disabled = false;
+    button.textContent = "Agregar horarios";
+
+    if (error) {
+      alertGlobal(error.message || "No se pudieron generar los horarios.","error");
       return;
     }
-    alertGlobal(`Horarios generados: ${data?.length||0}. Los duplicados existentes se omitieron.`,"success");
+
+    alertGlobal("Horarios agregados: "+(data?.length||0)+". Los duplicados se omitieron.","success");
     await refresh();
   };
 
-  db.auth.onAuthStateChange((event)=>{
-    if(event==="SIGNED_OUT"){
-      state.user=null;state.profile=null;
+  async function logout() {
+    await db.auth.signOut();
+    state.user = null;
+    state.profile = null;
+    showLogin();
+  }
+
+  $("cancelEditUser").onclick = closeUserEditor;
+  $("cancelEditUserTop").onclick = closeUserEditor;
+  $("toggleUserPassword").onclick = () => {
+    const input = $("userPassword");
+    const show = input.type==="password";
+    input.type = show ? "text" : "password";
+    $("toggleUserPassword").textContent = show ? "Ocultar" : "Mostrar";
+  };
+
+  $("logoutBtn").onclick = logout;
+  $("unauthorizedLogout").onclick = logout;
+  $("refreshBtn").onclick = refresh;
+  $("statusFilter").onchange = renderAppointments;
+
+  $("scheduleLeader").onchange = () => {
+    state.selectedDateKey = null;
+    renderAdminCalendar();
+    renderSelectedDay();
+  };
+
+  $("adminPrevMonth").onclick = () => {
+    const m = state.calendarMonth;
+    state.calendarMonth = new Date(m.getFullYear(),m.getMonth()-1,1);
+    state.selectedDateKey = null;
+    renderAdminCalendar();
+    renderSelectedDay();
+  };
+
+  $("adminNextMonth").onclick = () => {
+    const m = state.calendarMonth;
+    state.calendarMonth = new Date(m.getFullYear(),m.getMonth()+1,1);
+    state.selectedDateKey = null;
+    renderAdminCalendar();
+    renderSelectedDay();
+  };
+
+  $("closeDayEditor").onclick = () => {
+    state.selectedDateKey = null;
+    renderAdminCalendar();
+    renderSelectedDay();
+  };
+
+  db.auth.onAuthStateChange(event => {
+    if (event==="SIGNED_OUT") {
+      state.user = null;
+      state.profile = null;
       showLogin();
     }
   });
