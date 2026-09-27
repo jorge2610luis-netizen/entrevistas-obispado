@@ -202,3 +202,11 @@ footer .small{font-size:12px}
   .auth-tabs{width:100%}
   .auth-tab{flex:1}
 }
+
+.country-select{border:0;border-right:1px solid var(--line);border-radius:0;background:#f8fafb;max-width:185px;padding:12px 10px;font-weight:700;color:var(--ink)}
+.phone-input-wrap.multiphone{align-items:stretch}
+.phone-input-wrap.multiphone input{min-width:150px}
+@media(max-width:620px){
+  .phone-input-wrap.multiphone{display:grid;grid-template-columns:1fr}
+  .country-select{max-width:none;width:100%;border-right:0;border-bottom:1px solid var(--line);border-radius:0}
+}
