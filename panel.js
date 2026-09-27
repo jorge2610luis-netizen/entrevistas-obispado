@@ -947,28 +947,21 @@
   }
 
   function groupAdminUnitRows(rows) {
-    const map=new Map();
-
-    (rows||[]).forEach(row=>{
-      if (!row.unit_id) return;
-      if (map.has(row.unit_id)) return;
-
-      map.set(row.unit_id,{
-        id:row.unit_id,
-        unit_name:row.unit_name,
-        unit_type:row.unit_type,
-        meetinghouse_name:row.meetinghouse_name,
-        address:row.address,
-        city:row.city,
-        region:row.region,
-        country_code:row.country_code,
-        sunday_service:row.sunday_service
-      });
-    });
-
-    return [...map.values()].sort((a,b)=>
-      (a.unit_name||"").localeCompare(b.unit_name||"","es")
-    );
+    return (rows||[]).map(row=>({
+      id:row.unit_id,
+      unit_name:row.unit_name,
+      unit_type:row.unit_type,
+      meetinghouse_name:row.meetinghouse_name,
+      address:row.address,
+      city:row.city,
+      region:row.region,
+      country_code:row.country_code,
+      sunday_service:row.sunday_service,
+      leader_count:Number(row.leader_count||0),
+      secretary_count:Number(row.secretary_count||0),
+      coverage_status:row.coverage_status||"no_coverage",
+      official_url:row.official_url||null
+    }));
   }
 
   async function searchAdminUnits() {
@@ -976,8 +969,10 @@
 
     const button=$("adminUnitSearchBtn");
     const countryCode=$("adminUnitCountry").value;
+    const region=$("adminUnitRegion")?.value || "";
     const city=$("adminUnitCity").value.trim();
     const query=$("adminUnitQuery").value.trim();
+    const coverage=$("adminCoverageFilter")?.value || "";
 
     button.disabled=true;
     button.textContent="Buscando…";
@@ -988,18 +983,21 @@
         try {
           await Promise.race([
             db.functions.invoke("church-directory",{
-              body:{city,countryCode}
+              body:{action:"sync-city",city,countryCode}
             }),
-            new Promise(resolve=>setTimeout(()=>resolve(null),12000))
+            new Promise(resolve=>setTimeout(()=>resolve(null),15000))
           ]);
         } catch (_) {}
       }
 
-      const {data,error}=await db.rpc("search_church_catalog",{
+      const {data,error}=await db.rpc("search_church_catalog_v2",{
         p_query:query || null,
         p_country_code:countryCode || null,
+        p_region:region || null,
         p_city:city || null,
-        p_limit:100
+        p_coverage:coverage || null,
+        p_limit:100,
+        p_offset:0
       });
 
       if (error) throw error;
@@ -1007,33 +1005,105 @@
       state.adminUnitResults=groupAdminUnitRows(data||[]);
       $("adminUnitSearchStatus").textContent=state.adminUnitResults.length
         ? state.adminUnitResults.length+" barrio(s)/rama(s) encontrado(s)."
-        : "No encontramos barrios con esos datos.";
+        : "No encontramos barrios con esos filtros. Puedes sincronizar el directorio oficial del país.";
       renderAdminUnitResults();
     } catch (error) {
       $("adminUnitSearchStatus").textContent=error?.message || "No se pudo buscar el barrio.";
       $("adminUnitResults").innerHTML="";
     } finally {
       button.disabled=false;
-      button.textContent="Buscar barrio";
+      button.textContent="Buscar";
     }
   }
 
   function renderAdminUnitResults() {
     const rows=state.adminUnitResults || [];
-    $("adminUnitResults").innerHTML=rows.length ? rows.map(unit=>
-      '<article class="unit-admin-result">'+
+    $("adminUnitResults").innerHTML=rows.length ? rows.map(unit=>{
+      const covered=unit.coverage_status==="covered";
+      const partial=unit.coverage_status==="partial";
+      const coverageLabel=covered
+        ? "Con cobertura"
+        : partial
+          ? "Cobertura parcial"
+          : "Sin cobertura";
+      const coverageClass=covered ? "covered" : partial ? "partial" : "no-coverage";
+
+      return '<article class="unit-admin-result">'+
         '<div>'+
           '<strong>'+e(unit.unit_name||"Barrio / Rama")+'</strong>'+
           '<span>'+e([unit.meetinghouse_name,unit.address].filter(Boolean).join(" · "))+'</span>'+
-          '<small>'+e([unit.city,unit.region,unit.country_code].filter(Boolean).join(" · "))+'</small>'+
+          '<small>'+e([unit.region,unit.city,unit.country_code].filter(Boolean).join(" · "))+'</small>'+
+          '<span class="coverage-pill '+coverageClass+'">'+e(coverageLabel)+
+            ' · '+unit.leader_count+' líder(es)</span>'+
         '</div>'+
         '<button type="button" class="secondary-button" data-admin-unit="'+unit.id+'">Administrar</button>'+
-      '</article>'
-    ).join("") : "";
+      '</article>';
+    }).join("") : "";
 
     $("adminUnitResults").querySelectorAll("[data-admin-unit]").forEach(button=>{
       button.onclick=()=>selectAdminUnit(button.dataset.adminUnit);
     });
+  }
+
+  async function syncOfficialCountryDirectory() {
+    if (!isSecretaryAdmin()) return;
+
+    const button=$("syncOfficialDirectory");
+    const status=$("directorySyncStatus");
+    const countryCode=$("adminUnitCountry").value;
+    let offset=0;
+    let total=null;
+    let processedTotal=0;
+
+    button.disabled=true;
+    button.textContent="Sincronizando…";
+    status.textContent="Leyendo el directorio oficial…";
+
+    try {
+      for (let batchIndex=0;batchIndex<80;batchIndex++) {
+        const {data,error}=await db.functions.invoke("church-directory",{
+          body:{
+            action:"sync-country-batch",
+            countryCode,
+            offset,
+            limit:3
+          }
+        });
+
+        if (error) throw error;
+        if (!data) throw new Error("El directorio oficial no respondió.");
+
+        total=Number(data.total||0);
+        processedTotal+=Number(data.processed||0);
+        offset=Number(data.nextOffset||offset);
+
+        const meetinghouses=(data.results||[]).reduce((sum,x)=>sum+Number(x.meetinghouses||0),0);
+        const units=(data.results||[]).reduce((sum,x)=>sum+Number(x.units||0),0);
+
+        status.textContent="Directorio "+countryCode+": "+Math.min(offset,total||offset)+
+          " de "+(total||"?")+" zonas · +"+meetinghouses+" capilla(s) · +"+units+" barrio(s)/rama(s).";
+
+        if (data.done || !data.processed) break;
+      }
+
+      status.textContent=(total && offset>=total)
+        ? "Directorio oficial actualizado. "+total+" zonas revisadas."
+        : "Sincronización pausada en "+processedTotal+" zonas. Puedes pulsar nuevamente para continuar.";
+
+      const unitsResult=await db.rpc("staff_accessible_units");
+      if (!unitsResult.error) {
+        state.accessibleUnits=unitsResult.data||[];
+        populateActiveUnitSelect();
+        populateAdministrativeUnitFilters();
+      }
+
+      await searchAdminUnits();
+    } catch (error) {
+      status.textContent=error?.message || "No se pudo sincronizar el directorio.";
+    } finally {
+      button.disabled=false;
+      button.textContent="Actualizar directorio oficial del país";
+    }
   }
 
   async function selectAdminUnit(unitId) {
