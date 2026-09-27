@@ -1,6 +1,7 @@
 (() => {
   const db = window.supabase.createClient(window.APP_CONFIG.supabaseUrl, window.APP_CONFIG.supabasePublishableKey);
   const state = { leaders: [], selectedLeader: null };
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.0.2";
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
   function formatSlot(value) {
