@@ -1346,7 +1346,56 @@
 
       if (total && offset>=total) {
         localStorage.removeItem(progressKey);
-        status.textContent="Directorio oficial actualizado. "+total+" zonas revisadas.";
+        status.textContent="Zonas revisadas. Indexando barrios y ramas oficiales…";
+      } else {
+        status.textContent="Zonas parcialmente revisadas. Indexando también barrios y ramas oficiales…";
+      }
+
+      let unitIndex=null;
+      try {
+        const indexResult=await db.functions.invoke("church-directory",{
+          body:{action:"unit-index",countryCode}
+        });
+        if (!indexResult.error) unitIndex=indexResult.data || null;
+      } catch (error) {
+        console.warn("unit directory index failed",error);
+      }
+
+      let unitProcessed=0;
+      let unitRemaining=null;
+      for (let batchIndex=0;batchIndex<25;batchIndex++) {
+        try {
+          const {data,error}=await db.functions.invoke("church-directory",{
+            body:{action:"sync-unit-batch",countryCode,limit:4}
+          });
+          if (error) throw error;
+          if (!data) break;
+
+          unitProcessed+=Number(data.processed||0);
+          unitRemaining=Number(data.remaining||0);
+
+          status.textContent="Directorio "+countryCode+": "+
+            (total?Math.min(offset,total)+" de "+total+" zonas · ":"")+
+            unitProcessed+" barrio(s)/rama(s) procesados en esta tanda"+
+            (unitRemaining!==null?" · "+unitRemaining+" pendientes":"")+".";
+
+          if (data.done || !data.processed) break;
+        } catch (error) {
+          console.warn("unit directory batch failed",error);
+          break;
+        }
+      }
+
+      if (unitIndex?.discovered && unitRemaining===0) {
+        status.textContent="Directorio oficial actualizado: "+unitIndex.discovered+
+          " páginas de barrio/rama indexadas para "+countryCode+".";
+      } else if (unitProcessed>0) {
+        status.textContent="Directorio actualizado parcialmente: "+unitProcessed+
+          " barrio(s)/rama(s) procesados en esta tanda"+
+          (unitRemaining!==null?" · "+unitRemaining+" pendientes.":".")+
+          " Pulsa nuevamente para continuar.";
+      } else if (total && offset>=total) {
+        status.textContent="Directorio de ciudades y capillas actualizado. Los barrios/ramas se completarán en las siguientes tandas.";
       } else {
         status.textContent="Sincronización pausada. Se revisaron "+processedTotal+" zona(s) en esta tanda; pulsa nuevamente para continuar.";
       }
