@@ -38,7 +38,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v3.3.1";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v3.3.2";
 
   const leaderRole = {
     bishop:"bishop",
@@ -268,20 +268,40 @@
     ).join("");
   }
 
+  function fillUnitSelect(select,selectedId,{includeEmpty=false}={}) {
+    if (!select) return;
+
+    select.innerHTML="";
+
+    if (includeEmpty) {
+      const empty=document.createElement("option");
+      empty.value="";
+      empty.textContent="Selecciona un barrio";
+      select.appendChild(empty);
+    }
+
+    state.accessibleUnits.forEach(unit=>{
+      const option=document.createElement("option");
+      option.value=unit.unit_id;
+      option.textContent=unit.unit_name+(unit.city?" · "+unit.city:"");
+      select.appendChild(option);
+    });
+
+    if (selectedId && state.accessibleUnits.some(x=>x.unit_id===selectedId)) {
+      select.value=selectedId;
+    } else if (!includeEmpty && select.options.length) {
+      select.selectedIndex=0;
+    } else {
+      select.value="";
+    }
+  }
+
   function populateActiveUnitSelect() {
     const select=$("activeUnitSelect");
     if (!select) return;
 
     const previous=state.activeUnitId || select.value;
-    const options=state.accessibleUnits.map(unit=>
-      '<option value="'+unit.unit_id+'">'+e(unit.unit_name)+(unit.city?' · '+e(unit.city):'')+'</option>'
-    ).join("");
-
-    select.innerHTML=options;
-
-    if (previous && state.accessibleUnits.some(x=>x.unit_id===previous)) {
-      select.value=previous;
-    }
+    fillUnitSelect(select,previous);
 
     state.activeUnitId=select.value || null;
     $("staffUnitContext")?.classList.toggle("hidden",!state.activeUnitId);
@@ -293,21 +313,11 @@
 
     if (unit) $("panelUnit").textContent=unit.unit_name;
 
-    if ($("scheduleUnit")) {
-      $("scheduleUnit").innerHTML=options || '<option value="">No hay barrios asignados</option>';
-      if (state.activeUnitId && state.accessibleUnits.some(x=>x.unit_id===state.activeUnitId)) {
-        $("scheduleUnit").value=state.activeUnitId;
-      }
-    }
+    fillUnitSelect($("scheduleUnit"),state.activeUnitId);
 
     if ($("userUnit")) {
       const currentUserUnit=$("userUnit").value;
-      $("userUnit").innerHTML=
-        '<option value="">Selecciona un barrio</option>'+
-        options;
-      if (currentUserUnit && state.accessibleUnits.some(x=>x.unit_id===currentUserUnit)) {
-        $("userUnit").value=currentUserUnit;
-      }
+      fillUnitSelect($("userUnit"),currentUserUnit,{includeEmpty:true});
     }
 
     updateScheduleContext();
@@ -353,18 +363,37 @@
 
     state.unitTeam=data || [];
 
+    const leaders=state.unitTeam.filter(x=>LEADER_ROLES.has(x.role));
+
     if (isSecretaryStaff()) {
       $("leaderSelectorWrap").classList.remove("hidden");
-      const leaders=state.unitTeam.filter(x=>LEADER_ROLES.has(x.role));
       const previous=$("scheduleLeader").value;
+
       $("scheduleLeader").innerHTML=leaders.length
         ? leaders.map(x=>
             '<option value="'+x.profile_id+'">'+e(roleText[x.role]||x.role)+' · '+e(x.display_name||"Líder")+'</option>'
           ).join("")
-        : '<option value="">No hay líderes asignados en este barrio</option>';
-      if (previous && leaders.some(x=>x.profile_id===previous)) $("scheduleLeader").value=previous;
+        : '<option value="">No hay líderes asignados</option>';
+
+      if (previous && leaders.some(x=>x.profile_id===previous)) {
+        $("scheduleLeader").value=previous;
+      }
+
+      $("scheduleLeaderHint").textContent=leaders.length
+        ? leaders.length+" líder(es) disponible(s) en este barrio."
+        : "Debes asignar liderazgo antes de crear horarios.";
     } else {
       $("leaderSelectorWrap").classList.add("hidden");
+    }
+
+    const canGenerate=leaders.length>0 || !isSecretaryStaff();
+    $("generateScheduleBtn").disabled=!canGenerate;
+    $("scheduleNoLeadersNotice").classList.toggle("hidden",canGenerate);
+    $("goAssignLeaders").classList.toggle("hidden",!isSecretaryAdmin());
+
+    if (!canGenerate) {
+      state.selectedDates.clear();
+      renderWeekStrip();
     }
 
     updateScheduleContext();
@@ -1535,7 +1564,9 @@
       return;
     }
 
-    const button = event.currentTarget.querySelector('button[type="submit"]');
+    const button = $("generateScheduleBtn");
+    const localAlert=$("scheduleInlineAlert");
+    localAlert.className="alert hidden";
     button.disabled = true;
     button.textContent = "Generando…";
 
@@ -1547,11 +1578,14 @@
     button.textContent = "Generar horarios";
 
     if (error) {
-      alertGlobal(error.message || "No se pudieron generar los horarios.","error");
+      localAlert.textContent=error.message || "No se pudieron generar los horarios.";
+      localAlert.className="alert error";
+      localAlert.scrollIntoView({behavior:"smooth",block:"nearest"});
       return;
     }
 
-    alertGlobal("Horarios generados: "+(data?.length||0)+". Los duplicados existentes se omitieron.","success");
+    localAlert.textContent="Horarios generados: "+(data?.length||0)+". Los duplicados existentes se omitieron.";
+    localAlert.className="alert success";
     await refresh();
   };
 
@@ -1633,8 +1667,10 @@
   };
 
   $("scheduleUnit").onchange = async () => {
-    await changeActiveUnit($("scheduleUnit").value || null,{syncSchedule:false});
+    await changeActiveUnit($("scheduleUnit").value || null);
   };
+
+  $("goAssignLeaders").onclick = () => setPanelView("units");
 
   $("adminUnitSearchBtn").onclick = searchAdminUnits;
   $("adminUnitQuery").addEventListener("keydown",event=>{
