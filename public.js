@@ -25,7 +25,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.7.2";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.7.3";
 
 
   const PHONE_COUNTRIES = [
