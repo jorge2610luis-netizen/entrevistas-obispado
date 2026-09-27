@@ -637,106 +637,257 @@
     }
   }
 
+  async function loadDashboardStats() {
+    if (!isSecretaryStaff()) return;
+    const unitId=currentUnitId();
+    const {data,error}=await db.rpc("staff_dashboard_counts",{
+      p_unit_id:unitId || null
+    });
+    if (error) {
+      console.error("dashboard counts",error);
+      return;
+    }
+    state.dashboardCounts=data?.[0] || {total:0,in_progress:0,approved:0,future_slots:0};
+    renderStats();
+  }
+
+  async function loadRequestPage({reset=false}={}) {
+    if (!isSecretaryStaff()) {
+      renderAppointments();
+      return;
+    }
+
+    if (reset) state.requestPage=0;
+
+    const unitId=$("requestUnitFilter")?.value || null;
+    const profileId=$("requestLeaderFilter")?.value || null;
+    const status=$("statusFilter")?.value || "all";
+    const query=$("requestSearch")?.value?.trim() || null;
+    const offset=state.requestPage*state.requestPageSize;
+
+    const {data,error}=await db.rpc("admin_appointments_page",{
+      p_unit_id:unitId,
+      p_assigned_profile_id:profileId,
+      p_status:status==="all" ? null : status,
+      p_query:query,
+      p_limit:state.requestPageSize,
+      p_offset:offset
+    });
+
+    if (error) {
+      $("requestsList").innerHTML='<div class="empty">No se pudieron cargar las solicitudes.</div>';
+      $("requestsHint").textContent=error.message || "Error al cargar solicitudes";
+      return;
+    }
+
+    state.requestRows=data||[];
+    state.requestTotal=Number(data?.[0]?.total_count||0);
+    renderAppointments();
+  }
+
+  async function loadDirectoryPage({reset=false}={}) {
+    if (!isSecretaryAdmin()) return;
+    if (reset) state.directoryPage=0;
+
+    const unitId=$("directoryUnitFilter")?.value || null;
+    const query=$("directoryGlobalSearch")?.value?.trim() || null;
+    const role=state.userDirectoryMode==="leaders"
+      ? (($("leaderRoleFilter")?.value||"all")==="all" ? null : $("leaderRoleFilter").value)
+      : null;
+    const offset=state.directoryPage*state.directoryPageSize;
+
+    const {data,error}=await db.rpc("admin_people_directory",{
+      p_kind:state.userDirectoryMode,
+      p_unit_id:unitId,
+      p_role:role,
+      p_query:query,
+      p_limit:state.directoryPageSize,
+      p_offset:offset
+    });
+
+    if (error) {
+      const target=state.userDirectoryMode==="leaders" ? $("usersList") : $("memberUsersList");
+      target.innerHTML='<div class="empty">No se pudo cargar el directorio.</div>';
+      return;
+    }
+
+    state.directoryRows=data||[];
+    state.directoryTotal=Number(data?.[0]?.total_count||0);
+
+    for (const row of state.directoryRows) {
+      const profile={
+        id:row.user_id,
+        email:row.email,
+        display_name:row.display_name,
+        role:row.role || "unassigned",
+        is_active:Boolean(row.is_active)
+      };
+      const pi=state.profiles.findIndex(x=>x.id===row.user_id);
+      if (pi>=0) state.profiles[pi]={...state.profiles[pi],...profile};
+      else state.profiles.push(profile);
+
+      if (row.phone) {
+        const member={
+          id:row.user_id,
+          full_name:row.display_name,
+          phone:row.phone,
+          church_unit_id:row.church_unit_id,
+          church_unit_name:row.unit_name,
+          meetinghouse_name:row.meetinghouse_name,
+          location_city:row.city,
+          location_country_code:row.country_code
+        };
+        const mi=state.memberProfiles.findIndex(x=>x.id===row.user_id);
+        if (mi>=0) state.memberProfiles[mi]={...state.memberProfiles[mi],...member};
+        else state.memberProfiles.push(member);
+      }
+
+      if (row.church_unit_id && row.role && row.role!=="unassigned") {
+        const ai=state.staffAssignments.findIndex(x=>x.profile_id===row.user_id && x.is_active);
+        const assignment={
+          id:ai>=0 ? state.staffAssignments[ai].id : "directory-"+row.user_id,
+          profile_id:row.user_id,
+          role:row.role,
+          church_unit_id:row.church_unit_id,
+          is_active:true,
+          church_units:{
+            id:row.church_unit_id,
+            unit_name:row.unit_name,
+            meetinghouse_name:row.meetinghouse_name,
+            city:row.city,
+            country_code:row.country_code
+          }
+        };
+        if (ai>=0) state.staffAssignments[ai]={...state.staffAssignments[ai],...assignment};
+        else state.staffAssignments.push(assignment);
+      }
+    }
+
+    if (state.userDirectoryMode==="leaders") renderUsers();
+    else renderMemberUsers();
+
+    const totalPages=Math.max(1,Math.ceil(state.directoryTotal/state.directoryPageSize));
+    $("directoryPageInfo").textContent="Página "+(state.directoryPage+1)+" de "+totalPages+" · "+state.directoryTotal+" registro(s)";
+    $("directoryPrev").disabled=state.directoryPage<=0;
+    $("directoryNext").disabled=(state.directoryPage+1)>=totalPages;
+  }
+
   async function refresh() {
     clearGlobalAlert();
 
-    const requests = [
+    const baseRequests=[
       db.from("leaders")
         .select("id,code,title,sort_order")
         .eq("is_active",true)
         .order("sort_order"),
-      db.from("appointments")
-        .select("id,status,member_user_id,member_name,member_phone,member_email,created_at,church_unit_id,assigned_profile_id,church_units(unit_name,meetinghouse_name,city),availability(id,start_at,end_at,leader_id,church_unit_id,assigned_profile_id),interview_types(id,name,leaders(id,code,title))")
-        .order("created_at",{ascending:false}),
-      db.from("availability")
-        .select("id,leader_id,church_unit_id,assigned_profile_id,start_at,end_at,is_active,is_booked,leaders(id,code,title)")
-        .gte("start_at",new Date(Date.now()-86400000).toISOString())
-        .order("start_at"),
       db.rpc("staff_accessible_units")
     ];
 
+    if (!isSecretaryStaff()) {
+      baseRequests.push(
+        db.from("appointments")
+          .select("id,status,member_user_id,member_name,member_phone,member_email,created_at,church_unit_id,assigned_profile_id,church_units(unit_name,meetinghouse_name,city),availability(id,start_at,end_at,leader_id,church_unit_id,assigned_profile_id),interview_types(id,name,leaders(id,code,title))")
+          .order("created_at",{ascending:false}),
+        db.from("availability")
+          .select("id,leader_id,church_unit_id,assigned_profile_id,start_at,end_at,is_active,is_booked,leaders(id,code,title)")
+          .gte("start_at",new Date(Date.now()-86400000).toISOString())
+          .order("start_at")
+      );
+    }
+
     if (isSecretaryAdmin()) {
-      requests.push(
+      baseRequests.push(
         db.from("profiles")
           .select("id,email,display_name,role,is_active,created_at")
+          .neq("role","unassigned")
           .order("created_at",{ascending:true}),
         db.from("unit_staff_assignments")
-          .select("id,profile_id,role,church_unit_id,is_active,church_units(id,unit_name,meetinghouse_name,city,country_code)")
+          .select("id,profile_id,role,church_unit_id,is_active,church_units(id,unit_name,meetinghouse_name,city,region,country_code)")
           .eq("is_active",true)
       );
     }
 
-    const [
-      leadersResult,
-      appointmentsResult,
-      scheduleResult,
-      unitsResult,
-      profilesResult,
-      assignmentsResult
-    ] = await Promise.all(requests);
+    const results=await Promise.all(baseRequests);
+    const leadersResult=results[0];
+    const unitsResult=results[1];
+    let cursor=2;
 
-    if (
-      leadersResult.error ||
-      appointmentsResult.error ||
-      scheduleResult.error ||
-      unitsResult.error ||
-      (profilesResult && profilesResult.error) ||
-      (assignmentsResult && assignmentsResult.error)
-    ) {
-      alertGlobal("No se pudieron cargar todos los datos del panel.","error");
+    if (leadersResult.error || unitsResult.error) {
+      alertGlobal("No se pudieron cargar los datos básicos del panel.","error");
       return;
     }
 
-    state.leaders = leadersResult.data || [];
-    state.appointments = appointmentsResult.data || [];
-    state.schedule = scheduleResult.data || [];
-    state.accessibleUnits = unitsResult.data || [];
-    state.profiles = profilesResult?.data || [];
-    state.staffAssignments = assignmentsResult?.data || [];
+    state.leaders=leadersResult.data||[];
+    state.accessibleUnits=unitsResult.data||[];
+
+    if (!isSecretaryStaff()) {
+      const appointmentsResult=results[cursor++];
+      const scheduleResult=results[cursor++];
+      if (appointmentsResult.error || scheduleResult.error) {
+        alertGlobal("No se pudieron cargar las solicitudes del líder.","error");
+      }
+      state.appointments=appointmentsResult.data||[];
+      state.schedule=scheduleResult.data||[];
+    } else {
+      state.appointments=[];
+      state.schedule=[];
+    }
+
+    if (isSecretaryAdmin()) {
+      const profilesResult=results[cursor++];
+      const assignmentsResult=results[cursor++];
+      state.profiles=profilesResult?.data||[];
+      state.staffAssignments=assignmentsResult?.data||[];
+    } else {
+      state.profiles=[];
+      state.staffAssignments=[];
+    }
 
     populateCountrySelect();
     populateActiveUnitSelect();
+    populateAdministrativeUnitFilters();
+    await loadRequestLeaderOptions();
     await loadActiveUnitTeam();
 
     if (isSecretaryStaff()) {
-      const {data:memberProfiles,error:memberError} = await db.from("member_profiles")
-        .select("id,full_name,phone,church_unit_id,church_unit_name,meetinghouse_name,location_city,location_country_code,unit_assignment_method,created_at")
-        .order("created_at",{ascending:false});
-
-      if (memberError) {
-        alertGlobal("No se pudieron cargar los miembros de tus barrios.","error");
-        state.memberProfiles = [];
-      } else {
-        state.memberProfiles = memberProfiles || [];
-      }
+      await loadDashboardStats();
+      await loadRequestPage();
+      await reloadSelectedSchedule();
     } else {
-      state.memberProfiles = [];
+      renderStats();
+      renderAppointments();
+      renderWeekStrip();
+      renderSchedule();
     }
 
-    renderStats();
-    renderAppointments();
-    renderWeekStrip();
-    renderSchedule();
-
     if (isSecretaryAdmin()) {
-      $("leaderUsersBadge").textContent = state.profiles.filter(x=>x.role!=="unassigned").length;
-      $("memberUsersBadge").textContent = state.memberProfiles.length;
-      setUserDirectoryMode(state.userDirectoryMode);
+      await loadRegionsForCountry($("adminUnitCountry")?.value||"BO");
+      await loadDirectoryPage();
       renderAdminSelectedUnit();
     }
   }
 
   function renderStats() {
+    if (isSecretaryStaff()) {
+      const s=state.dashboardCounts||{};
+      $("stats").innerHTML=
+        '<div class="stat"><span>Total</span><strong>'+Number(s.total||0)+'</strong></div>'+
+        '<div class="stat"><span>En curso</span><strong>'+Number(s.in_progress||0)+'</strong></div>'+
+        '<div class="stat"><span>Aprobadas</span><strong>'+Number(s.approved||0)+'</strong></div>'+
+        '<div class="stat"><span>Horarios</span><strong>'+Number(s.future_slots||0)+'</strong></div>';
+      return;
+    }
+
     const unitId=currentUnitId();
-    const rows = state.appointments.filter(canManage);
-    const open = rows.filter(x=>!["completed","cancelled","rejected"].includes(x.status)).length;
-    const approved = rows.filter(x=>x.status==="approved").length;
-    const relevantSchedules = state.schedule.filter(x=>
+    const rows=state.appointments.filter(canManage);
+    const open=rows.filter(x=>!["completed","cancelled","rejected"].includes(x.status)).length;
+    const approved=rows.filter(x=>x.status==="approved").length;
+    const relevantSchedules=state.schedule.filter(x=>
       (!unitId || x.church_unit_id===unitId) &&
-      (isSecretaryStaff() || x.assigned_profile_id===state.user?.id)
+      x.assigned_profile_id===state.user?.id
     );
 
-    $("stats").innerHTML =
+    $("stats").innerHTML=
       '<div class="stat"><span>Total</span><strong>'+rows.length+'</strong></div>'+
       '<div class="stat"><span>En curso</span><strong>'+open+'</strong></div>'+
       '<div class="stat"><span>Aprobadas</span><strong>'+approved+'</strong></div>'+
