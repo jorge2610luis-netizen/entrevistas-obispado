@@ -16,7 +16,7 @@
     selectedSlot:null
   };
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.4.1";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.4.2";
 
 
   const PHONE_COUNTRIES = [
@@ -39,12 +39,112 @@
     ["NG","+234","Nigeria"],["KE","+254","Kenia"],["GH","+233","Ghana"]
   ];
 
-  function populateCountrySelect(selectId) {
+  function detectCountryIso() {
+    const valid = new Set(PHONE_COUNTRIES.map(([iso])=>iso));
+
+    const localeCandidates = [
+      ...(navigator.languages || []),
+      navigator.language
+    ].filter(Boolean);
+
+    for (const locale of localeCandidates) {
+      const normalized = String(locale).replace("_","-");
+      const parts = normalized.split("-");
+      const region = parts.find((part,index)=>index>0 && /^[A-Za-z]{2}$/.test(part));
+      if (region && valid.has(region.toUpperCase())) return region.toUpperCase();
+    }
+
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    const exact = {
+      "America/La_Paz":"BO",
+      "America/Santiago":"CL",
+      "America/Lima":"PE",
+      "America/Bogota":"CO",
+      "America/Asuncion":"PY",
+      "America/Montevideo":"UY",
+      "America/Caracas":"VE",
+      "America/Panama":"PA",
+      "America/Costa_Rica":"CR",
+      "America/Guatemala":"GT",
+      "America/El_Salvador":"SV",
+      "America/Tegucigalpa":"HN",
+      "America/Managua":"NI",
+      "America/Havana":"CU",
+      "America/Santo_Domingo":"DO",
+      "America/Puerto_Rico":"PR",
+      "America/Mexico_City":"MX",
+      "America/New_York":"US",
+      "America/Chicago":"US",
+      "America/Denver":"US",
+      "America/Los_Angeles":"US",
+      "America/Toronto":"CA",
+      "America/Vancouver":"CA",
+      "Europe/Madrid":"ES",
+      "Europe/Lisbon":"PT",
+      "Europe/London":"GB",
+      "Europe/Paris":"FR",
+      "Europe/Rome":"IT",
+      "Europe/Berlin":"DE",
+      "Europe/Dublin":"IE",
+      "Europe/Amsterdam":"NL",
+      "Europe/Brussels":"BE",
+      "Europe/Zurich":"CH",
+      "Europe/Vienna":"AT",
+      "Europe/Stockholm":"SE",
+      "Europe/Oslo":"NO",
+      "Europe/Copenhagen":"DK",
+      "Europe/Helsinki":"FI",
+      "Europe/Warsaw":"PL",
+      "Europe/Prague":"CZ",
+      "Europe/Bucharest":"RO",
+      "Europe/Athens":"GR",
+      "Europe/Istanbul":"TR",
+      "Europe/Kyiv":"UA",
+      "Asia/Jerusalem":"IL",
+      "Asia/Dubai":"AE",
+      "Asia/Riyadh":"SA",
+      "Asia/Kolkata":"IN",
+      "Asia/Karachi":"PK",
+      "Asia/Dhaka":"BD",
+      "Asia/Shanghai":"CN",
+      "Asia/Tokyo":"JP",
+      "Asia/Seoul":"KR",
+      "Asia/Manila":"PH",
+      "Asia/Jakarta":"ID",
+      "Asia/Bangkok":"TH",
+      "Asia/Ho_Chi_Minh":"VN",
+      "Asia/Kuala_Lumpur":"MY",
+      "Asia/Singapore":"SG",
+      "Australia/Sydney":"AU",
+      "Australia/Melbourne":"AU",
+      "Pacific/Auckland":"NZ",
+      "Africa/Johannesburg":"ZA",
+      "Africa/Cairo":"EG",
+      "Africa/Casablanca":"MA",
+      "Africa/Lagos":"NG",
+      "Africa/Nairobi":"KE",
+      "Africa/Accra":"GH"
+    };
+    if (exact[tz] && valid.has(exact[tz])) return exact[tz];
+
+    if (tz.startsWith("America/Argentina/")) return "AR";
+    if (tz.startsWith("America/Sao_Paulo") || tz.startsWith("America/Fortaleza") || tz.startsWith("America/Manaus")) return "BR";
+
+    return "BO";
+  }
+
+  function populateCountrySelect(selectId,detectedIso) {
     const select = $(selectId);
     if (!select) return;
+
     select.innerHTML = PHONE_COUNTRIES.map(([iso,code,name]) =>
-      '<option value="'+code+'" '+(iso==="BO"?'selected':'')+'>'+name+' ('+code+')</option>'
+      '<option value="'+code+'" data-iso="'+iso+'" '+(iso===detectedIso?'selected':'')+'>'+name+' ('+code+')</option>'
     ).join("");
+
+    if (!select.value) {
+      const fallback = PHONE_COUNTRIES.find(([iso])=>iso==="BO");
+      select.value = fallback?.[1] || "+591";
+    }
   }
 
   function selectedCountryCode(selectId) {
@@ -528,8 +628,9 @@
   });
 
   async function boot() {
-    populateCountrySelect("memberLoginCountry");
-    populateCountrySelect("memberRegisterCountry");
+    const detectedIso = detectCountryIso();
+    populateCountrySelect("memberLoginCountry",detectedIso);
+    populateCountrySelect("memberRegisterCountry",detectedIso);
     await loadSettings();
     const {data:{session}} = await db.auth.getSession();
     if (session) await loadMember(session);
