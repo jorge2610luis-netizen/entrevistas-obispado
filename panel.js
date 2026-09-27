@@ -365,14 +365,18 @@
     clearGlobalAlert();
 
     const requests = [
-      db.from("leaders").select("id,code,title,sort_order").eq("is_active",true).order("sort_order"),
+      db.from("leaders")
+        .select("id,code,title,sort_order")
+        .eq("is_active",true)
+        .order("sort_order"),
       db.from("appointments")
-        .select("id,status,member_user_id,member_name,member_phone,member_email,created_at,availability(id,start_at,end_at,leader_id),interview_types(id,name,leaders(id,code,title))")
+        .select("id,status,member_user_id,member_name,member_phone,member_email,created_at,church_unit_id,assigned_profile_id,church_units(unit_name,meetinghouse_name,city),availability(id,start_at,end_at,leader_id,church_unit_id,assigned_profile_id),interview_types(id,name,leaders(id,code,title))")
         .order("created_at",{ascending:false}),
       db.from("availability")
-        .select("id,leader_id,start_at,end_at,is_active,is_booked,leaders(id,code,title)")
+        .select("id,leader_id,church_unit_id,assigned_profile_id,start_at,end_at,is_active,is_booked,leaders(id,code,title)")
         .gte("start_at",new Date(Date.now()-86400000).toISOString())
-        .order("start_at")
+        .order("start_at"),
+      db.rpc("staff_accessible_units")
     ];
 
     if (isSecretaryAdmin()) {
@@ -383,12 +387,19 @@
       );
     }
 
-    const [leadersResult,appointmentsResult,scheduleResult,profilesResult] = await Promise.all(requests);
+    const [
+      leadersResult,
+      appointmentsResult,
+      scheduleResult,
+      unitsResult,
+      profilesResult
+    ] = await Promise.all(requests);
 
     if (
       leadersResult.error ||
       appointmentsResult.error ||
       scheduleResult.error ||
+      unitsResult.error ||
       (profilesResult && profilesResult.error)
     ) {
       alertGlobal("No se pudieron cargar todos los datos del panel.","error");
@@ -398,36 +409,38 @@
     state.leaders = leadersResult.data || [];
     state.appointments = appointmentsResult.data || [];
     state.schedule = scheduleResult.data || [];
+    state.accessibleUnits = unitsResult.data || [];
     state.profiles = profilesResult?.data || [];
 
-    if (isSecretaryStaff()) {
-      const {data:memberProfiles} = await db.from("member_profiles")
-        .select("id,full_name,phone,church_unit_name,meetinghouse_name,location_city,location_country_code,unit_assignment_method,created_at")
-        .order("created_at",{ascending:false});
-      state.memberProfiles = memberProfiles || [];
-    } else {
-      state.memberProfiles = [];
-    }
+    populateCountrySelect();
+    populateActiveUnitSelect();
+    await loadActiveUnitTeam();
 
     if (isSecretaryStaff()) {
-      $("leaderSelectorWrap").classList.remove("hidden");
-      const current = $("scheduleLeader").value;
-      $("scheduleLeader").innerHTML = state.leaders
-        .map(x=>'<option value="'+x.id+'">'+e(x.title)+'</option>')
-        .join("");
-      if (current && state.leaders.some(x=>x.id===current)) $("scheduleLeader").value = current;
+      const {data:memberProfiles,error:memberError} = await db.from("member_profiles")
+        .select("id,full_name,phone,church_unit_id,church_unit_name,meetinghouse_name,location_city,location_country_code,unit_assignment_method,created_at")
+        .order("created_at",{ascending:false});
+
+      if (memberError) {
+        alertGlobal("No se pudieron cargar los miembros de tus barrios.","error");
+        state.memberProfiles = [];
+      } else {
+        state.memberProfiles = memberProfiles || [];
+      }
     } else {
-      $("leaderSelectorWrap").classList.add("hidden");
+      state.memberProfiles = [];
     }
 
     renderStats();
     renderAppointments();
     renderWeekStrip();
     renderSchedule();
+
     if (isSecretaryAdmin()) {
       $("leaderUsersBadge").textContent = state.profiles.filter(x=>x.role!=="unassigned").length;
       $("memberUsersBadge").textContent = state.memberProfiles.length;
       setUserDirectoryMode(state.userDirectoryMode);
+      renderAdminSelectedUnit();
     }
   }
 
