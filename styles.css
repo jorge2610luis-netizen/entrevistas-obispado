@@ -290,3 +290,19 @@ footer .small{font-size:12px}
   .success-actions{display:grid;grid-template-columns:1fr}
   .success-actions button{width:100%}
 }
+
+/* v2.6.2 · Arranque sin parpadeo */
+.member-boot-loading{
+  min-height:300px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  gap:8px;
+  max-width:720px;
+  margin:24px auto;
+}
+.member-boot-loading h2{margin:6px 0 0}
+.member-boot-loading p{margin:0;max-width:440px}
+.member-boot-loading .loading-spinner{margin-bottom:8px}
