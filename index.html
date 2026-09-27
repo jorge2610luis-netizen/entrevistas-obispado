@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#005581">
+  <meta name="description" content="Solicitud de entrevistas con el obispado.">
+  <title>Entrevistas del Obispado</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">E</div>
+      <div>
+        <strong>Entrevistas del Obispado</strong>
+        <small id="unitName">Barrio / Rama</small>
+      </div>
+    </div>
+    <a class="link-button" href="panel.html">Acceso de líderes</a>
+  </header>
+  <main class="container">
+    <section class="hero">
+      <div>
+        <span class="eyebrow">Agenda de entrevistas</span>
+        <h1>Solicita una entrevista</h1>
+        <p>Selecciona el líder, el tipo de entrevista y un horario disponible. La solicitud será revisada primero por el secretario y después por el líder correspondiente.</p>
+      </div>
+      <div class="hero-card">
+        <span class="hero-check">✓</span>
+        <strong>Proceso de confirmación</strong>
+        <span>Solicitud → Secretario → Líder → Confirmada</span>
+      </div>
+    </section>
+    <section class="card">
+      <div class="section-heading">
+        <span class="step">1</span>
+        <div><h2>Elige con quién necesitas reunirte</h2><p>Solo se muestran líderes activos.</p></div>
+      </div>
+      <div id="leaderGrid" class="leader-grid"><div class="empty">Cargando líderes...</div></div>
+      <form id="bookingForm" class="booking-form hidden">
+        <div class="section-heading compact"><span class="step">2</span><div><h2>Selecciona la entrevista y el horario</h2></div></div>
+        <div class="form-grid">
+          <label>Tipo de entrevista<select id="interviewType" required></select></label>
+          <label>Fecha y hora disponible<select id="slotSelect" required></select></label>
+        </div>
+        <div class="section-heading compact"><span class="step">3</span><div><h2>Tus datos</h2></div></div>
+        <div class="form-grid">
+          <label>Nombre completo<input id="memberName" maxlength="120" required autocomplete="name"></label>
+          <label>Teléfono / WhatsApp<input id="memberPhone" maxlength="40" required inputmode="tel" autocomplete="tel"></label>
+          <label>Correo electrónico <span class="optional">(opcional)</span><input id="memberEmail" maxlength="254" type="email" autocomplete="email"></label>
+        </div>
+        <div class="privacy-note"><strong>Privacidad:</strong> no escribas detalles confidenciales de la entrevista. El formulario solicita únicamente información de coordinación.</div>
+        <div id="bookingError" class="alert error hidden"></div>
+        <button id="submitBooking" class="primary-button" type="submit">Enviar solicitud</button>
+      </form>
+    </section>
+    <section id="successBox" class="card success-box hidden">
+      <div class="success-icon">✓</div><h2>Solicitud enviada</h2>
+      <p>Tu solicitud quedó pendiente de revisión por el secretario. La cita aún no está confirmada.</p>
+      <button id="newRequestBtn" class="secondary-button">Solicitar otra entrevista</button>
+    </section>
+    <section class="info-grid">
+      <article class="info-card"><span>1</span><h3>Selecciona</h3><p>Elige líder, entrevista y horario.</p></article>
+      <article class="info-card"><span>2</span><h3>Secretario</h3><p>Revisa y confirma contigo los datos.</p></article>
+      <article class="info-card"><span>3</span><h3>Líder</h3><p>Aprueba finalmente la entrevista.</p></article>
+    </section>
+  </main>
+  <footer><p>Herramienta local para organización de entrevistas del obispado.</p><p class="small">No es un sitio web oficial de La Iglesia de Jesucristo de los Santos de los Últimos Días.</p></footer>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
+  <script src="config.js"></script><script src="public.js"></script>
+</body>
+</html>
