@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#005581">
   <meta name="description" content="Solicitud y seguimiento de entrevistas con el obispado.">
   <title>Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=2.9.1">
+  <link rel="stylesheet" href="styles.css?v=2.9.2">
 </head>
 <body>
 <header id="publicTopbar" class="topbar public-topbar">
@@ -21,10 +21,10 @@
     <div>
       <strong>Entrevistas del Obispado</strong>
       <small id="unitName">Barrio / Rama</small>
-      <small id="appVersion" class="version-label">v2.9.1</small>
+      <small id="appVersion" class="version-label">v2.9.2</small>
     </div>
   </div>
-  <a class="link-button" href="panel.html?v=2.9.1">Acceso de líderes</a>
+  <a class="link-button" href="panel.html?v=2.9.2">Acceso de líderes</a>
 </header>
 
 <main class="container">
@@ -267,15 +267,12 @@
               <div class="section-heading compact">
                 <span class="step">2</span>
                 <div>
-                  <h2>Selecciona entrevista y día</h2>
-                  <p>Solo aparecen los días que tienen horas disponibles.</p>
+                  <h2>Selecciona el día</h2>
+                  <p>La entrevista se asigna automáticamente según el líder elegido.</p>
                 </div>
               </div>
 
-              <label class="public-type-label">
-                Tipo de entrevista
-                <select id="interviewType" required></select>
-              </label>
+              <div id="autoInterviewType" class="auto-interview-type hidden"></div>
 
               <div class="available-days-block">
                 <span class="field-label">Días disponibles</span>
@@ -333,7 +330,7 @@
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=2.9.1"></script>
-<script src="public.js?v=2.9.1"></script>
+<script src="config.js?v=2.9.2"></script>
+<script src="public.js?v=2.9.2"></script>
 </body>
 </html>
