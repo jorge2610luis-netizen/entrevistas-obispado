@@ -313,6 +313,39 @@
     }
   }
 
+  async function loadCountryPlaces(countryCode) {
+    let {data,error}=await db.from("church_directory_places")
+      .select("city_name,region")
+      .eq("country_code",countryCode)
+      .order("city_name")
+      .limit(500);
+
+    if (!error && (!data || !data.length)) {
+      try {
+        await db.functions.invoke("church-directory",{
+          body:{action:"country-index",countryCode}
+        });
+        const retry=await db.from("church_directory_places")
+          .select("city_name,region")
+          .eq("country_code",countryCode)
+          .order("city_name")
+          .limit(500);
+        data=retry.data||[];
+      } catch (_) {}
+    }
+
+    const list=$("adminCityOptions");
+    if (list) {
+      list.innerHTML=(data||[]).map(x=>
+        '<option value="'+e(x.city_name)+'">'+e(x.region||"")+'</option>'
+      ).join("");
+    }
+
+    if ($("directorySyncStatus") && data?.length) {
+      $("directorySyncStatus").textContent=data.length+" zona(s) oficiales indexadas para "+countryCode+".";
+    }
+  }
+
   function populateAdministrativeUnitFilters() {
     const options=state.accessibleUnits.map(unit=>{
       const place=[unit.region,unit.city].filter(Boolean).join(" · ");
