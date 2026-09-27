@@ -995,7 +995,7 @@ Continuar Edge Function y cache progresivo.
 
 No generar barrios ficticios.
 
-Verificación de producción del 2026-09-27: `unit-index` descubrió **563** URLs oficiales de barrios/ramas para Chile. Se procesó una primera tanda de **12** unidades sin errores; continuar con `sync-unit-batch` en tandas y comprobar los conteos y errores entre tandas. Bolivia aún debe indexarse por separado. No generar barrios ficticios.
+Verificación de producción del 2026-09-27: `unit-index` descubrió **563** URLs oficiales de barrios/ramas para Chile y **233** para Bolivia. Se procesaron **12** unidades de Chile y **8** de Bolivia sin errores. Continuar con `sync-unit-batch` en tandas y comprobar los conteos y errores entre tandas. No generar barrios ficticios.
 
 ### P1 — `church_directory_unit_index`
 
