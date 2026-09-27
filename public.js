@@ -6,15 +6,39 @@
   );
 
   const state = {
-    leaders: [],
-    selectedLeader: null,
-    interviewTypes: [],
-    slots: [],
-    selectedDateKey: null,
-    selectedSlot: null
+    session:null,
+    member:null,
+    leaders:[],
+    selectedLeader:null,
+    interviewTypes:[],
+    slots:[],
+    selectedDateKey:null,
+    selectedSlot:null
   };
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.3.0";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.4.0";
+
+  const statusText = {
+    pending_secretary:"Pendiente de revisión del Secretario",
+    contacted:"Contactado por el Secretario",
+    pending_leader:"Pendiente de aprobación del líder",
+    approved:"Entrevista aprobada",
+    rejected:"Solicitud rechazada",
+    reschedule:"Necesita reprogramación",
+    completed:"Entrevista completada",
+    cancelled:"Entrevista cancelada"
+  };
+
+  const statusHelp = {
+    pending_secretary:"Tu solicitud fue recibida. El Secretario todavía debe revisarla.",
+    contacted:"El Secretario ya realizó el primer contacto.",
+    pending_leader:"El Secretario derivó tu solicitud al líder correspondiente.",
+    approved:"El líder aprobó la entrevista.",
+    rejected:"La solicitud fue rechazada. Puedes realizar una nueva solicitud si corresponde.",
+    reschedule:"Debes coordinar un nuevo horario con el Secretario.",
+    completed:"La entrevista fue marcada como completada.",
+    cancelled:"La solicitud fue cancelada."
+  };
 
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, c => ({
@@ -22,61 +46,86 @@
     }[c]));
   }
 
+  function normalizePhone(value) {
+    let digits = String(value || "").replace(/\D/g,"");
+    if (digits.startsWith("591")) digits = digits.slice(3);
+    digits = digits.replace(/^0+/,"");
+    if (digits.length !== 8) throw new Error("Ingresa un número boliviano válido de 8 dígitos.");
+    return "+591"+digits;
+  }
+
+  function prettyPhone(phone) {
+    const digits = String(phone||"").replace(/\D/g,"");
+    const local = digits.startsWith("591") ? digits.slice(3) : digits;
+    return "+591 "+local;
+  }
+
   function dateKeyBolivia(value) {
-    return new Intl.DateTimeFormat("en-CA", {
+    return new Intl.DateTimeFormat("en-CA",{
       timeZone:"America/La_Paz",
-      year:"numeric",
-      month:"2-digit",
-      day:"2-digit"
+      year:"numeric",month:"2-digit",day:"2-digit"
     }).format(new Date(value));
   }
 
   function longDateFromKey(key) {
     const [y,m,d] = key.split("-").map(Number);
-    return new Intl.DateTimeFormat("es-BO", {
-      weekday:"long",
-      day:"numeric",
-      month:"long",
-      year:"numeric"
-    }).format(new Date(y,m-1,d)).replace(/^./, c => c.toUpperCase());
+    return new Intl.DateTimeFormat("es-BO",{
+      weekday:"long",day:"numeric",month:"long",year:"numeric"
+    }).format(new Date(y,m-1,d)).replace(/^./,c=>c.toUpperCase());
   }
 
   function dayButtonParts(key) {
     const [y,m,d] = key.split("-").map(Number);
     const date = new Date(y,m-1,d);
     return {
-      weekday: new Intl.DateTimeFormat("es-BO",{weekday:"long"}).format(date).replace(/^./,c=>c.toUpperCase()),
-      date: new Intl.DateTimeFormat("es-BO",{day:"numeric",month:"short"}).format(date).replace(".","")
+      weekday:new Intl.DateTimeFormat("es-BO",{weekday:"long"}).format(date).replace(/^./,c=>c.toUpperCase()),
+      date:new Intl.DateTimeFormat("es-BO",{day:"numeric",month:"short"}).format(date).replace(".","")
     };
   }
 
   function timeLabel(value) {
-    return new Intl.DateTimeFormat("es-BO", {
+    return new Intl.DateTimeFormat("es-BO",{
       timeZone:"America/La_Paz",
-      hour:"2-digit",
-      minute:"2-digit"
+      hour:"2-digit",minute:"2-digit"
     }).format(new Date(value));
   }
 
-  function fullSlotLabel(value) {
-    return new Intl.DateTimeFormat("es-BO", {
+  function fullDateTime(value) {
+    return new Intl.DateTimeFormat("es-BO",{
       timeZone:"America/La_Paz",
-      weekday:"long",
-      day:"numeric",
-      month:"long",
-      hour:"2-digit",
-      minute:"2-digit"
+      weekday:"long",day:"numeric",month:"long",year:"numeric",
+      hour:"2-digit",minute:"2-digit"
     }).format(new Date(value));
   }
 
-  function showError(message) {
+  function showAuthMessage(message,type="error") {
+    const el = $("memberAuthMessage");
+    el.textContent = message;
+    el.className = "alert "+type;
+  }
+
+  function clearAuthMessage() {
+    $("memberAuthMessage").className = "alert hidden";
+    $("memberAuthMessage").textContent = "";
+  }
+
+  function showBookingError(message) {
     $("bookingError").textContent = message;
     $("bookingError").classList.remove("hidden");
   }
 
-  function clearError() {
+  function clearBookingError() {
     $("bookingError").classList.add("hidden");
     $("bookingError").textContent = "";
+  }
+
+  function setAuthTab(tab) {
+    const login = tab==="login";
+    $("memberLoginForm").classList.toggle("hidden",!login);
+    $("memberRegisterForm").classList.toggle("hidden",login);
+    $("showMemberLogin").classList.toggle("active",login);
+    $("showMemberRegister").classList.toggle("active",!login);
+    clearAuthMessage();
   }
 
   async function loadSettings() {
@@ -84,12 +133,62 @@
       .select("unit_name,allow_public_booking")
       .eq("id",1)
       .maybeSingle();
-
     if (data?.unit_name) $("unitName").textContent = data.unit_name;
+  }
 
-    if (data && data.allow_public_booking === false) {
-      $("bookingCard").innerHTML = '<div class="empty">Las reservas públicas están temporalmente deshabilitadas.</div>';
+  async function loadMember(session) {
+    state.session = session;
+    const {data,error} = await db.from("member_profiles")
+      .select("id,phone,full_name")
+      .eq("id",session.user.id)
+      .maybeSingle();
+
+    if (error || !data) {
+      $("memberAuthCard").classList.remove("hidden");
+      $("memberArea").classList.add("hidden");
+      showAuthMessage("Esta sesión no corresponde a una cuenta de miembro. Cierra sesión del panel interno antes de entrar como miembro.","error");
+      return;
     }
+
+    state.member = data;
+    $("memberAuthCard").classList.add("hidden");
+    $("memberArea").classList.remove("hidden");
+    $("memberAccountName").textContent = data.full_name;
+    $("memberAccountPhone").textContent = "Usuario: "+prettyPhone(data.phone);
+
+    await Promise.all([loadMemberAppointments(),loadLeaders()]);
+  }
+
+  async function loadMemberAppointments() {
+    if (!state.member) return;
+
+    const {data,error} = await db.from("appointments")
+      .select("id,request_code,status,created_at,availability(start_at,end_at),interview_types(name,leaders(title))")
+      .eq("member_user_id",state.member.id)
+      .order("created_at",{ascending:false});
+
+    if (error) {
+      $("memberAppointmentsList").innerHTML = '<div class="empty">No se pudieron cargar tus entrevistas.</div>';
+      return;
+    }
+
+    const rows = data || [];
+    $("memberAppointmentsList").innerHTML = rows.length ? rows.map(a =>
+      '<article class="member-appointment">'+
+        '<div class="member-appointment-top">'+
+          '<div>'+
+            '<strong>'+escapeHtml(a.interview_types?.leaders?.title||"Líder")+'</strong>'+
+            '<span>'+escapeHtml(a.interview_types?.name||"Entrevista")+'</span>'+
+          '</div>'+
+          '<span class="badge '+escapeHtml(a.status)+'">'+escapeHtml(statusText[a.status]||a.status)+'</span>'+
+        '</div>'+
+        '<div class="member-appointment-time">'+
+          (a.availability?.start_at ? escapeHtml(fullDateTime(a.availability.start_at)) : "Horario pendiente")+
+        '</div>'+
+        '<p>'+escapeHtml(statusHelp[a.status]||"")+'</p>'+
+        '<small>Código: '+escapeHtml(a.request_code)+'</small>'+
+      '</article>'
+    ).join("") : '<div class="empty">Todavía no tienes entrevistas solicitadas.</div>';
   }
 
   async function loadLeaders() {
@@ -115,19 +214,15 @@
       button.onclick = () => selectLeader(leader,button);
       $("leaderGrid").appendChild(button);
     });
-
-    if (!state.leaders.length) {
-      $("leaderGrid").innerHTML = '<div class="empty">No hay líderes activos en este momento.</div>';
-    }
   }
 
   async function selectLeader(leader,button) {
-    clearError();
+    clearBookingError();
     state.selectedLeader = leader;
     state.selectedDateKey = null;
     state.selectedSlot = null;
 
-    document.querySelectorAll(".leader-card").forEach(el => el.classList.remove("active"));
+    document.querySelectorAll(".leader-card").forEach(el=>el.classList.remove("active"));
     button.classList.add("active");
 
     const [typesResult,slotsResult] = await Promise.all([
@@ -161,7 +256,7 @@
 
   function groupedSlots() {
     const map = new Map();
-    state.slots.forEach(slot => {
+    state.slots.forEach(slot=>{
       const key = dateKeyBolivia(slot.start_at);
       if (!map.has(key)) map.set(key,[]);
       map.get(key).push(slot);
@@ -176,7 +271,7 @@
       return;
     }
 
-    $("availableDays").innerHTML = groups.map(([key,slots]) => {
+    $("availableDays").innerHTML = groups.map(([key,slots])=>{
       const part = dayButtonParts(key);
       const active = state.selectedDateKey===key ? " selected" : "";
       return '<button type="button" class="available-day-button'+active+'" data-date="'+key+'">'+
@@ -186,7 +281,7 @@
       '</button>';
     }).join("");
 
-    $("availableDays").querySelectorAll("[data-date]").forEach(button => {
+    $("availableDays").querySelectorAll("[data-date]").forEach(button=>{
       button.onclick = () => selectDay(button.dataset.date);
     });
   }
@@ -198,76 +293,205 @@
 
     const rows = state.slots.filter(slot=>dateKeyBolivia(slot.start_at)===key);
     $("publicSelectedDate").textContent = longDateFromKey(key);
-    $("publicTimeSlots").innerHTML = rows.map(slot =>
+    $("publicTimeSlots").innerHTML = rows.map(slot=>
       '<button class="time-slot-button" type="button" data-slot="'+slot.id+'">'+
         escapeHtml(timeLabel(slot.start_at))+
       '</button>'
     ).join("");
 
-    $("publicTimeSlots").querySelectorAll("[data-slot]").forEach(button => {
+    $("publicTimeSlots").querySelectorAll("[data-slot]").forEach(button=>{
       button.onclick = () => {
         const slot = rows.find(x=>x.id===button.dataset.slot);
         state.selectedSlot = slot || null;
         document.querySelectorAll(".time-slot-button").forEach(x=>x.classList.remove("selected"));
         button.classList.add("selected");
         $("selectedSlotSummary").textContent = slot
-          ? "Horario elegido: "+fullSlotLabel(slot.start_at)
+          ? "Horario elegido: "+fullDateTime(slot.start_at)
           : "Selecciona primero un día y una hora.";
       };
     });
 
     $("publicDayPanel").classList.remove("hidden");
-    $("publicDayPanel").scrollIntoView({behavior:"smooth",block:"nearest"});
   }
 
-  $("bookingForm").addEventListener("submit", async event => {
+  $("memberLoginForm").onsubmit = async event => {
     event.preventDefault();
-    clearError();
+    clearAuthMessage();
+
+    let phone;
+    try {
+      phone = normalizePhone($("memberLoginPhone").value);
+    } catch (error) {
+      showAuthMessage(error.message);
+      return;
+    }
+
+    const button = event.currentTarget.querySelector('button[type="submit"]');
+    button.disabled = true;
+    button.textContent = "Ingresando…";
+
+    const {data,error} = await db.auth.signInWithPassword({
+      phone,
+      password:$("memberLoginPassword").value
+    });
+
+    button.disabled = false;
+    button.textContent = "Ingresar";
+
+    if (error) {
+      showAuthMessage("Número de teléfono o contraseña incorrectos.");
+      return;
+    }
+
+    if (data?.session) await loadMember(data.session);
+  };
+
+  $("memberRegisterForm").onsubmit = async event => {
+    event.preventDefault();
+    clearAuthMessage();
+
+    const fullName = $("memberRegisterName").value.trim();
+    const password = $("memberRegisterPassword").value;
+    const password2 = $("memberRegisterPassword2").value;
+
+    if (password!==password2) {
+      showAuthMessage("Las contraseñas no coinciden.");
+      return;
+    }
+
+    let phone;
+    try {
+      phone = normalizePhone($("memberRegisterPhone").value);
+    } catch (error) {
+      showAuthMessage(error.message);
+      return;
+    }
+
+    const button = event.currentTarget.querySelector('button[type="submit"]');
+    button.disabled = true;
+    button.textContent = "Creando…";
+
+    const {data,error} = await db.auth.signUp({
+      phone,
+      password,
+      options:{
+        data:{
+          account_type:"member",
+          full_name:fullName
+        }
+      }
+    });
+
+    button.disabled = false;
+    button.textContent = "Crear mi cuenta";
+
+    if (error) {
+      const msg = String(error.message||"");
+      if (/phone provider|phone signups|sms/i.test(msg)) {
+        showAuthMessage("La cuenta por teléfono todavía debe habilitarse en Supabase. El sistema ya está preparado.");
+      } else if (/already|registered|exists/i.test(msg)) {
+        showAuthMessage("Ese número ya tiene una cuenta. Usa “Ingresar”.");
+      } else {
+        showAuthMessage(msg || "No se pudo crear la cuenta.");
+      }
+      return;
+    }
+
+    if (data?.session) {
+      await loadMember(data.session);
+    } else {
+      showAuthMessage("Cuenta creada. Supabase está solicitando verificación del teléfono. Para usar únicamente teléfono + contraseña, hay que desactivar la confirmación por SMS en la configuración de Phone Auth.","info");
+    }
+  };
+
+  $("bookingForm").onsubmit = async event => {
+    event.preventDefault();
+    clearBookingError();
+
+    if (!state.member || !state.session) {
+      showBookingError("Inicia sesión con tu cuenta de miembro.");
+      return;
+    }
 
     const interviewTypeId = $("interviewType").value;
     const availabilityId = state.selectedSlot?.id;
-    const memberName = $("memberName").value.trim();
-    const memberPhone = $("memberPhone").value.trim();
-    const memberEmail = $("memberEmail").value.trim() || null;
 
     if (!state.selectedLeader || !interviewTypeId || !availabilityId) {
-      showError("Selecciona un líder, tipo de entrevista, día y hora.");
+      showBookingError("Selecciona líder, tipo de entrevista, día y hora.");
       return;
     }
 
     const submit = $("submitBooking");
     submit.disabled = true;
-    submit.textContent = "Enviando...";
+    submit.textContent = "Enviando…";
 
     const {error} = await db.from("appointments").insert({
       availability_id:availabilityId,
-      interview_type_id:interviewTypeId,
-      member_name:memberName,
-      member_phone:memberPhone,
-      member_email:memberEmail
+      interview_type_id:interviewTypeId
     });
 
     submit.disabled = false;
-    submit.textContent = "Enviar solicitud";
+    submit.textContent = "Solicitar entrevista";
 
     if (error) {
-      if (error.code==="23505" || String(error.message||"").toLowerCase().includes("unique")) {
-        showError("Ese horario acaba de ser solicitado por otra persona. Elige otro horario.");
+      if (error.code==="23505" || /unique|booked/i.test(String(error.message||""))) {
+        showBookingError("Ese horario acaba de ser solicitado por otra persona. Elige otro horario.");
         const activeButton = document.querySelector('[data-leader-id="'+state.selectedLeader.id+'"]');
         if (activeButton) await selectLeader(state.selectedLeader,activeButton);
       } else {
-        showError("No se pudo enviar la solicitud. Revisa los datos e inténtalo nuevamente.");
+        showBookingError("No se pudo enviar la solicitud. Inténtalo nuevamente.");
       }
       return;
     }
 
     $("bookingCard").classList.add("hidden");
     $("successBox").classList.remove("hidden");
+    await loadMemberAppointments();
     $("successBox").scrollIntoView({behavior:"smooth"});
+  };
+
+  $("showMemberLogin").onclick = () => setAuthTab("login");
+  $("showMemberRegister").onclick = () => setAuthTab("register");
+  $("memberRefreshAppointments").onclick = loadMemberAppointments;
+
+  $("memberLogoutBtn").onclick = async () => {
+    await db.auth.signOut();
+    state.session = null;
+    state.member = null;
+    $("memberArea").classList.add("hidden");
+    $("memberAuthCard").classList.remove("hidden");
+    setAuthTab("login");
+  };
+
+  $("newRequestBtn").onclick = () => {
+    $("successBox").classList.add("hidden");
+    $("bookingCard").classList.remove("hidden");
+    $("bookingForm").classList.add("hidden");
+    state.selectedLeader = null;
+    state.selectedDateKey = null;
+    state.selectedSlot = null;
+    document.querySelectorAll(".leader-card").forEach(el=>el.classList.remove("active"));
+    $("bookingCard").scrollIntoView({behavior:"smooth"});
+  };
+
+  db.auth.onAuthStateChange((event,session)=>{
+    if (event==="SIGNED_OUT") {
+      state.session = null;
+      state.member = null;
+      $("memberArea").classList.add("hidden");
+      $("memberAuthCard").classList.remove("hidden");
+    }
   });
 
-  $("newRequestBtn").onclick = () => location.reload();
+  async function boot() {
+    await loadSettings();
+    const {data:{session}} = await db.auth.getSession();
+    if (session) await loadMember(session);
+    else {
+      $("memberAuthCard").classList.remove("hidden");
+      $("memberArea").classList.add("hidden");
+    }
+  }
 
-  loadSettings();
-  loadLeaders();
+  boot();
 })();
