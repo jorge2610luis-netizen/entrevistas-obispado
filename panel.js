@@ -26,11 +26,17 @@
     schedule:[],
     profiles:[],
     memberProfiles:[],
+    accessibleUnits:[],
+    unitTeam:[],
+    activeUnitId:null,
+    adminUnitResults:[],
+    adminSelectedUnit:null,
+    adminUnitTeam:[],
     userDirectoryMode:"leaders",
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v2.9.4";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v3.0.0";
 
   const leaderRole = {
     bishop:"bishop",
@@ -143,17 +149,135 @@
     }).format(new Date(value));
   }
 
-  function leaderForRole() {
-    return state.leaders.find(x=>x.code===leaderRole[state.profile?.role]);
+  const LEADER_ROLES = new Set(["bishop","first_counselor","second_counselor"]);
+
+  const UNIT_COUNTRIES = [
+    ["CL","Chile"],["BO","Bolivia"],["AR","Argentina"],["PE","Perú"],["BR","Brasil"],
+    ["PY","Paraguay"],["UY","Uruguay"],["CO","Colombia"],["EC","Ecuador"],["VE","Venezuela"],
+    ["MX","México"],["US","Estados Unidos"],["CA","Canadá"],["ES","España"],["GB","Reino Unido"],
+    ["FR","Francia"],["IT","Italia"],["DE","Alemania"],["AU","Australia"],["NZ","Nueva Zelanda"]
+  ];
+
+  function leaderForRoleCode(role) {
+    return state.leaders.find(x=>x.code===role);
+  }
+
+  function currentUnitId() {
+    return $("activeUnitSelect")?.value || state.activeUnitId || null;
+  }
+
+  function currentUnit() {
+    const id=currentUnitId();
+    return state.accessibleUnits.find(x=>x.unit_id===id) || null;
+  }
+
+  function selectedScheduleAssignment() {
+    const unitId=currentUnitId();
+    if (!unitId) return null;
+
+    if (isSecretaryStaff()) {
+      const profileId=$("scheduleLeader")?.value || "";
+      return state.unitTeam.find(x=>
+        x.church_unit_id===unitId &&
+        x.profile_id===profileId &&
+        LEADER_ROLES.has(x.role)
+      ) || null;
+    }
+
+    return state.unitTeam.find(x=>
+      x.church_unit_id===unitId &&
+      x.profile_id===state.user?.id &&
+      x.role===leaderRole[state.profile?.role]
+    ) || null;
   }
 
   function selectedLeaderId() {
-    return isSecretaryStaff() ? $("scheduleLeader").value : leaderForRole()?.id;
+    const assignment=selectedScheduleAssignment();
+    return assignment ? leaderForRoleCode(assignment.role)?.id : null;
   }
 
   function canManage(appointment) {
+    const unitId=currentUnitId();
+    if (unitId && appointment.church_unit_id!==unitId) return false;
     if (isSecretaryStaff()) return true;
-    return appointment.interview_types?.leaders?.code===leaderRole[state.profile?.role];
+    return appointment.assigned_profile_id===state.user?.id;
+  }
+
+  function populateCountrySelect() {
+    const select=$("adminUnitCountry");
+    if (!select) return;
+    if (select.options.length) return;
+    select.innerHTML=UNIT_COUNTRIES.map(([code,name])=>
+      '<option value="'+code+'" '+(code==="CL"?"selected":"")+'>'+e(name)+'</option>'
+    ).join("");
+  }
+
+  function populateActiveUnitSelect() {
+    const select=$("activeUnitSelect");
+    if (!select) return;
+
+    const previous=state.activeUnitId || select.value;
+    select.innerHTML=state.accessibleUnits.map(unit=>
+      '<option value="'+unit.unit_id+'">'+e(unit.unit_name)+(unit.city?' · '+e(unit.city):'')+'</option>'
+    ).join("");
+
+    if (previous && state.accessibleUnits.some(x=>x.unit_id===previous)) {
+      select.value=previous;
+    }
+
+    state.activeUnitId=select.value || null;
+    $("staffUnitContext")?.classList.toggle("hidden",!state.activeUnitId);
+
+    const unit=currentUnit();
+    $("activeUnitMeta").textContent=unit
+      ? [unit.meetinghouse_name,unit.city,unit.country_code].filter(Boolean).join(" · ")
+      : "";
+
+    if (unit) $("panelUnit").textContent=unit.unit_name;
+
+    if ($("userUnit")) {
+      const currentUserUnit=$("userUnit").value;
+      $("userUnit").innerHTML=
+        '<option value="">Selecciona un barrio</option>'+
+        state.accessibleUnits.map(x=>
+          '<option value="'+x.unit_id+'">'+e(x.unit_name)+(x.city?' · '+e(x.city):'')+'</option>'
+        ).join("");
+      if (currentUserUnit && state.accessibleUnits.some(x=>x.unit_id===currentUserUnit)) {
+        $("userUnit").value=currentUserUnit;
+      }
+    }
+  }
+
+  async function loadActiveUnitTeam() {
+    const unitId=currentUnitId();
+    state.unitTeam=[];
+
+    if (!unitId) {
+      if ($("scheduleLeader")) $("scheduleLeader").innerHTML="";
+      return;
+    }
+
+    const {data,error}=await db.rpc("staff_unit_team",{p_unit_id:unitId});
+    if (error) {
+      alertGlobal(error.message || "No se pudo cargar el liderazgo del barrio.","error");
+      return;
+    }
+
+    state.unitTeam=data || [];
+
+    if (isSecretaryStaff()) {
+      $("leaderSelectorWrap").classList.remove("hidden");
+      const leaders=state.unitTeam.filter(x=>LEADER_ROLES.has(x.role));
+      const previous=$("scheduleLeader").value;
+      $("scheduleLeader").innerHTML=leaders.length
+        ? leaders.map(x=>
+            '<option value="'+x.profile_id+'">'+e(roleText[x.role]||x.role)+' · '+e(x.display_name||"Líder")+'</option>'
+          ).join("")
+        : '<option value="">No hay líderes asignados</option>';
+      if (previous && leaders.some(x=>x.profile_id===previous)) $("scheduleLeader").value=previous;
+    } else {
+      $("leaderSelectorWrap").classList.add("hidden");
+    }
   }
 
   function hideAuthLoading() {
@@ -207,6 +331,7 @@
     $("unauthorizedView").classList.add("hidden");
     $("dashboard").classList.remove("hidden");
     $("userAdminCard").classList.toggle("hidden",!isSecretaryAdmin());
+    $("unitLeadershipCard")?.classList.toggle("hidden",!isSecretaryAdmin());
 
     $("roleTitle").textContent = titleByRole[profile.role] || "Panel";
     $("roleSubtitle").textContent = isSecretaryAdmin()
