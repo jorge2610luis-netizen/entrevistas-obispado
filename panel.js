@@ -38,7 +38,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v3.2.0";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v3.3.0";
 
   const leaderRole = {
     bishop:"bishop",
@@ -273,9 +273,11 @@
     if (!select) return;
 
     const previous=state.activeUnitId || select.value;
-    select.innerHTML=state.accessibleUnits.map(unit=>
+    const options=state.accessibleUnits.map(unit=>
       '<option value="'+unit.unit_id+'">'+e(unit.unit_name)+(unit.city?' · '+e(unit.city):'')+'</option>'
     ).join("");
+
+    select.innerHTML=options;
 
     if (previous && state.accessibleUnits.some(x=>x.unit_id===previous)) {
       select.value=previous;
@@ -291,16 +293,46 @@
 
     if (unit) $("panelUnit").textContent=unit.unit_name;
 
+    if ($("scheduleUnit")) {
+      $("scheduleUnit").innerHTML=options || '<option value="">No hay barrios asignados</option>';
+      if (state.activeUnitId && state.accessibleUnits.some(x=>x.unit_id===state.activeUnitId)) {
+        $("scheduleUnit").value=state.activeUnitId;
+      }
+    }
+
     if ($("userUnit")) {
       const currentUserUnit=$("userUnit").value;
       $("userUnit").innerHTML=
         '<option value="">Selecciona un barrio</option>'+
-        state.accessibleUnits.map(x=>
-          '<option value="'+x.unit_id+'">'+e(x.unit_name)+(x.city?' · '+e(x.city):'')+'</option>'
-        ).join("");
+        options;
       if (currentUserUnit && state.accessibleUnits.some(x=>x.unit_id===currentUserUnit)) {
         $("userUnit").value=currentUserUnit;
       }
+    }
+
+    updateScheduleContext();
+  }
+
+  function updateScheduleContext() {
+    const unit=currentUnit();
+    const assignment=selectedScheduleAssignment();
+
+    if ($("scheduleContextUnit")) {
+      $("scheduleContextUnit").textContent=unit
+        ? unit.unit_name+(unit.city?" · "+unit.city:"")
+        : "Selecciona un barrio";
+    }
+
+    if ($("scheduleContextLeader")) {
+      $("scheduleContextLeader").textContent=assignment
+        ? (roleText[assignment.role]||assignment.role)+" · "+(assignment.display_name||"Líder")
+        : "Selecciona un líder del barrio";
+    }
+
+    if ($("scheduleListTitle")) {
+      $("scheduleListTitle").textContent=unit
+        ? "Horarios de esta semana · "+unit.unit_name
+        : "Horarios de esta semana";
     }
   }
 
@@ -329,11 +361,13 @@
         ? leaders.map(x=>
             '<option value="'+x.profile_id+'">'+e(roleText[x.role]||x.role)+' · '+e(x.display_name||"Líder")+'</option>'
           ).join("")
-        : '<option value="">No hay líderes asignados</option>';
+        : '<option value="">No hay líderes asignados en este barrio</option>';
       if (previous && leaders.some(x=>x.profile_id===previous)) $("scheduleLeader").value=previous;
     } else {
       $("leaderSelectorWrap").classList.add("hidden");
     }
+
+    updateScheduleContext();
   }
 
   function openPanelMenu() {
@@ -1289,6 +1323,7 @@
   }
 
   function renderSchedule() {
+    updateScheduleContext();
     const rows = scheduleForSelectedWeek();
     $("scheduleCount").textContent = rows.length+" horario(s)";
 
@@ -1569,8 +1604,16 @@
 
   $("editUserRole").onchange = syncEditUserUnitVisibility;
 
-  $("activeUnitSelect").onchange = async () => {
-    state.activeUnitId=$("activeUnitSelect").value || null;
+  async function changeActiveUnit(unitId,{syncSchedule=true}={}) {
+    state.activeUnitId=unitId || null;
+
+    if ($("activeUnitSelect") && $("activeUnitSelect").value!==state.activeUnitId) {
+      $("activeUnitSelect").value=state.activeUnitId || "";
+    }
+    if (syncSchedule && $("scheduleUnit") && $("scheduleUnit").value!==state.activeUnitId) {
+      $("scheduleUnit").value=state.activeUnitId || "";
+    }
+
     const unit=currentUnit();
     $("activeUnitMeta").textContent=unit
       ? [unit.meetinghouse_name,unit.city,unit.country_code].filter(Boolean).join(" · ")
@@ -1583,6 +1626,14 @@
     renderAppointments();
     renderWeekStrip();
     renderSchedule();
+  }
+
+  $("activeUnitSelect").onchange = async () => {
+    await changeActiveUnit($("activeUnitSelect").value || null);
+  };
+
+  $("scheduleUnit").onchange = async () => {
+    await changeActiveUnit($("scheduleUnit").value || null,{syncSchedule:false});
   };
 
   $("adminUnitSearchBtn").onclick = searchAdminUnits;
@@ -1612,6 +1663,7 @@
 
   $("scheduleLeader").onchange = () => {
     state.selectedDates.clear();
+    updateScheduleContext();
     renderWeekStrip();
     renderSchedule();
   };
