@@ -153,7 +153,7 @@ async function discoverUnitUrls(countryCode:string) {
     if (!chunk.length) continue;
     const {error}=await admin.from("church_directory_unit_index").upsert(
       chunk,
-      {onConflict:"official_url",ignoreDuplicates:false}
+      {onConflict:"official_url",ignoreDuplicates:true}
     );
     if (error) throw error;
   }
