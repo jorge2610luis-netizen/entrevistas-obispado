@@ -2,6 +2,7 @@
   const db=window.supabase.createClient(window.APP_CONFIG.supabaseUrl,window.APP_CONFIG.supabasePublishableKey);
   const $=id=>document.getElementById(id);
   const state={user:null,profile:null,leaders:[],appointments:[],schedule:[]};
+  if($("panelVersion")) $("panelVersion").textContent=window.APP_CONFIG.version||"v2.0.2";
   const leaderRole={bishop:"bishop",first_counselor:"first_counselor",second_counselor:"second_counselor"};
   const titleByRole={secretary:"Panel del Secretario",bishop:"Panel del Obispo",first_counselor:"Panel del Primer Consejero",second_counselor:"Panel del Segundo Consejero"};
   const statusText={pending_secretary:"Pendiente de secretario",contacted:"Contactado",pending_leader:"Pendiente de líder",approved:"Aprobado",rejected:"Rechazado",reschedule:"Reprogramación",completed:"Completado",cancelled:"Cancelado"};
