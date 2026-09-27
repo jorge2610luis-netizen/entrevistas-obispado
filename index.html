@@ -9,19 +9,22 @@
   <meta name="theme-color" content="#005581">
   <meta name="description" content="Solicitud y seguimiento de entrevistas con el obispado.">
   <title>Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=2.7.1">
+  <link rel="stylesheet" href="styles.css?v=2.7.2">
 </head>
 <body>
 <header class="topbar">
+  <button id="memberMenuToggle" class="member-menu-toggle topbar-menu-toggle hidden" type="button" aria-expanded="false" aria-controls="memberSidebar" aria-label="Abrir menú">
+    <span class="hamburger-lines" aria-hidden="true"><i></i><i></i><i></i></span>
+  </button>
   <div class="brand">
     <div class="brand-mark" aria-hidden="true">E</div>
     <div>
       <strong>Entrevistas del Obispado</strong>
       <small id="unitName">Barrio / Rama</small>
-      <small id="appVersion" class="version-label">v2.7.1</small>
+      <small id="appVersion" class="version-label">v2.7.2</small>
     </div>
   </div>
-  <a class="link-button" href="panel.html?v=2.7.1">Acceso de líderes</a>
+  <a class="link-button" href="panel.html?v=2.7.2">Acceso de líderes</a>
 </header>
 
 <main class="container">
@@ -93,10 +96,6 @@
   </section>
 
   <section id="memberArea" class="hidden member-app">
-    <button id="memberMenuToggle" class="member-menu-toggle" type="button" aria-expanded="false" aria-controls="memberSidebar">
-      ☰ <span>Menú</span>
-    </button>
-
     <div id="memberSidebarBackdrop" class="member-sidebar-backdrop"></div>
 
     <div class="member-shell">
@@ -334,7 +333,7 @@
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=2.7.1"></script>
-<script src="public.js?v=2.7.1"></script>
+<script src="config.js?v=2.7.2"></script>
+<script src="public.js?v=2.7.2"></script>
 </body>
 </html>
