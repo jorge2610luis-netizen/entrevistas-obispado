@@ -38,7 +38,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v3.3.2";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v3.3.4";
 
   const leaderRole = {
     bishop:"bishop",
@@ -528,8 +528,23 @@
     await refresh();
   }
 
+  async function ensureLatestVersion() {
+    try {
+      const response=await fetch("version.json?t="+Date.now(),{cache:"no-store"});
+      if (!response.ok) return true;
+      const latest=await response.json();
+      const current=window.APP_CONFIG.version;
+      if (latest?.version && latest.version!==current) {
+        location.replace("panel.html?v="+encodeURIComponent(latest.version));
+        return false;
+      }
+    } catch (_) {}
+    return true;
+  }
+
   async function boot() {
     try {
+      if (!(await ensureLatestVersion())) return;
       const {data:{session},error} = await db.auth.getSession();
       if (error || !session) {
         showLogin();
@@ -1555,38 +1570,49 @@
   $("scheduleForm").onsubmit = async event => {
     event.preventDefault();
 
-    let slots;
-    try {
-      slots = buildSlots();
-      if (!slots.length) throw new Error("No se generaron horarios futuros con esa selección.");
-    } catch (error) {
-      alertGlobal(error.message || "Revisa la configuración de horarios.","error");
-      return;
-    }
-
     const button = $("generateScheduleBtn");
     const localAlert=$("scheduleInlineAlert");
     localAlert.className="alert hidden";
-    button.disabled = true;
-    button.textContent = "Generando…";
 
-    const {data,error} = await db.from("availability")
-      .upsert(slots,{onConflict:"church_unit_id,assigned_profile_id,start_at",ignoreDuplicates:true})
-      .select("id");
-
-    button.disabled = false;
-    button.textContent = "Generar horarios";
-
-    if (error) {
-      localAlert.textContent=error.message || "No se pudieron generar los horarios.";
+    let slots;
+    try {
+      slots = buildSlots();
+      if (!slots.length) {
+        throw new Error("No se generaron horarios futuros. Revisa que los días y horas elegidos todavía no hayan pasado.");
+      }
+    } catch (error) {
+      localAlert.textContent=error?.message || "Revisa la configuración de horarios.";
       localAlert.className="alert error";
       localAlert.scrollIntoView({behavior:"smooth",block:"nearest"});
       return;
     }
 
-    localAlert.textContent="Horarios generados: "+(data?.length||0)+". Los duplicados existentes se omitieron.";
-    localAlert.className="alert success";
-    await refresh();
+    button.disabled = true;
+    button.textContent = "Generando…";
+
+    try {
+      const {data,error} = await db.rpc("create_availability_slots",{
+        p_slots:slots
+      });
+
+      if (error) throw error;
+
+      const created=Number(data||0);
+      localAlert.textContent=created>0
+        ? "Listo. Se crearon "+created+" horario(s)."
+        : "No se creó ningún horario nuevo porque esos horarios ya existían.";
+      localAlert.className=created>0 ? "alert success" : "alert";
+      await refresh();
+      renderSchedule();
+    } catch (error) {
+      console.error("schedule generation failed",error);
+      localAlert.textContent=error?.message || "No se pudieron generar los horarios.";
+      localAlert.className="alert error";
+      localAlert.scrollIntoView({behavior:"smooth",block:"nearest"});
+    } finally {
+      button.disabled = false;
+      button.textContent = "Generar horarios";
+    }
   };
 
   async function logout() {
