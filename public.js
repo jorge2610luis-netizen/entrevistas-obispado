@@ -10,12 +10,11 @@
     selectedLeader: null,
     interviewTypes: [],
     slots: [],
-    calendarMonth: startOfMonth(new Date()),
     selectedDateKey: null,
     selectedSlot: null
   };
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.2.0";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.3.0";
 
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, c => ({
@@ -23,38 +22,32 @@
     }[c]));
   }
 
-  function startOfMonth(date) {
-    return new Date(date.getFullYear(), date.getMonth(), 1);
-  }
-
   function dateKeyBolivia(value) {
     return new Intl.DateTimeFormat("en-CA", {
-      timeZone: "America/La_Paz",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
+      timeZone:"America/La_Paz",
+      year:"numeric",
+      month:"2-digit",
+      day:"2-digit"
     }).format(new Date(value));
-  }
-
-  function localDateKey(date) {
-    const y = date.getFullYear();
-    const m = String(date.getMonth()+1).padStart(2,"0");
-    const d = String(date.getDate()).padStart(2,"0");
-    return y+"-"+m+"-"+d;
-  }
-
-  function monthTitle(date) {
-    return new Intl.DateTimeFormat("es-BO", {
-      month:"long",
-      year:"numeric"
-    }).format(date).replace(/^./, c => c.toUpperCase());
   }
 
   function longDateFromKey(key) {
     const [y,m,d] = key.split("-").map(Number);
     return new Intl.DateTimeFormat("es-BO", {
-      weekday:"long", day:"numeric", month:"long", year:"numeric"
+      weekday:"long",
+      day:"numeric",
+      month:"long",
+      year:"numeric"
     }).format(new Date(y,m-1,d)).replace(/^./, c => c.toUpperCase());
+  }
+
+  function dayButtonParts(key) {
+    const [y,m,d] = key.split("-").map(Number);
+    const date = new Date(y,m-1,d);
+    return {
+      weekday: new Intl.DateTimeFormat("es-BO",{weekday:"long"}).format(date).replace(/^./,c=>c.toUpperCase()),
+      date: new Intl.DateTimeFormat("es-BO",{day:"numeric",month:"short"}).format(date).replace(".","")
+    };
   }
 
   function timeLabel(value) {
@@ -118,8 +111,8 @@
       button.type = "button";
       button.className = "leader-card";
       button.dataset.leaderId = leader.id;
-      button.innerHTML = '<strong>'+escapeHtml(leader.title)+'</strong><span>Ver calendario disponible</span>';
-      button.onclick = () => selectLeader(leader, button);
+      button.innerHTML = '<strong>'+escapeHtml(leader.title)+'</strong><span>Ver días disponibles</span>';
+      button.onclick = () => selectLeader(leader,button);
       $("leaderGrid").appendChild(button);
     });
 
@@ -128,7 +121,7 @@
     }
   }
 
-  async function selectLeader(leader, button) {
+  async function selectLeader(leader,button) {
     clearError();
     state.selectedLeader = leader;
     state.selectedDateKey = null;
@@ -137,7 +130,7 @@
     document.querySelectorAll(".leader-card").forEach(el => el.classList.remove("active"));
     button.classList.add("active");
 
-    const [typesResult, slotsResult] = await Promise.all([
+    const [typesResult,slotsResult] = await Promise.all([
       db.from("interview_types")
         .select("id,name,sort_order")
         .eq("leader_id",leader.id)
@@ -156,86 +149,54 @@
     state.slots = slotsResult.data || [];
 
     $("interviewType").innerHTML = state.interviewTypes.length
-      ? state.interviewTypes.map(x => '<option value="'+x.id+'">'+escapeHtml(x.name)+'</option>').join("")
+      ? state.interviewTypes.map(x=>'<option value="'+x.id+'">'+escapeHtml(x.name)+'</option>').join("")
       : '<option value="">No hay tipos disponibles</option>';
 
-    const earliest = state.slots[0]?.start_at ? new Date(state.slots[0].start_at) : new Date();
-    state.calendarMonth = startOfMonth(earliest);
-
-    $("bookingForm").classList.remove("hidden");
+    renderAvailableDays();
     $("publicDayPanel").classList.add("hidden");
-    $("selectedSlotSummary").textContent = "Selecciona primero un horario.";
-    renderPublicCalendar();
+    $("selectedSlotSummary").textContent = "Selecciona primero un día y una hora.";
+    $("bookingForm").classList.remove("hidden");
     $("bookingForm").scrollIntoView({behavior:"smooth",block:"start"});
   }
 
-  function slotsByDate() {
+  function groupedSlots() {
     const map = new Map();
     state.slots.forEach(slot => {
       const key = dateKeyBolivia(slot.start_at);
-      if (!map.has(key)) map.set(key, []);
+      if (!map.has(key)) map.set(key,[]);
       map.get(key).push(slot);
     });
-    return map;
+    return [...map.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
   }
 
-  function renderPublicCalendar() {
-    const month = state.calendarMonth;
-    $("publicMonthTitle").textContent = monthTitle(month);
-
-    const year = month.getFullYear();
-    const monthIndex = month.getMonth();
-    const firstDow = new Date(year,monthIndex,1).getDay();
-    const daysInMonth = new Date(year,monthIndex+1,0).getDate();
-    const previousDays = new Date(year,monthIndex,0).getDate();
-    const byDate = slotsByDate();
-
-    const cells = [];
-
-    for (let i=firstDow-1;i>=0;i--) {
-      cells.push({day:previousDays-i,muted:true,date:new Date(year,monthIndex-1,previousDays-i)});
+  function renderAvailableDays() {
+    const groups = groupedSlots();
+    if (!groups.length) {
+      $("availableDays").innerHTML = '<div class="empty">Este líder todavía no tiene días disponibles.</div>';
+      return;
     }
 
-    for (let day=1;day<=daysInMonth;day++) {
-      cells.push({day,muted:false,date:new Date(year,monthIndex,day)});
-    }
-
-    while (cells.length % 7 !== 0 || cells.length < 42) {
-      const day = cells.length - (firstDow + daysInMonth) + 1;
-      cells.push({day,muted:true,date:new Date(year,monthIndex+1,day)});
-    }
-
-    $("publicCalendar").innerHTML = cells.map(cell => {
-      const key = localDateKey(cell.date);
-      const count = byDate.get(key)?.length || 0;
-      const classes = [
-        "calendar-day",
-        cell.muted ? "outside-month" : "",
-        count ? "has-availability" : "",
-        state.selectedDateKey===key ? "selected" : ""
-      ].filter(Boolean).join(" ");
-
-      return '<button type="button" class="'+classes+'" data-date="'+key+'" '+(count ? "" : "disabled")+'>'+
-        '<span class="day-number">'+cell.day+'</span>'+
-        (count ? '<span class="day-availability">'+count+' hora'+(count===1?"":"s")+'</span>' : '')+
+    $("availableDays").innerHTML = groups.map(([key,slots]) => {
+      const part = dayButtonParts(key);
+      const active = state.selectedDateKey===key ? " selected" : "";
+      return '<button type="button" class="available-day-button'+active+'" data-date="'+key+'">'+
+        '<strong>'+escapeHtml(part.weekday)+'</strong>'+
+        '<span>'+escapeHtml(part.date)+'</span>'+
+        '<small>'+slots.length+' hora'+(slots.length===1?"":"s")+'</small>'+
       '</button>';
     }).join("");
 
-    $("publicCalendar").querySelectorAll("[data-date]:not(:disabled)").forEach(button => {
-      button.onclick = () => selectPublicDay(button.dataset.date);
+    $("availableDays").querySelectorAll("[data-date]").forEach(button => {
+      button.onclick = () => selectDay(button.dataset.date);
     });
-
-    const currentMonth = startOfMonth(new Date());
-    $("publicPrevMonth").disabled = month.getFullYear()===currentMonth.getFullYear() &&
-      month.getMonth()===currentMonth.getMonth();
   }
 
-  function selectPublicDay(key) {
+  function selectDay(key) {
     state.selectedDateKey = key;
     state.selectedSlot = null;
-    renderPublicCalendar();
+    renderAvailableDays();
 
-    const rows = state.slots.filter(slot => dateKeyBolivia(slot.start_at)===key);
+    const rows = state.slots.filter(slot=>dateKeyBolivia(slot.start_at)===key);
     $("publicSelectedDate").textContent = longDateFromKey(key);
     $("publicTimeSlots").innerHTML = rows.map(slot =>
       '<button class="time-slot-button" type="button" data-slot="'+slot.id+'">'+
@@ -245,37 +206,19 @@
 
     $("publicTimeSlots").querySelectorAll("[data-slot]").forEach(button => {
       button.onclick = () => {
-        const slot = rows.find(x => x.id===button.dataset.slot);
+        const slot = rows.find(x=>x.id===button.dataset.slot);
         state.selectedSlot = slot || null;
-        document.querySelectorAll(".time-slot-button").forEach(x => x.classList.remove("selected"));
+        document.querySelectorAll(".time-slot-button").forEach(x=>x.classList.remove("selected"));
         button.classList.add("selected");
         $("selectedSlotSummary").textContent = slot
           ? "Horario elegido: "+fullSlotLabel(slot.start_at)
-          : "Selecciona primero un horario.";
+          : "Selecciona primero un día y una hora.";
       };
     });
 
     $("publicDayPanel").classList.remove("hidden");
     $("publicDayPanel").scrollIntoView({behavior:"smooth",block:"nearest"});
   }
-
-  $("publicPrevMonth").onclick = () => {
-    const current = state.calendarMonth;
-    state.calendarMonth = new Date(current.getFullYear(),current.getMonth()-1,1);
-    state.selectedDateKey = null;
-    state.selectedSlot = null;
-    $("publicDayPanel").classList.add("hidden");
-    renderPublicCalendar();
-  };
-
-  $("publicNextMonth").onclick = () => {
-    const current = state.calendarMonth;
-    state.calendarMonth = new Date(current.getFullYear(),current.getMonth()+1,1);
-    state.selectedDateKey = null;
-    state.selectedSlot = null;
-    $("publicDayPanel").classList.add("hidden");
-    renderPublicCalendar();
-  };
 
   $("bookingForm").addEventListener("submit", async event => {
     event.preventDefault();
