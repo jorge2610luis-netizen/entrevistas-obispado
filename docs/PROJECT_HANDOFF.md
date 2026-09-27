@@ -3,7 +3,7 @@
 > **Última actualización de este documento:** 2026-09-27  
 > **Repositorio:** `jorge2610luis-netizen/entrevistas-obispado`  
 > **Rama de producción:** `main`  
-> **Versión declarada actual:** `v4.2.1`
+> **Versión declarada actual:** `v4.2.2`
 > **Sitio:** https://mientrevista.online  
 > **Panel interno:** https://mientrevista.online/panel.html  
 > **Backend:** Supabase, proyecto `gyyahvrkcjocqhhoslho`
@@ -51,10 +51,10 @@ Flujo:
 
 Al momento de escribir este documento:
 
-- `config.js`: **v4.2.1**
-- `version.json`: **v4.2.1**
-- etiquetas visibles de `index.html` / `panel.html`: **v4.2.1**
-- los query strings de assets y enlaces internos están sincronizados con `v4.2.1`.
+- `config.js`: **v4.2.2**
+- `version.json`: **v4.2.2**
+- etiquetas visibles de `index.html` / `panel.html`: **v4.2.2**
+- los query strings de assets y enlaces internos están sincronizados con `v4.2.2`.
 
 Antes de la próxima publicación conviene sincronizar TODOS los query strings de assets con la versión real.
 
@@ -987,11 +987,18 @@ Sincronizar query strings de assets:
 
 con `v4.1.0` o la siguiente versión.
 
-### v4.2.1 — filtro de regiones incompletas
+### v4.2.2 — filtro de regiones incompletas
 
 - El selector de región/departamento ya no oculta ciudades válidas cuyo campo `region` todavía está pendiente de clasificación.
 - Las ciudades con región conocida se muestran primero; las no clasificadas se mantienen disponibles como `Región por clasificar`.
 - Este cambio no inventa ni asigna regiones; la clasificación se completa con el sincronizador oficial.
+
+### v4.2.2 — sincronización continua del directorio
+
+- El progreso de ciudades por país ya no se borra al terminar; evita re-sincronizar desde cero en cada intento.
+- El panel procesa hasta 100 tandas de 8 barrios/ramas oficiales por ejecución (máximo 800 por país), suficiente para la cola actual de Chile o Bolivia.
+- El estado visible sigue actualizándose después de cada tanda y conserva los registros ya sincronizados.
+- Las acciones masivas siguen restringidas a Secretario Administrador.
 
 ### P0 — directorio Chile/Bolivia completo
 
