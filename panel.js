@@ -638,6 +638,297 @@
     }).join("") : '<div class="empty">No hay miembros que coincidan con la búsqueda.</div>';
   }
 
+  function groupAdminUnitRows(rows) {
+    const map=new Map();
+
+    (rows||[]).forEach(row=>{
+      if (!row.unit_id) return;
+      if (map.has(row.unit_id)) return;
+
+      map.set(row.unit_id,{
+        id:row.unit_id,
+        unit_name:row.unit_name,
+        unit_type:row.unit_type,
+        meetinghouse_name:row.meetinghouse_name,
+        address:row.address,
+        city:row.city,
+        region:row.region,
+        country_code:row.country_code,
+        sunday_service:row.sunday_service
+      });
+    });
+
+    return [...map.values()].sort((a,b)=>
+      (a.unit_name||"").localeCompare(b.unit_name||"","es")
+    );
+  }
+
+  async function searchAdminUnits() {
+    if (!isSecretaryAdmin()) return;
+
+    const button=$("adminUnitSearchBtn");
+    const countryCode=$("adminUnitCountry").value;
+    const city=$("adminUnitCity").value.trim();
+    const query=$("adminUnitQuery").value.trim();
+
+    button.disabled=true;
+    button.textContent="Buscando…";
+    $("adminUnitSearchStatus").textContent="Buscando barrios y ramas…";
+
+    try {
+      if (city) {
+        try {
+          await Promise.race([
+            db.functions.invoke("church-directory",{
+              body:{city,countryCode}
+            }),
+            new Promise(resolve=>setTimeout(()=>resolve(null),12000))
+          ]);
+        } catch (_) {}
+      }
+
+      const {data,error}=await db.rpc("search_church_catalog",{
+        p_query:query || null,
+        p_country_code:countryCode || null,
+        p_city:city || null,
+        p_limit:100
+      });
+
+      if (error) throw error;
+
+      state.adminUnitResults=groupAdminUnitRows(data||[]);
+      $("adminUnitSearchStatus").textContent=state.adminUnitResults.length
+        ? state.adminUnitResults.length+" barrio(s)/rama(s) encontrado(s)."
+        : "No encontramos barrios con esos datos.";
+      renderAdminUnitResults();
+    } catch (error) {
+      $("adminUnitSearchStatus").textContent=error?.message || "No se pudo buscar el barrio.";
+      $("adminUnitResults").innerHTML="";
+    } finally {
+      button.disabled=false;
+      button.textContent="Buscar barrio";
+    }
+  }
+
+  function renderAdminUnitResults() {
+    const rows=state.adminUnitResults || [];
+    $("adminUnitResults").innerHTML=rows.length ? rows.map(unit=>
+      '<article class="unit-admin-result">'+
+        '<div>'+
+          '<strong>'+e(unit.unit_name||"Barrio / Rama")+'</strong>'+
+          '<span>'+e([unit.meetinghouse_name,unit.address].filter(Boolean).join(" · "))+'</span>'+
+          '<small>'+e([unit.city,unit.region,unit.country_code].filter(Boolean).join(" · "))+'</small>'+
+        '</div>'+
+        '<button type="button" class="secondary-button" data-admin-unit="'+unit.id+'">Administrar</button>'+
+      '</article>'
+    ).join("") : "";
+
+    $("adminUnitResults").querySelectorAll("[data-admin-unit]").forEach(button=>{
+      button.onclick=()=>selectAdminUnit(button.dataset.adminUnit);
+    });
+  }
+
+  async function selectAdminUnit(unitId) {
+    const unit=state.adminUnitResults.find(x=>x.id===unitId)
+      || state.accessibleUnits.find(x=>x.unit_id===unitId);
+
+    if (!unit) return;
+
+    state.adminSelectedUnit={
+      id:unit.id || unit.unit_id,
+      unit_name:unit.unit_name,
+      meetinghouse_name:unit.meetinghouse_name,
+      address:unit.address || "",
+      city:unit.city,
+      region:unit.region || "",
+      country_code:unit.country_code
+    };
+
+    $("adminUnitManager").classList.remove("hidden");
+    await loadAdminUnitTeam();
+    $("adminUnitManager").scrollIntoView({behavior:"smooth",block:"start"});
+  }
+
+  async function loadAdminUnitTeam() {
+    if (!state.adminSelectedUnit?.id || !isSecretaryAdmin()) {
+      state.adminUnitTeam=[];
+      return;
+    }
+
+    const {data,error}=await db.rpc("staff_unit_team",{
+      p_unit_id:state.adminSelectedUnit.id
+    });
+
+    if (error) {
+      $("adminUnitResult").textContent=error.message || "No se pudo cargar el liderazgo.";
+      $("adminUnitResult").className="alert error";
+      return;
+    }
+
+    state.adminUnitTeam=data || [];
+    renderAdminSelectedUnit();
+  }
+
+  function populateUnitAssignProfiles() {
+    const role=$("unitAssignRole")?.value || "bishop";
+    const rows=state.profiles.filter(profile=>
+      profile.is_active &&
+      profile.role===role
+    );
+
+    $("unitAssignProfile").innerHTML=rows.length
+      ? rows.map(profile=>
+          '<option value="'+profile.id+'">'+e(profile.display_name||profile.email||"Usuario")+' · '+e(profile.email||"")+'</option>'
+        ).join("")
+      : '<option value="">No hay usuarios disponibles con este rol</option>';
+  }
+
+  function renderAdminSelectedUnit() {
+    const unit=state.adminSelectedUnit;
+    if (!unit) {
+      $("adminUnitManager")?.classList.add("hidden");
+      return;
+    }
+
+    $("adminSelectedUnitName").textContent=unit.unit_name || "Barrio / Rama";
+    $("adminSelectedUnitMeta").textContent=[
+      unit.meetinghouse_name,
+      unit.address,
+      unit.city,
+      unit.country_code
+    ].filter(Boolean).join(" · ");
+
+    const roles=["bishop","first_counselor","second_counselor","secretary"];
+    const team=state.adminUnitTeam || [];
+    $("adminUnitTeamCount").textContent=team.length+" asignación(es)";
+
+    $("adminUnitTeamList").innerHTML=roles.map(role=>{
+      const matches=team.filter(x=>x.role===role);
+
+      if (!matches.length) {
+        return '<div class="unit-team-role empty-role">'+
+          '<div><strong>'+e(roleText[role]||role)+'</strong><span>Sin asignar</span></div>'+
+        '</div>';
+      }
+
+      return matches.map(item=>
+        '<div class="unit-team-role">'+
+          '<div><strong>'+e(roleText[item.role]||item.role)+'</strong><span>'+e(item.display_name||"Usuario")+'</span></div>'+
+          '<button type="button" class="danger-link" data-unassign-unit-staff="'+item.assignment_id+'">Quitar</button>'+
+        '</div>'
+      ).join("");
+    }).join("");
+
+    $("adminUnitTeamList").querySelectorAll("[data-unassign-unit-staff]").forEach(button=>{
+      button.onclick=()=>unassignUnitStaff(button.dataset.unassignUnitStaff);
+    });
+
+    populateUnitAssignProfiles();
+  }
+
+  async function unassignUnitStaff(assignmentId) {
+    if (!isSecretaryAdmin()) return;
+    const {error}=await db.rpc("admin_unassign_unit_staff",{
+      p_assignment_id:assignmentId
+    });
+
+    if (error) {
+      $("adminUnitResult").textContent=error.message || "No se pudo quitar la asignación.";
+      $("adminUnitResult").className="alert error";
+      return;
+    }
+
+    $("adminUnitResult").textContent="Asignación eliminada correctamente.";
+    $("adminUnitResult").className="alert success";
+    await refresh();
+    await loadAdminUnitTeam();
+  }
+
+  async function assignExistingStaff(event) {
+    event.preventDefault();
+    if (!isSecretaryAdmin() || !state.adminSelectedUnit?.id) return;
+
+    const profileId=$("unitAssignProfile").value;
+    const role=$("unitAssignRole").value;
+
+    if (!profileId) {
+      $("adminUnitResult").textContent="No hay un usuario de ese rol para asignar.";
+      $("adminUnitResult").className="alert error";
+      return;
+    }
+
+    const {error}=await db.rpc("admin_assign_unit_staff",{
+      p_unit_id:state.adminSelectedUnit.id,
+      p_profile_id:profileId,
+      p_role:role
+    });
+
+    if (error) {
+      $("adminUnitResult").textContent=error.message || "No se pudo asignar el usuario.";
+      $("adminUnitResult").className="alert error";
+      return;
+    }
+
+    $("adminUnitResult").textContent="Usuario asignado al barrio correctamente.";
+    $("adminUnitResult").className="alert success";
+    await refresh();
+    await loadAdminUnitTeam();
+  }
+
+  async function createUnitStaff(event) {
+    event.preventDefault();
+    if (!isSecretaryAdmin() || !state.adminSelectedUnit?.id) return;
+
+    const button=$("createUnitStaffBtn");
+    const result=$("adminUnitResult");
+    button.disabled=true;
+    button.textContent="Creando…";
+    result.className="alert hidden";
+
+    try {
+      const display_name=$("unitStaffName").value.trim();
+      const email=$("unitStaffEmail").value.trim().toLowerCase();
+      const role=$("unitStaffRole").value;
+      const password=$("unitStaffPassword").value;
+
+      const {data,error}=await signupClient.auth.signUp({
+        email,
+        password,
+        options:{data:{full_name:display_name}}
+      });
+
+      if (error) throw error;
+      if (!data?.user?.id) throw new Error("No se pudo crear el usuario.");
+
+      const {error:roleError}=await db.rpc("secretary_admin_assign_role",{
+        p_user_id:data.user.id,
+        p_role:role,
+        p_display_name:display_name
+      });
+      if (roleError) throw new Error("La cuenta fue creada, pero no se pudo asignar el rol.");
+
+      const {error:assignError}=await db.rpc("admin_assign_unit_staff",{
+        p_unit_id:state.adminSelectedUnit.id,
+        p_profile_id:data.user.id,
+        p_role:role
+      });
+      if (assignError) throw new Error("La cuenta fue creada, pero no se pudo asignar al barrio.");
+
+      result.textContent="Usuario creado y asignado a "+state.adminSelectedUnit.unit_name+".";
+      result.className="alert success";
+      $("createUnitStaffForm").reset();
+      $("unitStaffRole").value="bishop";
+      await refresh();
+      await loadAdminUnitTeam();
+    } catch (error) {
+      result.textContent=error?.message || "No se pudo crear el usuario.";
+      result.className="alert error";
+    } finally {
+      button.disabled=false;
+      button.textContent="Crear y asignar";
+    }
+  }
+
   function openUserEditor(userId) {
     if (!isSecretaryAdmin()) return;
     const user = state.profiles.find(x=>x.id===userId);
