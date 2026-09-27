@@ -33,10 +33,11 @@
     adminSelectedUnit:null,
     adminUnitTeam:[],
     userDirectoryMode:"leaders",
+    panelView:"overview",
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v3.0.0";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v3.1.0";
 
   const leaderRole = {
     bishop:"bishop",
@@ -289,12 +290,71 @@
     }
   }
 
+  function openPanelMenu() {
+    $("panelSidebar")?.classList.add("open");
+    $("panelSidebar")?.setAttribute("aria-hidden","false");
+    $("panelSidebarBackdrop")?.classList.remove("hidden");
+    $("panelMenuToggle")?.setAttribute("aria-expanded","true");
+    document.body.classList.add("panel-menu-open");
+  }
+
+  function closePanelMenu() {
+    $("panelSidebar")?.classList.remove("open");
+    $("panelSidebar")?.setAttribute("aria-hidden","true");
+    $("panelSidebarBackdrop")?.classList.add("hidden");
+    $("panelMenuToggle")?.setAttribute("aria-expanded","false");
+    document.body.classList.remove("panel-menu-open");
+  }
+
+  function setPanelView(view,{scroll=true}={}) {
+    let next=view || "overview";
+    let target=document.querySelector('[data-panel-section="'+next+'"]');
+
+    if (!target || target.classList.contains("hidden")) {
+      next="overview";
+      target=document.querySelector('[data-panel-section="overview"]');
+    }
+
+    state.panelView=next;
+
+    document.querySelectorAll("[data-panel-section]").forEach(section=>{
+      section.classList.toggle("panel-section-active",section.dataset.panelSection===next);
+    });
+
+    document.querySelectorAll("[data-panel-view]").forEach(button=>{
+      button.classList.toggle("active",button.dataset.panelView===next);
+    });
+
+    closePanelMenu();
+
+    if (scroll && window.matchMedia("(max-width: 760px)").matches) {
+      window.scrollTo({top:0,behavior:"smooth"});
+    }
+  }
+
+  function syncPanelNavigation() {
+    const admin=isSecretaryAdmin();
+
+    $("panelMenuToggle")?.classList.remove("hidden");
+    $("panelNavUnits")?.classList.toggle("hidden",!admin);
+    $("panelNavUsers")?.classList.toggle("hidden",!admin);
+    $("panelSidebarRole").textContent=roleText[state.profile?.role] || "Panel interno";
+
+    if (!admin && ["units","users"].includes(state.panelView)) {
+      state.panelView="overview";
+    }
+
+    setPanelView(state.panelView,{scroll:false});
+  }
+
   function hideAuthLoading() {
     $("authLoadingView")?.classList.add("hidden");
   }
 
   function showLogin() {
     hideAuthLoading();
+    closePanelMenu();
+    $("panelMenuToggle")?.classList.add("hidden");
     $("loginView").classList.remove("hidden");
     $("unauthorizedView").classList.add("hidden");
     $("dashboard").classList.add("hidden");
@@ -302,6 +362,8 @@
 
   function showUnauthorized() {
     hideAuthLoading();
+    closePanelMenu();
+    $("panelMenuToggle")?.classList.add("hidden");
     $("loginView").classList.add("hidden");
     $("dashboard").classList.add("hidden");
     $("unauthorizedView").classList.remove("hidden");
@@ -341,6 +403,7 @@
     $("dashboard").classList.remove("hidden");
     $("userAdminCard").classList.toggle("hidden",!isSecretaryAdmin());
     $("unitLeadershipCard")?.classList.toggle("hidden",!isSecretaryAdmin());
+    syncPanelNavigation();
 
     $("roleTitle").textContent = titleByRole[profile.role] || "Panel";
     $("roleSubtitle").textContent = isSecretaryAdmin()
@@ -1355,6 +1418,23 @@
 
   $("cancelEditUser").onclick = closeUserEditor;
   $("cancelEditUserTop").onclick = closeUserEditor;
+
+  $("panelMenuToggle").onclick = () => {
+    if ($("panelSidebar")?.classList.contains("open")) closePanelMenu();
+    else openPanelMenu();
+  };
+  $("panelSidebarClose").onclick = closePanelMenu;
+  $("panelSidebarBackdrop").onclick = closePanelMenu;
+
+  document.querySelectorAll("[data-panel-view]").forEach(button=>{
+    button.onclick = () => setPanelView(button.dataset.panelView);
+  });
+
+  $("panelSidebarRefresh").onclick = async () => {
+    closePanelMenu();
+    await refresh();
+  };
+  $("panelSidebarLogout").onclick = logout;
 
   $("toggleUserPassword").onclick = () => {
     const input = $("userPassword");
