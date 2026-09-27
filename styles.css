@@ -210,3 +210,30 @@ footer .small{font-size:12px}
   .phone-input-wrap.multiphone{display:grid;grid-template-columns:1fr}
   .country-select{max-width:none;width:100%;border-right:0;border-bottom:1px solid var(--line);border-radius:0}
 }
+
+.member-unit-card{margin-bottom:18px}
+.current-unit-box{display:grid;gap:4px;padding:15px;border:1px solid var(--line);border-radius:14px;background:var(--soft);margin-top:14px}
+.current-unit-box.configured{background:#eef8f2;border-color:#c9e4d4}
+.current-unit-box strong{font-size:17px;color:var(--blue)}
+.current-unit-box span{font-size:13px;color:var(--muted)}
+.location-privacy-note{margin-bottom:12px}
+.meetinghouse-list{display:grid;gap:10px}
+.meetinghouse-item{display:flex;justify-content:space-between;align-items:center;gap:14px;border:1px solid var(--line);border-radius:14px;padding:14px;background:#fff}
+.meetinghouse-item>div{display:grid;gap:3px}
+.meetinghouse-item strong{font-size:15px}
+.meetinghouse-item span,.meetinghouse-item small{color:var(--muted);font-size:12px}
+.meetinghouse-item.exact-unit{border-color:#9bcdb0;background:#f2fbf6}
+.match-badge{display:inline-flex!important;width:max-content;padding:4px 7px;border-radius:999px;background:#dff3e7;color:var(--success)!important;font-weight:800}
+.unit-confirm-panel{display:grid;gap:14px;margin-top:16px;padding:18px;border:1px solid var(--line);border-radius:16px;background:#fbfcfd}
+.unit-confirm-panel h3{margin:5px 0}
+.unit-confirm-panel p{margin:0}
+.unit-link-actions,.unit-confirm-actions{display:flex;gap:8px;flex-wrap:wrap}
+.unit-confirm-actions{justify-content:flex-end}
+.text-action-button{border:0;background:transparent;color:var(--blue);font-weight:800;padding:12px 0 0;text-align:left}
+.unit-route-button{display:inline-block;margin-top:10px;text-decoration:none;width:max-content}
+@media(max-width:620px){
+  .meetinghouse-item{align-items:flex-start;flex-direction:column}
+  .meetinghouse-item .secondary-button{width:100%}
+  .unit-link-actions,.unit-confirm-actions{display:grid;grid-template-columns:1fr}
+  .unit-link-actions a,.unit-confirm-actions button{text-align:center;width:100%}
+}
