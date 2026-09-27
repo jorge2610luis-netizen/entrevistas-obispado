@@ -1440,3 +1440,32 @@ body.panel-menu-open{
     flex-basis:38px;
   }
 }
+
+/* v3.3.2 · Estado local de horarios */
+#scheduleLeaderHint{
+  display:block;
+  margin-top:5px;
+  color:var(--muted);
+  font-size:11px;
+}
+.schedule-no-leaders{
+  display:grid;
+  gap:5px;
+  margin:12px 0 16px;
+  padding:13px 14px;
+  border:1px solid #f1cf9d;
+  border-radius:13px;
+  background:#fff8ed;
+}
+.schedule-no-leaders strong{color:#8a5310}
+.schedule-no-leaders span{
+  color:var(--muted);
+  font-size:12px;
+}
+.schedule-no-leaders .secondary-button{
+  margin-top:5px;
+  width:100%;
+}
+#scheduleInlineAlert{
+  margin-top:10px;
+}
