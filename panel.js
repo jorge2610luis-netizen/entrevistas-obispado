@@ -48,7 +48,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.2.1";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.2.2";
 
   const leaderRole = {
     bishop:"bishop",
@@ -1363,7 +1363,7 @@
       }
 
       if (total && offset>=total) {
-        localStorage.removeItem(progressKey);
+        localStorage.setItem(progressKey,String(total));
         status.textContent="Zonas revisadas. Indexando barrios y ramas oficiales…";
       } else {
         status.textContent="Zonas parcialmente revisadas. Indexando también barrios y ramas oficiales…";
@@ -1381,10 +1381,10 @@
 
       let unitProcessed=0;
       let unitRemaining=null;
-      for (let batchIndex=0;batchIndex<25;batchIndex++) {
+      for (let batchIndex=0;batchIndex<100;batchIndex++) {
         try {
           const {data,error}=await db.functions.invoke("church-directory",{
-            body:{action:"sync-unit-batch",countryCode,limit:4}
+            body:{action:"sync-unit-batch",countryCode,limit:8}
           });
           if (error) throw error;
           if (!data) break;
