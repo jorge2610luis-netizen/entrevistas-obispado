@@ -286,9 +286,9 @@
           <form id="editUserForm" class="edit-user-form">
             <input id="editUserId" type="hidden">
             <label>Nombre<input id="editUserName" maxlength="120" required></label>
-            <label>Correo de acceso
-              <input id="editUserEmail" type="email" readonly>
-              <small>El correo no se cambia desde esta edición.</small>
+            <label>Usuario de acceso
+              <input id="editUserEmail" type="text" readonly>
+              <small id="editUserLoginHint">El usuario de acceso no se cambia desde esta edición.</small>
             </label>
             <label>Rol
               <select id="editUserRole" required>
