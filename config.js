@@ -4,5 +4,5 @@ window.APP_CONFIG = Object.freeze({
   defaultTimeZone: "America/La_Paz",
   memberAuthStorageKey: "obispado-member-auth-v1",
   staffAuthStorageKey: "obispado-staff-auth-v1",
-  version: "v3.3.5"
+  version: "v4.0.0"
 });
