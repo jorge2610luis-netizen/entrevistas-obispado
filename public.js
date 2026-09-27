@@ -36,7 +36,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.9.4";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v3.0.0";
 
 
   const PHONE_COUNTRIES = [
@@ -411,7 +411,7 @@
 
   async function fetchMemberProfile(userId) {
     return await db.from("member_profiles")
-      .select("id,phone,full_name,church_unit_name,meetinghouse_name,location_city,location_country_code,unit_assignment_method,unit_updated_at")
+      .select("id,phone,full_name,church_unit_id,church_unit_name,meetinghouse_name,location_city,location_country_code,unit_assignment_method,unit_updated_at")
       .eq("id",userId)
       .maybeSingle();
   }
@@ -487,17 +487,37 @@
   }
 
   async function loadLeaders() {
-    const {data,error} = await db.from("leaders")
-      .select("id,code,title,sort_order")
-      .eq("is_active",true)
-      .order("sort_order");
-
-    if (error) {
-      $("leaderGrid").innerHTML = '<div class="empty">No se pudieron cargar los líderes.</div>';
+    if (!state.member?.church_unit_id) {
+      state.leaders=[];
+      $("leaderGrid").innerHTML =
+        '<div class="empty">Primero confirma tu barrio o rama en “Mi barrio y capilla”.</div>';
+      $("bookingForm").classList.add("hidden");
       return;
     }
 
-    state.leaders = data || [];
+    const {data,error} = await db.rpc("member_available_leaders");
+
+    if (error) {
+      $("leaderGrid").innerHTML = '<div class="empty">No se pudieron cargar los líderes de tu barrio.</div>';
+      return;
+    }
+
+    state.leaders = (data || []).map(row=>({
+      id:row.leader_id,
+      code:row.code,
+      title:row.title,
+      sort_order:row.sort_order,
+      staff_profile_id:row.staff_profile_id,
+      staff_name:row.staff_name
+    }));
+
+    if (!state.leaders.length) {
+      $("leaderGrid").innerHTML =
+        '<div class="empty">Tu barrio todavía no tiene Obispo o Consejeros asignados en el sistema. Comunícate con Secretaría.</div>';
+      $("bookingForm").classList.add("hidden");
+      return;
+    }
+
     $("leaderGrid").innerHTML = "";
 
     state.leaders.forEach(leader => {
@@ -505,7 +525,10 @@
       button.type = "button";
       button.className = "leader-card";
       button.dataset.leaderId = leader.id;
-      button.innerHTML = '<strong>'+escapeHtml(leader.title)+'</strong><span>Ver días disponibles</span>';
+      button.innerHTML =
+        '<strong>'+escapeHtml(leader.title)+'</strong>'+
+        '<span>'+escapeHtml(leader.staff_name||"Líder asignado")+'</span>'+
+        '<small>Ver días disponibles</small>';
       button.onclick = () => selectLeader(leader,button);
       $("leaderGrid").appendChild(button);
     });
@@ -529,6 +552,8 @@
       db.from("availability")
         .select("id,start_at,end_at")
         .eq("leader_id",leader.id)
+        .eq("church_unit_id",state.member.church_unit_id)
+        .eq("assigned_profile_id",leader.staff_profile_id)
         .eq("is_active",true)
         .eq("is_booked",false)
         .gt("start_at",new Date().toISOString())
@@ -1509,7 +1534,8 @@
       p_meetinghouse_name:item?.name || null,
       p_city:item?.city || context.city || null,
       p_country_code:item?.countryCode || context.countryCode || null,
-      p_assignment_method:item?.exact ? "boundary" : item ? "nearby_meetinghouse" : "manual"
+      p_assignment_method:item?.exact ? "boundary" : item ? "nearby_meetinghouse" : "manual",
+      p_church_unit_id:selectedUnit?.id || null
     });
 
     button.disabled = false;
@@ -1520,6 +1546,7 @@
       return;
     }
 
+    state.member.church_unit_id = selectedUnit?.id || null;
     state.member.church_unit_name = unitName;
     state.member.meetinghouse_name = item?.name || null;
     state.member.location_city = item?.city || context.city || null;
@@ -1535,7 +1562,13 @@
     state.manualCatalogOpen = false;
     state.unitSelectionSource = null;
     if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Cambiar mi barrio o capilla";
-    setLocationStatus("Barrio y capilla guardados correctamente.","success");
+    await loadLeaders();
+    setLocationStatus(
+      selectedUnit?.id
+        ? "Barrio y capilla guardados. Ya puedes ver los líderes asignados a tu barrio."
+        : "Barrio guardado manualmente. Para reservar, Secretaría debe vincularlo a una unidad registrada.",
+      "success"
+    );
   }
 
   $("memberLoginForm").onsubmit = async event => {
