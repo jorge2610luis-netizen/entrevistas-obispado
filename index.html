@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#005581">
   <meta name="description" content="Solicitud y seguimiento de entrevistas con el obispado.">
   <title>Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=4.2.2">
+  <link rel="stylesheet" href="styles.css?v=4.3.0">
 </head>
 <body>
 <header id="publicTopbar" class="topbar public-topbar">
@@ -21,10 +21,10 @@
     <div>
       <strong>Entrevistas del Obispado</strong>
       <small id="unitName">Barrio / Rama</small>
-      <small id="appVersion" class="version-label">v4.2.2</small>
+      <small id="appVersion" class="version-label">v4.3.0</small>
     </div>
   </div>
-  <a class="link-button" href="panel.html?v=4.2.2">Acceso de líderes</a>
+  <a class="link-button" href="panel.html?v=4.3.0">Acceso de líderes</a>
 </header>
 
 <main class="container">
@@ -159,77 +159,27 @@
           <section class="card member-unit-card">
             <div class="card-header">
               <div>
-                <span class="eyebrow">Ubicación y unidad</span>
-                <h2>Mi barrio y capilla</h2>
-                <p>Busca desde tu casa. Primero usamos el catálogo interno de capillas y barrios; si hace falta, sincronizamos el directorio público oficial de la Iglesia para tu ciudad.</p>
+                <span class="eyebrow">Iquique</span>
+                <h2>Mi barrio</h2>
+                <p>Selecciona tu barrio o rama de Iquique. Por ahora el sistema trabaja únicamente con las unidades de Iquique.</p>
               </div>
-              <button id="useMemberLocation" class="primary-button compact-web-action" type="button">Usar mi ubicación</button>
             </div>
 
             <div id="currentMemberUnit" class="current-unit-box">
-              <strong>Unidad todavía no configurada</strong>
-              <span>Puedes buscar por GPS o encontrar tu barrio manualmente por ciudad, capilla o nombre.</span>
+              <strong>Barrio todavía no configurado</strong>
+              <span>Selecciona uno de los barrios disponibles de Iquique.</span>
             </div>
 
-            <div class="privacy-note location-privacy-note">
-              <strong>Privacidad:</strong> usamos tu ubicación precisa solo durante la búsqueda. No guardamos tus coordenadas GPS en tu perfil.
+            <div class="catalog-search-grid">
+              <label class="catalog-query-label">Barrio / Rama de Iquique
+                <select id="iquiqueUnitSelect">
+                  <option value="">Cargando barrios de Iquique…</option>
+                </select>
+              </label>
+              <button id="saveIquiqueUnit" class="primary-button" type="button">Guardar barrio</button>
             </div>
 
             <div id="memberLocationStatus" class="alert hidden"></div>
-            <div id="nearbyMeetinghouses" class="meetinghouse-list"></div>
-
-            <section id="catalogSearchCard" class="catalog-search-card hidden">
-              <div class="catalog-search-heading">
-                <div>
-                  <span class="eyebrow">Búsqueda manual</span>
-                  <h3>Buscar barrio o capilla</h3>
-                  <p>Selecciona país y ciudad para ver los barrios/ramas disponibles. También puedes filtrar por nombre, capilla o dirección.</p>
-                </div>
-              </div>
-
-              <div class="catalog-search-grid">
-                <label>País
-                  <select id="catalogCountry"></select>
-                </label>
-                <label>Ciudad
-                  <select id="catalogCity"><option value="">Selecciona una ciudad</option></select>
-                </label>
-                <label class="catalog-query-label">Barrio, capilla o dirección
-                  <input id="catalogQuery" maxlength="160" placeholder="Ej. Gómez Carreño, Zegers, Miramar...">
-                </label>
-                <button id="catalogSearchBtn" class="secondary-button" type="button">Buscar</button>
-              </div>
-
-              <div id="catalogSearchStatus" class="catalog-search-status"></div>
-              <div id="catalogResults" class="meetinghouse-list"></div>
-            </section>
-
-            <section id="unitConfirmPanel" class="unit-confirm-panel hidden">
-              <div>
-                <span class="eyebrow">Confirmar unidad</span>
-                <h3 id="selectedMeetinghouseName">Capilla seleccionada</h3>
-                <p id="selectedMeetinghouseMeta"></p>
-              </div>
-
-              <label id="memberUnitSelectWrap" class="hidden">Barrio o Rama
-                <select id="memberUnitSelect"></select>
-              </label>
-
-              <label id="memberUnitInputWrap">Barrio o Rama
-                <input id="memberUnitName" maxlength="160" placeholder="Escribe el nombre de tu barrio o rama">
-              </label>
-
-              <div class="unit-link-actions">
-                <a id="selectedGoogleMapsLink" class="secondary-button hidden" target="_blank" rel="noopener">Abrir ubicación en Google Maps</a>
-              </div>
-
-              <div class="unit-confirm-actions">
-                <button id="cancelMeetinghouseSelection" class="secondary-button" type="button">Cancelar</button>
-                <button id="saveMemberUnit" class="primary-button" type="button">Guardar barrio</button>
-              </div>
-            </section>
-
-            <button id="manualUnitBtn" class="text-action-button" type="button">Mi barrio todavía no aparece: escribirlo manualmente</button>
           </section>
         </section>
 
@@ -332,7 +282,7 @@
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=4.2.2"></script>
-<script src="public.js?v=4.2.2"></script>
+<script src="config.js?v=4.3.0"></script>
+<script src="public.js?v=4.3.0"></script>
 </body>
 </html>
