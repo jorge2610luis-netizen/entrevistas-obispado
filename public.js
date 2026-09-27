@@ -515,7 +515,8 @@
       button.className = "leader-card";
       button.dataset.leaderId = leader.id;
       button.innerHTML =
-        '<strong>'+escapeHtml(leader.title)+'</strong>'+\n        '<small>Ver días disponibles</small>';
+        '<strong>'+escapeHtml(leader.title)+'</strong>'+ 
+        '<small>Ver días disponibles</small>';
       button.onclick = () => selectLeader(leader,button);
       $("leaderGrid").appendChild(button);
     });
