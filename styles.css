@@ -6,10 +6,8 @@
   --muted:#64737c;
   --line:#dce5e9;
   --soft:#f6f8f9;
-  --surface:#ffffff;
   --success:#286241;
   --danger:#8d3131;
-  --warning:#8b6308;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--soft);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink)}
@@ -44,14 +42,14 @@ p{line-height:1.6;color:var(--muted)}
 .leader-card.active{border:2px solid var(--blue);background:var(--blue-soft)}
 .booking-form{margin-top:30px;padding-top:28px;border-top:1px solid var(--line)}
 .public-type-label{max-width:420px;margin-bottom:18px}
-.form-grid,.schedule-form{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
 label{display:grid;gap:7px;font-weight:650;font-size:14px}
 input,select{padding:12px;border:1px solid #cfdade;border-radius:10px;background:#fff;min-width:0}
 .primary-button,.secondary-button,.link-button,.actions button,.slot-row button,.mini-button{border:0;border-radius:10px;padding:11px 15px;font-weight:700;text-decoration:none}
 .primary-button,.actions .primary{color:#fff;background:var(--blue)}
 .secondary-button,.link-button,.actions button,.slot-row button,.mini-button{color:var(--blue);background:var(--blue-soft)}
 .actions .danger{color:var(--danger);background:#fdeaea}
-.primary-button:disabled,.secondary-button:disabled,.calendar-nav:disabled{opacity:.45;cursor:not-allowed}
+.primary-button:disabled,.secondary-button:disabled{opacity:.45;cursor:not-allowed}
 .privacy-note,.alert{padding:13px;margin:20px 0;border-radius:11px}
 .privacy-note{background:#f4f7f8;color:var(--muted)}
 .alert.error{background:#fdeaea;color:var(--danger)}
@@ -64,7 +62,7 @@ input,select{padding:12px;border:1px solid #cfdade;border-radius:10px;background
 .info-card p{margin-bottom:0}
 .dashboard-header{align-items:flex-start}
 .header-actions,.actions{display:flex;gap:8px;flex-wrap:wrap}
-.dashboard-grid{display:grid;grid-template-columns:.85fr 1.35fr;gap:18px}
+.dashboard-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:18px}
 .stats{grid-template-columns:repeat(4,1fr);margin-bottom:18px}
 .stat span,.stat strong{display:block}
 .stat span{color:var(--muted);font-size:13px}
@@ -80,45 +78,41 @@ input,select{padding:12px;border:1px solid #cfdade;border-radius:10px;background
 footer{text-align:center;color:var(--muted);padding:0 20px 40px}
 footer .small{font-size:12px}
 
-/* Calendario visual */
-.calendar-shell{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#fff}
-.calendar-toolbar{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:8px;background:linear-gradient(135deg,var(--blue),#0876a9);padding:14px 16px;color:#fff}
-.calendar-title{text-align:center;font-family:Georgia,serif;font-size:clamp(20px,3vw,28px);text-transform:capitalize}
-.calendar-nav{width:40px;height:40px;border:0;border-radius:50%;background:#ffffff22;color:#fff;font-size:30px;line-height:1;display:grid;place-items:center}
-.calendar-nav:hover{background:#ffffff35}
-.calendar-weekdays{display:grid;grid-template-columns:repeat(7,1fr);background:#f2f6f8;border-bottom:1px solid var(--line)}
-.calendar-weekdays span{text-align:center;padding:11px 4px;font-size:12px;font-weight:800;color:#51656f}
-.month-calendar{display:grid;grid-template-columns:repeat(7,1fr)}
-.calendar-day{min-height:96px;border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:#fff;padding:9px;text-align:left;display:flex;flex-direction:column;gap:6px;position:relative;color:var(--ink)}
-.calendar-day:nth-child(7n){border-right:0}
-.calendar-day:hover:not(:disabled){background:#f5fafc}
-.calendar-day.outside-month{background:#fafbfc;color:#a9b5bb}
-.calendar-day:disabled{cursor:default}
-.calendar-day.selected{outline:3px solid var(--blue);outline-offset:-3px;background:#eef8fb}
-.day-number{font-weight:800;font-size:15px}
-.calendar-day.has-availability{background:#f2fbf6}
-.calendar-day.has-availability .day-number{color:var(--success)}
-.day-availability{margin-top:auto;font-size:11px;font-weight:800;color:var(--success);background:#e3f5e9;padding:4px 6px;border-radius:999px;align-self:flex-start}
-.public-day-panel,.calendar-day-editor{margin-top:18px;padding:18px;border:1px solid var(--line);border-radius:16px;background:#fbfcfd}
+/* Página pública: solo días disponibles */
+.available-days-block{margin-top:18px}
+.field-label{display:block;font-size:14px;font-weight:700;margin-bottom:9px}
+.available-day-list{display:flex;gap:10px;flex-wrap:wrap}
+.available-day-button{min-width:126px;border:1px solid #bdd0d9;border-radius:14px;background:#fff;color:var(--ink);padding:12px 14px;text-align:left;display:grid;gap:2px}
+.available-day-button strong{color:var(--blue)}
+.available-day-button span{font-weight:700}
+.available-day-button small{color:var(--muted)}
+.available-day-button:hover,.available-day-button.selected{background:var(--blue);border-color:var(--blue);color:#fff}
+.available-day-button:hover strong,.available-day-button.selected strong,
+.available-day-button:hover small,.available-day-button.selected small{color:#fff}
+.public-day-panel{margin-top:18px;padding:18px;border:1px solid var(--line);border-radius:16px;background:#fbfcfd}
 .time-slot-grid{display:flex;flex-wrap:wrap;gap:9px}
 .time-slot-button{border:1px solid #b8ced8;border-radius:12px;background:#fff;color:var(--blue);font-weight:800;padding:11px 16px}
 .time-slot-button:hover,.time-slot-button.selected{background:var(--blue);color:#fff;border-color:var(--blue)}
 #selectedSlotSummary{margin:5px 0 0;color:var(--blue);font-weight:700}
-.admin-day{min-height:110px}
-.admin-day.has-schedule{background:#f8fbfd}
-.admin-day-counts{display:flex;flex-direction:column;gap:3px;margin-top:auto}
-.admin-day-counts small{font-size:10px;font-weight:800;border-radius:999px;padding:3px 6px;width:max-content;max-width:100%}
-.count-available{color:var(--success);background:#e7f6ed}
-.count-booked{color:#6e4d00;background:#fff2cf}
-.count-inactive{color:var(--muted);background:#edf1f3}
-.calendar-card-header{align-items:end}
-.calendar-leader-select{min-width:210px}
-.calendar-day-editor h3{margin:5px 0 0}
-.day-schedule-form{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end}
-.day-schedule-form .primary-button{margin:0}
+
+/* Gestión semanal */
+.week-controls{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;margin:16px 0}
+.week-strip-wrap{margin:18px 0}
+.week-day-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:7px}
+.week-day-button{border:1px solid var(--line);border-radius:13px;background:#fff;padding:11px 6px;display:grid;gap:4px;text-align:center;color:var(--ink)}
+.week-day-button strong{font-size:12px;color:var(--blue)}
+.week-day-button span{font-size:12px;font-weight:700}
+.week-day-button:hover,.week-day-button.selected{background:var(--blue);border-color:var(--blue);color:#fff}
+.week-day-button:hover strong,.week-day-button.selected strong{color:#fff}
+.weekly-schedule-form{display:grid;gap:14px}
+.schedule-time-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.schedule-summary{padding:11px 12px;border-radius:11px;background:var(--soft);border:1px dashed var(--line);color:var(--muted);font-size:12px;line-height:1.5}
+.schedule-day-group{display:grid;gap:7px;border-top:1px solid var(--line);padding-top:12px}
+.schedule-day-group:first-child{border-top:0;padding-top:0}
+.schedule-day-title{font-size:13px;color:var(--blue)}
 .slot-row{align-items:center}
 
-/* Usuarios */
+/* Autenticación y usuarios */
 .auth-loading{text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:260px}
 .loading-spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--blue);border-radius:50%;animation:authspin .8s linear infinite;margin-bottom:18px}
 .auth-loading h2{margin:0 0 8px}
@@ -154,7 +148,6 @@ footer .small{font-size:12px}
   .dashboard-grid{grid-template-columns:1fr}
   .user-create-form{grid-template-columns:1fr 1fr}
   .user-create-form .primary-button{grid-column:1/-1}
-  .day-schedule-form{grid-template-columns:1fr 1fr}
 }
 @media(max-width:760px){
   .hero{grid-template-columns:1fr}
@@ -163,23 +156,15 @@ footer .small{font-size:12px}
   .dashboard-header,.card-header,.request-top{flex-direction:column}
   .container{width:min(100% - 20px,1240px);padding-top:24px}
   .card{padding:18px}
-  .calendar-card-header{align-items:stretch}
-  .calendar-leader-select{min-width:0}
-  .calendar-day{min-height:72px;padding:6px}
-  .admin-day{min-height:84px}
-  .day-number{font-size:13px}
-  .day-availability{font-size:9px;padding:3px 4px}
-  .admin-day-counts small{font-size:8px;padding:2px 4px}
-  .user-create-form,.edit-user-form,.day-schedule-form{grid-template-columns:1fr}
+  .week-controls,.schedule-time-grid{grid-template-columns:1fr}
+  .week-day-strip{grid-template-columns:repeat(4,1fr)}
+  .user-create-form,.edit-user-form{grid-template-columns:1fr}
   .user-row{align-items:flex-start;flex-direction:column}
   .user-row-right{justify-content:flex-start}
   .edit-user-actions{justify-content:stretch}
   .edit-user-actions button{flex:1}
 }
 @media(max-width:480px){
-  .calendar-weekdays span{font-size:10px;padding:9px 2px}
-  .calendar-day{min-height:62px;padding:5px}
-  .admin-day{min-height:74px}
-  .admin-day-counts small{font-size:7px}
-  .calendar-title{font-size:19px}
+  .week-day-strip{grid-template-columns:repeat(2,1fr)}
+  .available-day-button{min-width:calc(50% - 5px);flex:1}
 }
