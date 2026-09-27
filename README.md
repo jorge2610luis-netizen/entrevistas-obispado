@@ -19,3 +19,12 @@ Aplicación para solicitar y gestionar entrevistas: formulario público, revisi�
 En GitHub: **Settings → Pages → Deploy from a branch → main → /(root) → Save**.
 
 Después crea los usuarios internos en Supabase Authentication y asígnales su rol en la tabla `profiles`.
+
+
+## v2.1.0
+
+- Nuevo rol `secretary_admin`.
+- El Secretario Administrador puede crear accesos internos desde el panel.
+- Roles disponibles: Secretario Administrador, Secretario, Obispo, Primer Consejero y Segundo Consejero.
+- Nuevo generador semanal de disponibilidad por mes, semana, días, rango horario y duración.
+- El flujo del Secretario exige marcar primero al miembro como contactado antes de derivarlo al líder.
