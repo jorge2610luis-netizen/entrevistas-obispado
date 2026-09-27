@@ -28,12 +28,15 @@
     catalogResults:[],
     unitSelectionSource:null,
     manualCatalogOpen:false,
+    currentView:"home",
+    historyReady:false,
+    exitArmedAt:0,
     booted:false
   };
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.9.3";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.9.4";
 
 
   const PHONE_COUNTRIES = [
@@ -447,7 +450,7 @@
     await Promise.all([loadMemberAppointments(),loadLeaders()]);
 
     setMemberAppMode("member");
-    showMemberView("home");
+    initializeMemberHistory();
     return true;
   }
 
@@ -675,28 +678,121 @@
     document.body.classList.add("member-menu-open");
   }
 
-  function showMemberView(view) {
-    const views = {
-      home:"memberViewHome",
-      unit:"memberViewUnit",
-      appointments:"memberViewAppointments",
-      booking:"memberViewBooking"
-    };
-    const targetId = views[view] || views.home;
+  const MEMBER_VIEWS = {
+    home:"memberViewHome",
+    unit:"memberViewUnit",
+    appointments:"memberViewAppointments",
+    booking:"memberViewBooking"
+  };
 
-    Object.values(views).forEach(id=>{
+  let backExitHintTimer = null;
+
+  function hideBackExitHint() {
+    $("backExitHint")?.classList.add("hidden");
+    if (backExitHintTimer) {
+      clearTimeout(backExitHintTimer);
+      backExitHintTimer = null;
+    }
+  }
+
+  function showBackExitHint() {
+    state.exitArmedAt = Date.now();
+    $("backExitHint")?.classList.remove("hidden");
+
+    if (backExitHintTimer) clearTimeout(backExitHintTimer);
+    backExitHintTimer = setTimeout(()=>{
+      state.exitArmedAt = 0;
+      $("backExitHint")?.classList.add("hidden");
+      backExitHintTimer = null;
+    },2000);
+  }
+
+  function renderMemberView(view,{smooth=true}={}) {
+    const target = MEMBER_VIEWS[view] ? view : "home";
+    const targetId = MEMBER_VIEWS[target];
+
+    Object.values(MEMBER_VIEWS).forEach(id=>{
       $(id)?.classList.toggle("hidden",id!==targetId);
     });
 
     document.querySelectorAll("[data-member-view]").forEach(button=>{
-      button.classList.toggle("active",button.dataset.memberView===view);
+      button.classList.toggle("active",button.dataset.memberView===target);
     });
 
-    if (view==="home") renderMemberHome();
-    if (view==="appointments") loadMemberAppointments();
+    state.currentView = target;
+
+    if (target==="home") renderMemberHome();
+    if (target==="appointments") loadMemberAppointments();
 
     closeMemberMenu();
-    window.scrollTo({top:0,behavior:"smooth"});
+    window.scrollTo({top:0,behavior:smooth?"smooth":"auto"});
+  }
+
+  function initializeMemberHistory() {
+    state.historyReady = true;
+    state.exitArmedAt = 0;
+    hideBackExitHint();
+
+    const current = history.state;
+    if (
+      current?.memberApp===true &&
+      current.entry==="view" &&
+      MEMBER_VIEWS[current.view]
+    ) {
+      renderMemberView(current.view,{smooth:false});
+      return;
+    }
+
+    history.replaceState(
+      {memberApp:true,entry:"exit-guard"},
+      "",
+      window.location.href
+    );
+    history.pushState(
+      {memberApp:true,entry:"view",view:"home"},
+      "",
+      window.location.href
+    );
+    renderMemberView("home",{smooth:false});
+  }
+
+  function resetMemberHistory() {
+    state.historyReady = false;
+    state.currentView = "home";
+    state.exitArmedAt = 0;
+    hideBackExitHint();
+
+    if (history.state?.memberApp) {
+      history.replaceState({memberApp:false},"",window.location.href);
+    }
+  }
+
+  function showMemberView(view) {
+    const target = MEMBER_VIEWS[view] ? view : "home";
+
+    if (!state.historyReady) {
+      renderMemberView(target);
+      return;
+    }
+
+    if (target==="home" && state.currentView!=="home") {
+      history.back();
+      return;
+    }
+
+    if (target!=="home") {
+      const nextState = {memberApp:true,entry:"view",view:target};
+
+      if (state.currentView==="home") {
+        history.pushState(nextState,"",window.location.href);
+      } else {
+        history.replaceState(nextState,"",window.location.href);
+      }
+    }
+
+    state.exitArmedAt = 0;
+    hideBackExitHint();
+    renderMemberView(target);
   }
 
   function setLocationStatus(message,type="info") {
@@ -1650,6 +1746,7 @@
     await db.auth.signOut({scope:"local"});
     state.session = null;
     state.member = null;
+    resetMemberHistory();
     setAuthTab("login");
     setMemberAppMode("guest");
   };
@@ -1673,6 +1770,7 @@
     if (event==="SIGNED_OUT") {
       state.session = null;
       state.member = null;
+      resetMemberHistory();
       if (state.booted) {
         setAuthTab("login");
         setMemberAppMode("guest");
@@ -1752,6 +1850,42 @@
   }
 
   $("memberBootRetry").onclick = () => boot({force:true});
+
+  window.addEventListener("popstate",event=>{
+    if (!state.member || !state.historyReady) return;
+
+    const nav = event.state;
+
+    if (
+      nav?.memberApp===true &&
+      nav.entry==="view" &&
+      MEMBER_VIEWS[nav.view]
+    ) {
+      state.exitArmedAt = 0;
+      hideBackExitHint();
+      renderMemberView(nav.view,{smooth:false});
+      return;
+    }
+
+    if (nav?.memberApp===true && nav.entry==="exit-guard") {
+      const secondBack = state.exitArmedAt && (Date.now()-state.exitArmedAt)<=2000;
+
+      if (secondBack) {
+        state.historyReady = false;
+        hideBackExitHint();
+        history.back();
+        return;
+      }
+
+      showBackExitHint();
+      history.pushState(
+        {memberApp:true,entry:"view",view:"home"},
+        "",
+        window.location.href
+      );
+      renderMemberView("home",{smooth:false});
+    }
+  });
 
   window.addEventListener("pageshow",event=>{
     if (event.persisted) boot({force:true});
