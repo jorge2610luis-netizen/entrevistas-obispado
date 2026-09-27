@@ -8,7 +8,7 @@
   <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#005581">
   <title>Panel | Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=2.9.4">
+  <link rel="stylesheet" href="styles.css?v=3.0.0">
 </head>
 <body>
 <header class="topbar panel-topbar">
@@ -17,10 +17,10 @@
     <div>
       <strong>Panel de Entrevistas</strong>
       <small id="panelUnit">Barrio / Rama</small>
-      <small id="panelVersion" class="version-label">v2.9.4</small>
+      <small id="panelVersion" class="version-label">v3.0.0</small>
     </div>
   </div>
-  <a class="link-button" href="index.html?v=2.9.4">Página pública</a>
+  <a class="link-button" href="index.html?v=3.0.0">Página pública</a>
 </header>
 
 <main class="container">
@@ -62,6 +62,85 @@
     </div>
 
     <div id="globalAlert" class="alert hidden"></div>
+
+    <section id="staffUnitContext" class="unit-context-bar hidden">
+      <label>Barrio / Rama activo
+        <select id="activeUnitSelect"></select>
+      </label>
+      <div id="activeUnitMeta" class="unit-context-meta"></div>
+    </section>
+
+
+    <section id="unitLeadershipCard" class="card unit-leadership-card hidden">
+      <div class="card-header">
+        <div>
+          <span class="eyebrow">Administración multi-barrio</span>
+          <h2>Barrios y liderazgo</h2>
+          <p>Busca un barrio o rama y asigna el Obispo, Consejeros y Secretario que administrarán únicamente esa unidad.</p>
+        </div>
+      </div>
+
+      <div class="unit-admin-search-grid">
+        <label>País<select id="adminUnitCountry"></select></label>
+        <label>Ciudad<input id="adminUnitCity" placeholder="Ej. Iquique"></label>
+        <label>Barrio, capilla o dirección<input id="adminUnitQuery" placeholder="Ej. Gómez Carreño"></label>
+        <button id="adminUnitSearchBtn" class="secondary-button" type="button">Buscar barrio</button>
+      </div>
+
+      <div id="adminUnitSearchStatus" class="catalog-search-status"></div>
+      <div id="adminUnitResults" class="unit-admin-results"></div>
+
+      <section id="adminUnitManager" class="unit-manager hidden">
+        <div class="unit-manager-heading">
+          <div>
+            <span class="eyebrow">Unidad seleccionada</span>
+            <h3 id="adminSelectedUnitName">Barrio / Rama</h3>
+            <p id="adminSelectedUnitMeta"></p>
+          </div>
+          <button id="closeAdminUnitManager" class="mini-button" type="button">Cerrar</button>
+        </div>
+
+        <div class="subheading-row">
+          <h3>Liderazgo asignado</h3>
+          <span id="adminUnitTeamCount" class="muted-text"></span>
+        </div>
+        <div id="adminUnitTeamList" class="unit-team-list"></div>
+
+        <form id="assignExistingStaffForm" class="unit-assign-form">
+          <h3>Asignar usuario existente</h3>
+          <label>Rol
+            <select id="unitAssignRole">
+              <option value="bishop">Obispo</option>
+              <option value="first_counselor">Primer Consejero</option>
+              <option value="second_counselor">Segundo Consejero</option>
+              <option value="secretary">Secretario</option>
+            </select>
+          </label>
+          <label>Usuario
+            <select id="unitAssignProfile"></select>
+          </label>
+          <button class="primary-button" type="submit">Asignar al barrio</button>
+        </form>
+
+        <form id="createUnitStaffForm" class="unit-create-staff-form">
+          <h3>Crear acceso para este barrio</h3>
+          <label>Nombre<input id="unitStaffName" maxlength="120" required placeholder="Nombre del líder"></label>
+          <label>Correo<input id="unitStaffEmail" type="email" required autocomplete="off" placeholder="correo@ejemplo.com"></label>
+          <label>Rol
+            <select id="unitStaffRole" required>
+              <option value="bishop">Obispo</option>
+              <option value="first_counselor">Primer Consejero</option>
+              <option value="second_counselor">Segundo Consejero</option>
+              <option value="secretary">Secretario</option>
+            </select>
+          </label>
+          <label>Contraseña temporal<input id="unitStaffPassword" type="password" minlength="8" required autocomplete="new-password" placeholder="Mínimo 8 caracteres"></label>
+          <button id="createUnitStaffBtn" class="primary-button" type="submit">Crear y asignar</button>
+        </form>
+
+        <div id="adminUnitResult" class="alert hidden"></div>
+      </section>
+    </section>
 
     <section id="userAdminCard" class="card user-admin-card hidden">
       <div class="card-header user-directory-header">
@@ -110,6 +189,9 @@
               <option value="secretary">Secretario</option>
               <option value="secretary_admin">Secretario Administrador</option>
             </select>
+          </label>
+          <label id="userUnitWrap">Barrio / Rama
+            <select id="userUnit"></select>
           </label>
           <label>Contraseña temporal
             <div class="password-row">
@@ -216,7 +298,7 @@
         </div>
 
         <div id="leaderSelectorWrap" class="hidden">
-          <label>Líder<select id="scheduleLeader"></select></label>
+          <label>Líder asignado<select id="scheduleLeader"></select></label>
         </div>
 
         <div class="week-controls">
@@ -259,7 +341,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=2.9.4"></script>
-<script src="panel.js?v=2.9.4"></script>
+<script src="config.js?v=3.0.0"></script>
+<script src="panel.js?v=3.0.0"></script>
 </body>
 </html>
