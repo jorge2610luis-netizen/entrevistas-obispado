@@ -2,7 +2,7 @@
   const db=window.supabase.createClient(window.APP_CONFIG.supabaseUrl,window.APP_CONFIG.supabasePublishableKey);
   const $=id=>document.getElementById(id);
   const state={user:null,profile:null,leaders:[],appointments:[],schedule:[]};
-  if($("panelVersion")) $("panelVersion").textContent=window.APP_CONFIG.version||"v2.0.2";
+  if($("panelVersion")) $("panelVersion").textContent=window.APP_CONFIG.version||"v2.0.4";
   const leaderRole={bishop:"bishop",first_counselor:"first_counselor",second_counselor:"second_counselor"};
   const titleByRole={secretary:"Panel del Secretario",bishop:"Panel del Obispo",first_counselor:"Panel del Primer Consejero",second_counselor:"Panel del Segundo Consejero"};
   const statusText={pending_secretary:"Pendiente de secretario",contacted:"Contactado",pending_leader:"Pendiente de líder",approved:"Aprobado",rejected:"Rechazado",reschedule:"Reprogramación",completed:"Completado",cancelled:"Cancelado"};
@@ -12,17 +12,44 @@
   function clearAlert(){$("globalAlert").className="alert hidden";$("globalAlert").textContent="";}
   function leaderForRole(){return state.leaders.find(x=>x.code===leaderRole[state.profile.role]);}
   function canManage(a){if(state.profile.role==="secretary")return true;return a.interview_types?.leaders?.code===leaderRole[state.profile.role];}
-  async function boot(){
-    const {data:{session}}=await db.auth.getSession();
-    if(!session){showLogin();return;} state.user=session.user;
+  function hideAuthLoading(){const v=$("authLoadingView");if(v)v.classList.add("hidden");}
+  function showLogin(){
+    hideAuthLoading();
+    $("loginView").classList.remove("hidden");
+    $("unauthorizedView").classList.add("hidden");
+    $("dashboard").classList.add("hidden");
+  }
+  function showUnauthorized(){
+    hideAuthLoading();
+    $("loginView").classList.add("hidden");
+    $("dashboard").classList.add("hidden");
+    $("unauthorizedView").classList.remove("hidden");
+  }
+  async function enterAuthenticated(session){
+    state.user=session.user;
     const {data:profile,error}=await db.from("profiles").select("role,display_name,is_active").eq("id",session.user.id).maybeSingle();
-    if(error||!profile?.role||profile.is_active===false){$("loginView").classList.add("hidden");$("unauthorizedView").classList.remove("hidden");return;}
-    state.profile=profile;$("loginView").classList.add("hidden");$("dashboard").classList.remove("hidden");
-    $("roleTitle").textContent=titleByRole[profile.role]||"Panel"; $("roleSubtitle").textContent=profile.role==="secretary"?"Revisa solicitudes y administra los horarios de todos los líderes.":"Revisa tus solicitudes y administra tus propios horarios.";
-    const {data:settings}=await db.from("settings").select("unit_name").eq("id",1).maybeSingle();if(settings?.unit_name)$("panelUnit").textContent=settings.unit_name;
+    if(error||!profile?.role||profile.is_active===false){showUnauthorized();return;}
+    state.profile=profile;
+    hideAuthLoading();
+    $("loginView").classList.add("hidden");
+    $("unauthorizedView").classList.add("hidden");
+    $("dashboard").classList.remove("hidden");
+    $("roleTitle").textContent=titleByRole[profile.role]||"Panel";
+    $("roleSubtitle").textContent=profile.role==="secretary"?"Revisa solicitudes y administra los horarios de todos los líderes.":"Revisa tus solicitudes y administra tus propios horarios.";
+    const {data:settings}=await db.from("settings").select("unit_name").eq("id",1).maybeSingle();
+    if(settings?.unit_name)$("panelUnit").textContent=settings.unit_name;
     await refresh();
   }
-  function showLogin(){$("loginView").classList.remove("hidden");$("dashboard").classList.add("hidden");}
+  async function boot(){
+    try{
+      const {data:{session},error}=await db.auth.getSession();
+      if(error||!session){showLogin();return;}
+      await enterAuthenticated(session);
+    }catch(err){
+      console.error(err);
+      showLogin();
+    }
+  }
   async function refresh(){
     clearAlert();
     const [l,a,s]=await Promise.all([
@@ -58,9 +85,32 @@
     list.innerHTML=rows.length?rows.map(x=>`<div class="slot-row"><div><strong>${e(fmt(x.start_at))}</strong><br><small>${x.is_booked?"Ocupado / solicitado":x.is_active?"Disponible":"Desactivado"}</small></div>${x.is_booked?"":`<button data-slot="${x.id}" data-active="${x.is_active?"0":"1"}">${x.is_active?"Desactivar":"Activar"}</button>`}</div>`).join(""):'<div class="empty">No hay horarios cargados.</div>';
     list.querySelectorAll("button[data-slot]").forEach(b=>b.onclick=async()=>{const {error}=await db.from("availability").update({is_active:b.dataset.active==="1"}).eq("id",b.dataset.slot);if(error)alert(error.message||"No se pudo cambiar el horario.","error");else await refresh();});
   }
-  $("loginForm").onsubmit=async ev=>{ev.preventDefault();const {error}=await db.auth.signInWithPassword({email:$("loginEmail").value.trim(),password:$("loginPassword").value});if(error){$("loginError").textContent="Correo o contraseña incorrectos."; $("loginError").classList.remove("hidden");}else location.reload();};
-  async function logout(){await db.auth.signOut();location.reload();}
+  $("loginForm").onsubmit=async ev=>{
+    ev.preventDefault();
+    const form=ev.currentTarget,button=form.querySelector('button[type="submit"]');
+    $("loginError").classList.add("hidden");
+    button.disabled=true;button.textContent="Ingresando…";
+    const {data,error}=await db.auth.signInWithPassword({email:$("loginEmail").value.trim(),password:$("loginPassword").value});
+    button.disabled=false;button.textContent="Ingresar";
+    if(error){
+      $("loginError").textContent="Correo o contraseña incorrectos.";
+      $("loginError").classList.remove("hidden");
+      return;
+    }
+    if(data?.session) await enterAuthenticated(data.session);
+  };
+  async function logout(){
+    await db.auth.signOut();
+    state.user=null;state.profile=null;
+    showLogin();
+  }
   $("logoutBtn").onclick=logout;$("unauthorizedLogout").onclick=logout;$("refreshBtn").onclick=refresh;$("statusFilter").onchange=renderAppointments;$("scheduleLeader").onchange=renderSchedule;
   $("scheduleForm").onsubmit=async ev=>{ev.preventDefault();const leader_id=selectedLeaderId(),date=$("scheduleDate").value,time=$("scheduleTime").value,duration=Number($("scheduleDuration").value||30);if(!leader_id||!date||!time)return;const start_at=new Date(`${date}T${time}:00-04:00`).toISOString(),end_at=new Date(new Date(start_at).getTime()+duration*60000).toISOString();const {error}=await db.from("availability").insert({leader_id,start_at,end_at,is_active:true});if(error)alert(error.code==="23505"?"Ese horario ya existe.":error.message||"No se pudo guardar.","error");else{$("scheduleForm").reset();alert("Horario agregado.","success");await refresh();}};
-  db.auth.onAuthStateChange((_event,session)=>{if(!session&&state.user)location.reload();});boot();
+  db.auth.onAuthStateChange((event,session)=>{
+    if(event==="SIGNED_OUT"){
+      state.user=null;state.profile=null;
+      showLogin();
+    }
+  });
+  boot();
 })();
