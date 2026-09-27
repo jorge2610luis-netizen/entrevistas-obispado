@@ -3,7 +3,7 @@
 > **Última actualización de este documento:** 2026-09-27  
 > **Repositorio:** `jorge2610luis-netizen/entrevistas-obispado`  
 > **Rama de producción:** `main`  
-> **Versión declarada actual:** `v4.1.0`  
+> **Versión declarada actual:** `v4.2.0`
 > **Sitio:** https://mientrevista.online  
 > **Panel interno:** https://mientrevista.online/panel.html  
 > **Backend:** Supabase, proyecto `gyyahvrkcjocqhhoslho`
@@ -51,10 +51,10 @@ Flujo:
 
 Al momento de escribir este documento:
 
-- `config.js`: **v4.1.0**
-- `version.json`: **v4.1.0**
-- etiquetas visibles de `index.html` / `panel.html`: **v4.1.0**
-- **ATENCIÓN:** algunas referencias de cache-busting en HTML todavía apuntan a `?v=4.0.1`.
+- `config.js`: **v4.2.0**
+- `version.json`: **v4.2.0**
+- etiquetas visibles de `index.html` / `panel.html`: **v4.2.0**
+- los query strings de assets y enlaces internos están sincronizados con `v4.2.0`.
 
 Antes de la próxima publicación conviene sincronizar TODOS los query strings de assets con la versión real.
 
@@ -995,9 +995,11 @@ Continuar Edge Function y cache progresivo.
 
 No generar barrios ficticios.
 
+Verificación de producción del 2026-09-27: `unit-index` descubrió **563** URLs oficiales de barrios/ramas para Chile. Se procesó una primera tanda de **12** unidades sin errores; continuar con `sync-unit-batch` en tandas y comprobar los conteos y errores entre tandas. Bolivia aún debe indexarse por separado. No generar barrios ficticios.
+
 ### P1 — `church_directory_unit_index`
 
-Tabla vacía y sin RLS policy.
+La tabla contiene la cola de importación de Chile y mantiene RLS activo sin policy pública. La Edge Function usa service role; el frontend no consulta la tabla directamente.
 
 Definir si:
 
