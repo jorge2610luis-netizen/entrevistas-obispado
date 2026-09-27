@@ -19,7 +19,7 @@
     nearbyMeetinghouses:[]
   };
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.5.1";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.5.2";
 
 
   const PHONE_COUNTRIES = [
@@ -261,7 +261,7 @@
   function memberAuthEmail(phone) {
     const digits = String(phone || "").replace(/\D/g,"");
     if (!digits) throw new Error("Número de teléfono inválido.");
-    return "m"+digits+"@members.example.com";
+    return "m"+digits+"@members.expressdelivery.pro";
   }
 
   function dateKeyBolivia(value) {
@@ -975,7 +975,7 @@
       if (/already|registered|exists/i.test(msg)) {
         showAuthMessage("Ese número ya tiene una cuenta. Usa “Ingresar”.");
       } else {
-        showAuthMessage(msg || "No se pudo crear la cuenta.");
+        showAuthMessage("No se pudo crear la cuenta. Revisa los datos e inténtalo nuevamente.");
       }
       return;
     }
@@ -983,7 +983,7 @@
     if (data?.session) {
       await loadMember(data.session);
     } else {
-      showAuthMessage("La cuenta fue creada, pero Supabase todavía exige confirmar el correo interno. Desactiva “Confirm email” en Authentication → Providers → Email para que teléfono + contraseña funcione sin SMS.","info");
+      showAuthMessage("La cuenta fue creada, pero falta desactivar “Confirm email” en Authentication → Providers → Email. Después podrás ingresar solo con teléfono y contraseña, sin SMS.","info");
     }
   };
 
