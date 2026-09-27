@@ -15,10 +15,11 @@
     schedule:[],
     profiles:[],
     memberProfiles:[],
+    userDirectoryMode:"leaders",
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v2.7.3";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v2.8.0";
 
   const leaderRole = {
     bishop:"bishop",
@@ -241,7 +242,8 @@
 
     if (isSecretaryStaff()) {
       const {data:memberProfiles} = await db.from("member_profiles")
-        .select("id,full_name,phone,church_unit_name,meetinghouse_name,location_city,location_country_code");
+        .select("id,full_name,phone,church_unit_name,meetinghouse_name,location_city,location_country_code,unit_assignment_method,created_at")
+        .order("created_at",{ascending:false});
       state.memberProfiles = memberProfiles || [];
     } else {
       state.memberProfiles = [];
@@ -262,7 +264,11 @@
     renderAppointments();
     renderWeekStrip();
     renderSchedule();
-    if (isSecretaryAdmin()) renderUsers();
+    if (isSecretaryAdmin()) {
+      $("leaderUsersBadge").textContent = state.profiles.filter(x=>x.role!=="unassigned").length;
+      $("memberUsersBadge").textContent = state.memberProfiles.length;
+      setUserDirectoryMode(state.userDirectoryMode);
+    }
   }
 
   function renderStats() {
@@ -377,9 +383,30 @@
     });
   }
 
+  function setUserDirectoryMode(mode) {
+    if (!isSecretaryAdmin()) return;
+    state.userDirectoryMode = mode==="members" ? "members" : "leaders";
+
+    $("leaderUsersView").classList.toggle("hidden",state.userDirectoryMode!=="leaders");
+    $("memberUsersView").classList.toggle("hidden",state.userDirectoryMode!=="members");
+
+    document.querySelectorAll("[data-directory-mode]").forEach(button=>{
+      button.classList.toggle("active",button.dataset.directoryMode===state.userDirectoryMode);
+    });
+
+    if (state.userDirectoryMode==="leaders") renderUsers();
+    else renderMemberUsers();
+  }
+
   function renderUsers() {
-    const rows = state.profiles.filter(x=>x.role!=="unassigned");
-    $("usersCount").textContent = rows.length+" usuario(s)";
+    const roleFilter = $("leaderRoleFilter")?.value || "all";
+    const allRows = state.profiles.filter(x=>x.role!=="unassigned");
+    const rows = allRows.filter(x=>roleFilter==="all" || x.role===roleFilter);
+
+    $("leaderUsersBadge").textContent = allRows.length;
+    $("memberUsersBadge").textContent = state.memberProfiles.length;
+    $("usersCount").textContent = rows.length+" de "+allRows.length+" líder(es) / secretario(s)";
+
     $("usersList").innerHTML = rows.length ? rows.map(x=>
       '<div class="user-row">'+
         '<div><strong>'+e(x.display_name||x.email||"Usuario")+'</strong><small>'+e(x.email||"Sin correo")+'</small></div>'+
@@ -389,11 +416,51 @@
           '<button class="edit-user-button" type="button" data-edit-user="'+e(x.id)+'">Editar</button>'+
         '</div>'+
       '</div>'
-    ).join("") : '<div class="empty">No hay usuarios configurados.</div>';
+    ).join("") : '<div class="empty">No hay líderes con este filtro.</div>';
 
     $("usersList").querySelectorAll("[data-edit-user]").forEach(button=>{
       button.onclick = () => openUserEditor(button.dataset.editUser);
     });
+  }
+
+  function renderMemberUsers() {
+    const query = ($("memberUserFilter")?.value || "").trim().toLowerCase();
+    const allRows = state.memberProfiles || [];
+
+    const rows = allRows.filter(member=>{
+      if (!query) return true;
+      const haystack = [
+        member.full_name,
+        member.phone,
+        member.church_unit_name,
+        member.meetinghouse_name,
+        member.location_city,
+        member.location_country_code
+      ].filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(query);
+    });
+
+    $("leaderUsersBadge").textContent = state.profiles.filter(x=>x.role!=="unassigned").length;
+    $("memberUsersBadge").textContent = allRows.length;
+    $("memberUsersCount").textContent = rows.length+" de "+allRows.length+" miembro(s)";
+
+    $("memberUsersList").innerHTML = rows.length ? rows.map(member=>{
+      const unit = member.church_unit_name || "Barrio/Rama sin configurar";
+      const chapel = member.meetinghouse_name ? " · "+member.meetinghouse_name : "";
+      const place = [member.location_city,member.location_country_code].filter(Boolean).join(" · ");
+
+      return '<div class="user-row member-user-row">'+
+        '<div class="member-user-main">'+
+          '<strong>'+e(member.full_name||"Miembro")+'</strong>'+
+          '<small>'+e(member.phone||"Sin teléfono")+'</small>'+
+          '<span class="member-unit-line"><strong>'+e(unit)+'</strong>'+e(chapel)+'</span>'+
+          (place?'<span class="member-location-line">'+e(place)+'</span>':'')+
+        '</div>'+
+        '<div class="user-row-right">'+
+          '<span class="role-pill member-role-pill">Miembro</span>'+
+        '</div>'+
+      '</div>';
+    }).join("") : '<div class="empty">No hay miembros que coincidan con la búsqueda.</div>';
   }
 
   function openUserEditor(userId) {
@@ -780,6 +847,11 @@
   $("logoutBtn").onclick = logout;
   $("unauthorizedLogout").onclick = logout;
   $("refreshBtn").onclick = refresh;
+  $("showLeaderUsers").onclick = () => setUserDirectoryMode("leaders");
+  $("showMemberUsers").onclick = () => setUserDirectoryMode("members");
+  $("leaderRoleFilter").onchange = renderUsers;
+  $("memberUserFilter").oninput = renderMemberUsers;
+
   $("statusFilter").onchange = renderAppointments;
 
   $("scheduleLeader").onchange = () => {
