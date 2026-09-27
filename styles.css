@@ -775,3 +775,64 @@ footer .small{font-size:12px}
   color:var(--blue);
   font-weight:800;
 }
+
+/* v2.9.3 · Prefijo y teléfono en una fila */
+.phone-input-wrap.multiphone{
+  display:grid;
+  grid-template-columns:minmax(128px,36%) minmax(0,1fr);
+  align-items:stretch;
+}
+.phone-input-wrap.multiphone .country-select{
+  width:100%;
+  max-width:none;
+  min-width:0;
+  border:0;
+  border-right:1px solid var(--line);
+  border-bottom:0;
+  background:#f3f7f9;
+  padding:12px 10px;
+  font-weight:800;
+  color:var(--blue-dark);
+}
+.phone-input-wrap.multiphone input{
+  width:100%;
+  min-width:0;
+  border:0;
+  padding:12px 14px;
+  background:#fff;
+}
+.phone-input-wrap.multiphone:focus-within{
+  border-color:#84aec1;
+  box-shadow:0 0 0 3px #dceef5;
+}
+
+@media(max-width:620px){
+  .phone-input-wrap.multiphone{
+    display:grid;
+    grid-template-columns:minmax(118px,38%) minmax(0,1fr);
+  }
+  .phone-input-wrap.multiphone .country-select{
+    width:100%;
+    max-width:none;
+    border-right:1px solid var(--line);
+    border-bottom:0;
+    padding:12px 8px;
+    font-size:14px;
+  }
+  .phone-input-wrap.multiphone input{
+    min-width:0;
+    padding:12px 10px;
+    font-size:16px;
+  }
+}
+
+@media(max-width:380px){
+  .phone-input-wrap.multiphone{
+    grid-template-columns:112px minmax(0,1fr);
+  }
+  .phone-input-wrap.multiphone .country-select{
+    font-size:13px;
+    padding-left:7px;
+    padding-right:5px;
+  }
+}
