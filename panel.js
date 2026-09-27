@@ -152,12 +152,21 @@
   const LEADER_ROLES = new Set(["bishop","first_counselor","second_counselor"]);
 
   const UNIT_COUNTRIES = [
-    ["CL","Chile"],["BO","Bolivia"],["AR","Argentina"],["PE","Perú"],["BR","Brasil"],
+    ["BO","Bolivia"],["CL","Chile"],["AR","Argentina"],["PE","Perú"],["BR","Brasil"],
     ["PY","Paraguay"],["UY","Uruguay"],["CO","Colombia"],["EC","Ecuador"],["VE","Venezuela"],
-    ["MX","México"],["US","Estados Unidos"],["CA","Canadá"],["ES","España"],["GB","Reino Unido"],
-    ["FR","Francia"],["IT","Italia"],["DE","Alemania"],["AU","Australia"],["NZ","Nueva Zelanda"]
+    ["MX","México"],["PA","Panamá"],["CR","Costa Rica"],["GT","Guatemala"],["SV","El Salvador"],
+    ["HN","Honduras"],["NI","Nicaragua"],["DO","Rep. Dominicana"],["PR","Puerto Rico"],["CU","Cuba"],
+    ["US","Estados Unidos"],["CA","Canadá"],["ES","España"],["PT","Portugal"],["FR","Francia"],
+    ["IT","Italia"],["DE","Alemania"],["GB","Reino Unido"],["IE","Irlanda"],["NL","Países Bajos"],
+    ["BE","Bélgica"],["CH","Suiza"],["AT","Austria"],["SE","Suecia"],["NO","Noruega"],
+    ["DK","Dinamarca"],["FI","Finlandia"],["PL","Polonia"],["CZ","Chequia"],["RO","Rumania"],
+    ["GR","Grecia"],["TR","Turquía"],["RU","Rusia"],["UA","Ucrania"],["IL","Israel"],
+    ["AE","Emiratos Árabes"],["SA","Arabia Saudita"],["IN","India"],["PK","Pakistán"],["BD","Bangladés"],
+    ["CN","China"],["JP","Japón"],["KR","Corea del Sur"],["PH","Filipinas"],["ID","Indonesia"],
+    ["TH","Tailandia"],["VN","Vietnam"],["MY","Malasia"],["SG","Singapur"],["AU","Australia"],
+    ["NZ","Nueva Zelanda"],["ZA","Sudáfrica"],["EG","Egipto"],["MA","Marruecos"],["NG","Nigeria"],
+    ["KE","Kenia"],["GH","Ghana"]
   ];
-
   function leaderForRoleCode(role) {
     return state.leaders.find(x=>x.code===role);
   }
