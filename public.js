@@ -22,7 +22,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.6.2";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.6.3";
 
 
   const PHONE_COUNTRIES = [
@@ -854,11 +854,11 @@
     });
   }
 
-  async function osmMeetinghousesNear(lat,lon,radius=15000) {
+  async function osmMeetinghousesNear(lat,lon,radius=30000) {
     const nameRegex = "Jesucristo|Jesus Christ|Latter[- ]?day|Últimos Días|Ultimos Dias|Santos de los Últimos|Santos de los Ultimos|Iglesia SUD|LDS";
 
     const query =
-      '[out:json][timeout:18];('+
+      '[out:json][timeout:12];('+
       'nwr(around:'+radius+','+lat+','+lon+')["brand:wikidata"="Q42504"];'+
       'nwr(around:'+radius+','+lat+','+lon+')["operator:wikidata"="Q42504"];'+
       'nwr(around:'+radius+','+lat+','+lon+')["name"~"'+nameRegex+'",i];'+
@@ -873,20 +873,21 @@
       "https://overpass.kumi.systems/api/interpreter?data="
     ];
 
-    let lastError = null;
+    const attempts = endpoints.map(async base=>{
+      const data = await fetchJsonWithTimeout(base+encodeURIComponent(query),9000);
+      return (data.elements||[]).map(item=>meetinghouseFromOsmElement(item,lat,lon));
+    });
 
-    for (const base of endpoints) {
-      try {
-        const data = await fetchJsonWithTimeout(base+encodeURIComponent(query),15000);
-        return mergeMeetinghouses(
-          (data.elements||[]).map(item=>meetinghouseFromOsmElement(item,lat,lon))
-        );
-      } catch (error) {
-        lastError = error;
-      }
+    const settled = await Promise.allSettled(attempts);
+    const rows = settled
+      .filter(result=>result.status==="fulfilled")
+      .flatMap(result=>result.value||[]);
+
+    if (!rows.length && settled.every(result=>result.status==="rejected")) {
+      throw new Error("No fue posible consultar centros de reuniones cercanos.");
     }
 
-    throw lastError || new Error("No fue posible consultar centros de reuniones cercanos.");
+    return mergeMeetinghouses(rows);
   }
 
   async function nominatimMeetinghousesNear(lat,lon,context={},radiusKm=120) {
@@ -956,24 +957,24 @@
   }
 
   async function progressiveMeetinghouseSearch(lat,lon,context={}) {
-    const radii = [15000,30000,60000,120000];
-    let found = [];
-    let searchedRadiusKm = 0;
+    const firstStage = await Promise.allSettled([
+      osmMeetinghousesNear(lat,lon,30000),
+      nominatimMeetinghousesNear(lat,lon,context,120)
+    ]);
 
-    for (const radius of radii) {
-      searchedRadiusKm = radius/1000;
-      try {
-        const rows = await osmMeetinghousesNear(lat,lon,radius);
-        found = mergeMeetinghouses([...found,...rows]);
-      } catch (_) {}
+    let found = mergeMeetinghouses(
+      firstStage
+        .filter(result=>result.status==="fulfilled")
+        .flatMap(result=>result.value||[])
+    );
 
-      if (found.length>=5) break;
-    }
+    let searchedRadiusKm = 120;
 
     if (found.length<3) {
-      const fallback = await nominatimMeetinghousesNear(lat,lon,context,120);
-      found = mergeMeetinghouses([...found,...fallback]);
-      searchedRadiusKm = Math.max(searchedRadiusKm,120);
+      try {
+        const expanded = await osmMeetinghousesNear(lat,lon,120000);
+        found = mergeMeetinghouses([...found,...expanded]);
+      } catch (_) {}
     }
 
     return {
@@ -1017,11 +1018,15 @@
         .sort((a,b)=>a.distanceKm-b.distanceKm)
         .slice(0,10);
 
-      const search = await progressiveMeetinghouseSearch(
-        position.lat,
-        position.lon,
-        context
+      setLocationStatus(
+        "Ubicación lista. Buscando capillas cercanas y ampliando el rango si hace falta…",
+        "info"
       );
+
+      const search = await Promise.race([
+        progressiveMeetinghouseSearch(position.lat,position.lon,context),
+        new Promise(resolve=>setTimeout(()=>resolve({rows:[],searchedRadiusKm:120,timedOut:true}),22000))
+      ]);
 
       state.nearbyMeetinghouses = mergeMeetinghouses([
         ...exactConfigured,
@@ -1049,7 +1054,9 @@
         );
       } else {
         setLocationStatus(
-          "Buscamos centros de reuniones en un radio de hasta 120 km y no encontramos resultados automáticos. Puedes usar el localizador oficial o ingresar tu barrio manualmente.",
+          search.timedOut
+            ? "La búsqueda automática tardó demasiado. Puedes reintentar, usar el localizador oficial o ingresar tu barrio manualmente."
+            : "Buscamos centros de reuniones en un radio de hasta 120 km y no encontramos resultados automáticos. Puedes usar el localizador oficial o ingresar tu barrio manualmente.",
           "info"
         );
       }
