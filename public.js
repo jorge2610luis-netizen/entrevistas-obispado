@@ -16,8 +16,40 @@
     selectedSlot:null
   };
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.4.0";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.4.1";
 
+
+  const PHONE_COUNTRIES = [
+    ["BO","+591","Bolivia"],["CL","+56","Chile"],["AR","+54","Argentina"],["PE","+51","Perú"],
+    ["BR","+55","Brasil"],["PY","+595","Paraguay"],["UY","+598","Uruguay"],["CO","+57","Colombia"],
+    ["EC","+593","Ecuador"],["VE","+58","Venezuela"],["MX","+52","México"],["PA","+507","Panamá"],
+    ["CR","+506","Costa Rica"],["GT","+502","Guatemala"],["SV","+503","El Salvador"],["HN","+504","Honduras"],
+    ["NI","+505","Nicaragua"],["DO","+1","Rep. Dominicana"],["PR","+1","Puerto Rico"],["CU","+53","Cuba"],
+    ["US","+1","Estados Unidos"],["CA","+1","Canadá"],["ES","+34","España"],["PT","+351","Portugal"],
+    ["FR","+33","Francia"],["IT","+39","Italia"],["DE","+49","Alemania"],["GB","+44","Reino Unido"],
+    ["IE","+353","Irlanda"],["NL","+31","Países Bajos"],["BE","+32","Bélgica"],["CH","+41","Suiza"],
+    ["AT","+43","Austria"],["SE","+46","Suecia"],["NO","+47","Noruega"],["DK","+45","Dinamarca"],
+    ["FI","+358","Finlandia"],["PL","+48","Polonia"],["CZ","+420","Chequia"],["RO","+40","Rumania"],
+    ["GR","+30","Grecia"],["TR","+90","Turquía"],["RU","+7","Rusia"],["UA","+380","Ucrania"],
+    ["IL","+972","Israel"],["AE","+971","Emiratos Árabes"],["SA","+966","Arabia Saudita"],["IN","+91","India"],
+    ["PK","+92","Pakistán"],["BD","+880","Bangladés"],["CN","+86","China"],["JP","+81","Japón"],
+    ["KR","+82","Corea del Sur"],["PH","+63","Filipinas"],["ID","+62","Indonesia"],["TH","+66","Tailandia"],
+    ["VN","+84","Vietnam"],["MY","+60","Malasia"],["SG","+65","Singapur"],["AU","+61","Australia"],
+    ["NZ","+64","Nueva Zelanda"],["ZA","+27","Sudáfrica"],["EG","+20","Egipto"],["MA","+212","Marruecos"],
+    ["NG","+234","Nigeria"],["KE","+254","Kenia"],["GH","+233","Ghana"]
+  ];
+
+  function populateCountrySelect(selectId) {
+    const select = $(selectId);
+    if (!select) return;
+    select.innerHTML = PHONE_COUNTRIES.map(([iso,code,name]) =>
+      '<option value="'+code+'" '+(iso==="BO"?'selected':'')+'>'+name+' ('+code+')</option>'
+    ).join("");
+  }
+
+  function selectedCountryCode(selectId) {
+    return $(selectId)?.value || "+591";
+  }
   const statusText = {
     pending_secretary:"Pendiente de revisión del Secretario",
     contacted:"Contactado por el Secretario",
@@ -46,18 +78,30 @@
     }[c]));
   }
 
-  function normalizePhone(value) {
-    let digits = String(value || "").replace(/\D/g,"");
-    if (digits.startsWith("591")) digits = digits.slice(3);
-    digits = digits.replace(/^0+/,"");
-    if (digits.length !== 8) throw new Error("Ingresa un número boliviano válido de 8 dígitos.");
-    return "+591"+digits;
+  function normalizePhone(value,countryCode) {
+    const raw = String(value || "").trim();
+    let digits;
+
+    if (raw.startsWith("+")) {
+      digits = raw.replace(/\D/g,"");
+    } else {
+      const prefix = String(countryCode || "").replace(/\D/g,"");
+      const local = raw.replace(/\D/g,"").replace(/^0+/,"");
+      digits = prefix + local;
+    }
+
+    if (digits.length < 8 || digits.length > 15) {
+      throw new Error("Ingresa un número válido. Puedes usar el formato internacional, por ejemplo +56912345678.");
+    }
+
+    return "+"+digits;
   }
 
   function prettyPhone(phone) {
-    const digits = String(phone||"").replace(/\D/g,"");
-    const local = digits.startsWith("591") ? digits.slice(3) : digits;
-    return "+591 "+local;
+    const raw = String(phone||"").replace(/\s+/g,"");
+    if (!raw.startsWith("+")) return raw;
+    const digits = raw.slice(1);
+    return "+"+digits.replace(/(\d{1,3})(?=\d)/,"$1 ");
   }
 
   function dateKeyBolivia(value) {
@@ -320,7 +364,7 @@
 
     let phone;
     try {
-      phone = normalizePhone($("memberLoginPhone").value);
+      phone = normalizePhone($("memberLoginPhone").value,selectedCountryCode("memberLoginCountry"));
     } catch (error) {
       showAuthMessage(error.message);
       return;
@@ -361,7 +405,7 @@
 
     let phone;
     try {
-      phone = normalizePhone($("memberRegisterPhone").value);
+      phone = normalizePhone($("memberRegisterPhone").value,selectedCountryCode("memberRegisterCountry"));
     } catch (error) {
       showAuthMessage(error.message);
       return;
@@ -484,6 +528,8 @@
   });
 
   async function boot() {
+    populateCountrySelect("memberLoginCountry");
+    populateCountrySelect("memberRegisterCountry");
     await loadSettings();
     const {data:{session}} = await db.auth.getSession();
     if (session) await loadMember(session);
