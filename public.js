@@ -33,7 +33,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.9.2";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.9.3";
 
 
   const PHONE_COUNTRIES = [
@@ -173,7 +173,7 @@
     if (!select) return;
 
     select.innerHTML = PHONE_COUNTRIES.map(([iso,code,name]) =>
-      '<option value="'+code+'" data-iso="'+iso+'" '+(iso===detectedIso?'selected':'')+'>'+name+' ('+code+')</option>'
+      '<option value="'+code+'" data-iso="'+iso+'" '+(iso===detectedIso?'selected':'')+'>'+code+' · '+name+'</option>'
     ).join("");
 
     const target = [...select.options].find(option=>option.dataset.iso===detectedIso);
