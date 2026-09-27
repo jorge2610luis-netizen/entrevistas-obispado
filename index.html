@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#005581">
   <meta name="description" content="Solicitud y seguimiento de entrevistas con el obispado.">
   <title>Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=2.6.1">
+  <link rel="stylesheet" href="styles.css?v=2.6.2">
 </head>
 <body>
 <header class="topbar">
@@ -18,14 +18,20 @@
     <div>
       <strong>Entrevistas del Obispado</strong>
       <small id="unitName">Barrio / Rama</small>
-      <small id="appVersion" class="version-label">v2.6.1</small>
+      <small id="appVersion" class="version-label">v2.6.2</small>
     </div>
   </div>
-  <a class="link-button" href="panel.html?v=2.6.1">Acceso de líderes</a>
+  <a class="link-button" href="panel.html?v=2.6.2">Acceso de líderes</a>
 </header>
 
 <main class="container">
-  <section id="publicHero" class="hero">
+  <section id="memberBootLoading" class="card member-boot-loading">
+    <div id="memberBootSpinner" class="loading-spinner" aria-hidden="true"></div>
+    <h2>Cargando tu cuenta…</h2>
+    <p id="memberBootMessage">Comprobando tu sesión de forma segura.</p>
+    <button id="memberBootRetry" class="secondary-button hidden" type="button">Reintentar</button>
+  </section>
+  <section id="publicHero" class="hero hidden">
     <div>
       <span class="eyebrow">Agenda de entrevistas</span>
       <h1>Reserva y sigue tu entrevista</h1>
@@ -38,7 +44,7 @@
     </div>
   </section>
 
-  <section id="memberAuthCard" class="card member-auth-card">
+  <section id="memberAuthCard" class="card member-auth-card hidden">
     <div class="member-auth-heading">
       <div>
         <span class="eyebrow">Cuenta de miembro</span>
@@ -286,7 +292,7 @@
     </div>
   </section>
 
-  <section id="publicInfoGrid" class="info-grid">
+  <section id="publicInfoGrid" class="info-grid hidden">
     <article class="info-card"><span>1</span><h3>Crea tu cuenta</h3><p>Usa tu teléfono como usuario y define una contraseña.</p></article>
     <article class="info-card"><span>2</span><h3>Reserva</h3><p>Elige únicamente entre los días y horas disponibles.</p></article>
     <article class="info-card"><span>3</span><h3>Haz seguimiento</h3><p>Revisa el estado de cada solicitud desde “Mis entrevistas”.</p></article>
@@ -299,7 +305,7 @@
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=2.6.1"></script>
-<script src="public.js?v=2.6.1"></script>
+<script src="config.js?v=2.6.2"></script>
+<script src="public.js?v=2.6.2"></script>
 </body>
 </html>
