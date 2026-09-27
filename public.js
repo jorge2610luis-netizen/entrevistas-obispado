@@ -16,10 +16,13 @@
     selectedSlot:null,
     locationContext:null,
     selectedMeetinghouse:null,
-    nearbyMeetinghouses:[]
+    nearbyMeetinghouses:[],
+    booted:false
   };
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.6.1";
+  let bootPromise = null;
+
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.6.2";
 
 
   const PHONE_COUNTRIES = [
@@ -340,31 +343,79 @@
     if (data?.unit_name) $("unitName").textContent = data.unit_name;
   }
 
-  async function loadMember(session) {
-    state.session = session;
-    const {data,error} = await db.from("member_profiles")
-      .select("id,phone,full_name,church_unit_name,meetinghouse_name,location_city,location_country_code,unit_assignment_method,unit_updated_at")
-      .eq("id",session.user.id)
-      .maybeSingle();
+  function setMemberAppMode(mode) {
+    const isLoading = mode==="loading";
+    const isGuest = mode==="guest";
+    const isMember = mode==="member";
 
-    if (error || !data) {
-      $("memberAuthCard").classList.remove("hidden");
-      $("memberArea").classList.add("hidden");
+    $("memberBootLoading")?.classList.toggle("hidden",!isLoading);
+    $("publicHero")?.classList.toggle("hidden",!isGuest);
+    $("memberAuthCard")?.classList.toggle("hidden",!isGuest);
+    $("publicInfoGrid")?.classList.toggle("hidden",!isGuest);
+    $("memberArea")?.classList.toggle("hidden",!isMember);
+
+    if (!isMember) closeMemberMenu();
+  }
+
+  function showBootLoading(message="Comprobando tu sesión de forma segura.") {
+    setMemberAppMode("loading");
+    if ($("memberBootMessage")) $("memberBootMessage").textContent = message;
+    $("memberBootSpinner")?.classList.remove("hidden");
+    $("memberBootRetry")?.classList.add("hidden");
+  }
+
+  function showBootError(message) {
+    setMemberAppMode("loading");
+    if ($("memberBootMessage")) $("memberBootMessage").textContent = message;
+    $("memberBootSpinner")?.classList.add("hidden");
+    $("memberBootRetry")?.classList.remove("hidden");
+  }
+
+  const wait = ms => new Promise(resolve=>setTimeout(resolve,ms));
+
+  async function fetchMemberProfile(userId) {
+    return await db.from("member_profiles")
+      .select("id,phone,full_name,church_unit_name,meetinghouse_name,location_city,location_country_code,unit_assignment_method,unit_updated_at")
+      .eq("id",userId)
+      .maybeSingle();
+  }
+
+  async function loadMember(session,{retry=true}={}) {
+    state.session = session;
+    showBootLoading("Cargando tu cuenta de miembro…");
+
+    let result = await fetchMemberProfile(session.user.id);
+
+    if (result.error && retry) {
+      await wait(450);
+      result = await fetchMemberProfile(session.user.id);
+    }
+
+    const {data,error} = result;
+
+    if (error) {
+      console.error("member profile load failed",error);
+      showBootError("No pudimos cargar tu cuenta en este momento. Tu sesión sigue protegida; reintenta la conexión.");
+      return false;
+    }
+
+    if (!data) {
+      state.member = null;
+      setMemberAppMode("guest");
       showAuthMessage("Esta sesión no corresponde a una cuenta de miembro. Cierra sesión del panel interno antes de entrar como miembro.","error");
-      return;
+      return false;
     }
 
     state.member = data;
-    $("memberAuthCard").classList.add("hidden");
-    $("memberArea").classList.remove("hidden");
-    $("publicHero")?.classList.add("hidden");
-    $("publicInfoGrid")?.classList.add("hidden");
     $("memberAccountName").textContent = data.full_name;
     $("memberAccountPhone").textContent = prettyPhone(data.phone);
     renderMemberUnit();
 
     await Promise.all([loadMemberAppointments(),loadLeaders()]);
+
+    setMemberAppMode("member");
     showMemberView("home");
+    return true;
   }
 
   async function loadMemberAppointments() {
@@ -1281,15 +1332,12 @@
   $("memberRefreshAppointments").onclick = loadMemberAppointments;
 
   $("memberLogoutBtn").onclick = async () => {
+    showBootLoading("Cerrando sesión…");
     await db.auth.signOut();
     state.session = null;
     state.member = null;
-    $("memberArea").classList.add("hidden");
-    $("memberAuthCard").classList.remove("hidden");
-    $("publicHero")?.classList.remove("hidden");
-    $("publicInfoGrid")?.classList.remove("hidden");
-    closeMemberMenu();
     setAuthTab("login");
+    setMemberAppMode("guest");
   };
 
   $("newRequestBtn").onclick = () => {
@@ -1309,29 +1357,94 @@
     if (event==="SIGNED_OUT") {
       state.session = null;
       state.member = null;
-      $("memberArea").classList.add("hidden");
-      $("memberAuthCard").classList.remove("hidden");
-      $("publicHero")?.classList.remove("hidden");
-      $("publicInfoGrid")?.classList.remove("hidden");
-      closeMemberMenu();
+      if (state.booted) {
+        setAuthTab("login");
+        setMemberAppMode("guest");
+      }
     }
   });
 
-  async function boot() {
-    const detectedIso = detectCountryIso();
-    populateCountrySelect("memberLoginCountry",detectedIso);
-    populateCountrySelect("memberRegisterCountry",detectedIso);
-    bindCountrySelectors();
-    await loadSettings();
-    const {data:{session}} = await db.auth.getSession();
-    if (session) await loadMember(session);
-    else {
-      $("memberAuthCard").classList.remove("hidden");
-      $("memberArea").classList.add("hidden");
-      $("publicHero")?.classList.remove("hidden");
-      $("publicInfoGrid")?.classList.remove("hidden");
+  async function boot({force=false}={}) {
+    if (bootPromise && !force) return bootPromise;
+
+    bootPromise = (async ()=>{
+      showBootLoading();
+
+      try {
+        const detectedIso = detectCountryIso();
+        populateCountrySelect("memberLoginCountry",detectedIso);
+        populateCountrySelect("memberRegisterCountry",detectedIso);
+        bindCountrySelectors();
+
+        const [sessionResult] = await Promise.all([
+          db.auth.getSession(),
+          loadSettings()
+        ]);
+
+        if (sessionResult.error) {
+          throw sessionResult.error;
+        }
+
+        const session = sessionResult.data?.session || null;
+
+        if (session) {
+          await loadMember(session);
+        } else {
+          state.session = null;
+          state.member = null;
+          setMemberAppMode("guest");
+        }
+
+        state.booted = true;
+      } catch (error) {
+        console.error("member app boot failed",error);
+        showBootError("No pudimos comprobar tu sesión. Revisa la conexión y vuelve a intentarlo.");
+      }
+    })();
+
+    try {
+      await bootPromise;
+    } finally {
+      bootPromise = null;
     }
   }
+
+  async function revalidateSession() {
+    try {
+      const {data:{session},error} = await db.auth.getSession();
+      if (error) return;
+
+      if (!session) {
+        if (state.session || state.member) {
+          state.session = null;
+          state.member = null;
+          setAuthTab("login");
+          setMemberAppMode("guest");
+        }
+        return;
+      }
+
+      if (!state.session || state.session.user.id!==session.user.id || !state.member) {
+        await loadMember(session);
+      } else {
+        state.session = session;
+      }
+    } catch (error) {
+      console.warn("session revalidation failed",error);
+    }
+  }
+
+  $("memberBootRetry").onclick = () => boot({force:true});
+
+  window.addEventListener("pageshow",event=>{
+    if (event.persisted) boot({force:true});
+  });
+
+  document.addEventListener("visibilitychange",()=>{
+    if (document.visibilityState==="visible" && state.booted) {
+      revalidateSession();
+    }
+  });
 
   boot();
 })();
