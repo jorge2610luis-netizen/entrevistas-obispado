@@ -42,3 +42,19 @@
   .user-row{align-items:flex-start;flex-direction:column}
   .user-row-right{justify-content:flex-start}
 }
+
+.edit-user-button{border:0;border-radius:9px;padding:7px 10px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer}
+.user-edit-panel{margin-top:18px;padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--soft)}
+.edit-panel-header{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:14px}
+.edit-panel-header h3{margin:5px 0 0}
+.edit-user-form{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end}
+.edit-user-form label small{color:var(--muted);font-weight:500;line-height:1.35}
+.active-toggle{display:flex!important;flex-direction:row!important;align-items:center;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.active-toggle input{width:auto}
+.edit-user-actions{display:flex;gap:8px;grid-column:1/-1;justify-content:flex-end}
+.edit-user-actions .primary-button{margin-top:0}
+@media(max-width:760px){
+  .edit-user-form{grid-template-columns:1fr}
+  .edit-user-actions{justify-content:stretch}
+  .edit-user-actions button{flex:1}
+}
