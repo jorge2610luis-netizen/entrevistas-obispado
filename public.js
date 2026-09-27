@@ -19,7 +19,7 @@
     nearbyMeetinghouses:[]
   };
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.5.3";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.6.0";
 
 
   const PHONE_COUNTRIES = [
@@ -357,11 +357,14 @@
     state.member = data;
     $("memberAuthCard").classList.add("hidden");
     $("memberArea").classList.remove("hidden");
+    $("publicHero")?.classList.add("hidden");
+    $("publicInfoGrid")?.classList.add("hidden");
     $("memberAccountName").textContent = data.full_name;
-    $("memberAccountPhone").textContent = "Usuario: "+prettyPhone(data.phone);
+    $("memberAccountPhone").textContent = prettyPhone(data.phone);
     renderMemberUnit();
 
     await Promise.all([loadMemberAppointments(),loadLeaders()]);
+    showMemberView("home");
   }
 
   async function loadMemberAppointments() {
@@ -540,6 +543,65 @@
         '<span>Puedes buscar una capilla cercana o confirmar tu barrio manualmente.</span>';
       box.classList.remove("configured");
     }
+  }
+
+  function renderMemberHome() {
+    const el = $("memberHomeUnit");
+    if (!el || !state.member) return;
+
+    if (state.member.church_unit_name) {
+      el.innerHTML =
+        '<span class="member-home-status-label">Tu unidad</span>'+
+        '<strong>'+escapeHtml(state.member.church_unit_name)+'</strong>'+
+        (state.member.meetinghouse_name
+          ? '<small>'+escapeHtml(state.member.meetinghouse_name)+'</small>'
+          : '');
+    } else {
+      el.innerHTML =
+        '<span class="member-home-status-label">Tu unidad</span>'+
+        '<strong>Sin configurar</strong>'+
+        '<small>Usa “Mi barrio y capilla” para buscarla.</small>';
+    }
+  }
+
+  function closeMemberMenu() {
+    $("memberSidebar")?.classList.remove("open");
+    $("memberSidebarBackdrop")?.classList.remove("open");
+    const toggle = $("memberMenuToggle");
+    if (toggle) toggle.setAttribute("aria-expanded","false");
+    document.body.classList.remove("member-menu-open");
+  }
+
+  function openMemberMenu() {
+    $("memberSidebar")?.classList.add("open");
+    $("memberSidebarBackdrop")?.classList.add("open");
+    const toggle = $("memberMenuToggle");
+    if (toggle) toggle.setAttribute("aria-expanded","true");
+    document.body.classList.add("member-menu-open");
+  }
+
+  function showMemberView(view) {
+    const views = {
+      home:"memberViewHome",
+      unit:"memberViewUnit",
+      appointments:"memberViewAppointments",
+      booking:"memberViewBooking"
+    };
+    const targetId = views[view] || views.home;
+
+    Object.values(views).forEach(id=>{
+      $(id)?.classList.toggle("hidden",id!==targetId);
+    });
+
+    document.querySelectorAll("[data-member-view]").forEach(button=>{
+      button.classList.toggle("active",button.dataset.memberView===view);
+    });
+
+    if (view==="home") renderMemberHome();
+    if (view==="appointments") loadMemberAppointments();
+
+    closeMemberMenu();
+    window.scrollTo({top:0,behavior:"smooth"});
   }
 
   function setLocationStatus(message,type="info") {
@@ -880,6 +942,7 @@
     state.member.unit_assignment_method = item?.exact ? "boundary" : item ? "nearby_meetinghouse" : "manual";
 
     renderMemberUnit();
+    renderMemberHome();
     $("unitConfirmPanel").classList.add("hidden");
     setLocationStatus("Barrio y capilla guardados correctamente.","success");
 
@@ -1044,6 +1107,16 @@
   };
   $("saveMemberUnit").onclick = saveMemberUnit;
 
+  $("memberMenuToggle").onclick = () => {
+    const open = $("memberSidebar")?.classList.contains("open");
+    if (open) closeMemberMenu();
+    else openMemberMenu();
+  };
+  $("memberSidebarBackdrop").onclick = closeMemberMenu;
+  document.querySelectorAll("[data-member-view]").forEach(button=>{
+    button.addEventListener("click",()=>showMemberView(button.dataset.memberView));
+  });
+
   $("showMemberLogin").onclick = () => setAuthTab("login");
   $("showMemberRegister").onclick = () => setAuthTab("register");
   $("memberRefreshAppointments").onclick = loadMemberAppointments;
@@ -1054,6 +1127,9 @@
     state.member = null;
     $("memberArea").classList.add("hidden");
     $("memberAuthCard").classList.remove("hidden");
+    $("publicHero")?.classList.remove("hidden");
+    $("publicInfoGrid")?.classList.remove("hidden");
+    closeMemberMenu();
     setAuthTab("login");
   };
 
@@ -1065,8 +1141,10 @@
     state.selectedDateKey = null;
     state.selectedSlot = null;
     document.querySelectorAll(".leader-card").forEach(el=>el.classList.remove("active"));
-    $("bookingCard").scrollIntoView({behavior:"smooth"});
+    showMemberView("booking");
   };
+
+  $("viewMyAppointmentsBtn").onclick = () => showMemberView("appointments");
 
   db.auth.onAuthStateChange((event,session)=>{
     if (event==="SIGNED_OUT") {
@@ -1074,6 +1152,9 @@
       state.member = null;
       $("memberArea").classList.add("hidden");
       $("memberAuthCard").classList.remove("hidden");
+      $("publicHero")?.classList.remove("hidden");
+      $("publicInfoGrid")?.classList.remove("hidden");
+      closeMemberMenu();
     }
   });
 
@@ -1088,6 +1169,8 @@
     else {
       $("memberAuthCard").classList.remove("hidden");
       $("memberArea").classList.add("hidden");
+      $("publicHero")?.classList.remove("hidden");
+      $("publicInfoGrid")?.classList.remove("hidden");
     }
   }
 
