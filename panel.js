@@ -48,7 +48,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.0.1";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.2.0";
 
   const leaderRole = {
     bishop:"bishop",
@@ -313,7 +313,7 @@
     }
   }
 
-  async function loadCountryPlaces(countryCode) {
+  async function loadCountryPlaces(countryCode, selectedRegion="") {
     let {data,error}=await db.from("church_directory_places")
       .select("city_name,region")
       .eq("country_code",countryCode)
@@ -340,13 +340,20 @@
       const unique=new Map();
       for (const row of data||[]) {
         const city=String(row.city_name||"").trim();
+        const region=String(row.region||"").trim();
         if (!city) continue;
+        // Nunca permitir combinar una región elegida con una ciudad de otra.
+        // Las ciudades sin región aún se completan mediante la sincronización oficial.
+        if (selectedRegion && region!==selectedRegion) continue;
         const key=city.toLocaleLowerCase("es");
-        if (!unique.has(key)) unique.set(key,{city,region:String(row.region||"").trim()});
+        if (!unique.has(key)) unique.set(key,{city,region});
       }
       const rows=[...unique.values()].sort((a,b)=>a.city.localeCompare(b.city,"es"));
-      list.innerHTML='<option value="">Todas las ciudades</option>'+
+      list.innerHTML='<option value="">'+(selectedRegion && !rows.length
+        ? "Sin ciudades clasificadas todavía"
+        : "Todas las ciudades")+'</option>'+
         rows.map(x=>'<option value="'+e(x.city)+'">'+e(x.city+(x.region?' · '+x.region:''))+'</option>').join("");
+      list.disabled=Boolean(selectedRegion && !rows.length);
       if (previous && rows.some(x=>x.city===previous)) list.value=previous;
     }
 
@@ -1229,7 +1236,7 @@
         const {data,error}=await db.rpc("search_church_catalog_v2",{
           p_query:query || null,
           p_country_code:countryCode || null,
-          p_region:city ? null : (region || null),
+          p_region:region || null,
           p_city:city || null,
           p_coverage:coverage || null,
           p_limit:100,
@@ -1261,7 +1268,9 @@
 
       $("adminUnitSearchStatus").textContent=state.adminUnitResults.length
         ? state.adminUnitResults.length+" barrio(s)/rama(s) encontrado(s)."
-        : "La ciudad está disponible en el directorio, pero sus barrios/ramas todavía no están cacheados. Puedes actualizar el directorio oficial o probar otra ciudad.";
+        : city
+          ? "La ciudad está disponible, pero sus barrios/ramas aún no se han sincronizado. Pulsa “Actualizar directorio oficial del país” e inténtalo nuevamente."
+          : "Selecciona una ciudad de la región o actualiza el directorio oficial.";
       renderAdminUnitResults();
     } catch (error) {
       $("adminUnitSearchStatus").textContent=error?.message || "No se pudo buscar el barrio.";
@@ -2259,7 +2268,16 @@
     $("adminUnitResults").innerHTML="";
     $("adminUnitSearchStatus").textContent="Selecciona región, ciudad o busca un barrio.";
   };
-  $("adminUnitRegion").onchange = searchAdminUnits;
+  $("adminUnitRegion").onchange = async () => {
+    const countryCode=$("adminUnitCountry").value;
+    const region=$("adminUnitRegion").value;
+    await loadCountryPlaces(countryCode,region);
+    state.adminUnitResults=[];
+    $("adminUnitResults").innerHTML="";
+    $("adminUnitSearchStatus").textContent=region
+      ? "Selecciona una ciudad de la región elegida."
+      : "Selecciona región, ciudad o busca un barrio.";
+  };
   $("adminUnitCity").onchange = searchAdminUnits;
   $("adminCoverageFilter").onchange = searchAdminUnits;
   $("adminUnitQuery").addEventListener("keydown",event=>{
