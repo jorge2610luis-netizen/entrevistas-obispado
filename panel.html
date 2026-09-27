@@ -8,7 +8,7 @@
   <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#005581">
   <title>Panel | Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=4.2.2">
+  <link rel="stylesheet" href="styles.css?v=4.3.0">
 </head>
 <body>
 <header class="topbar panel-topbar">
@@ -20,10 +20,10 @@
     <div>
       <strong>Panel de Entrevistas</strong>
       <small id="panelUnit">Barrio / Rama</small>
-      <small id="panelVersion" class="version-label">v4.2.2</small>
+      <small id="panelVersion" class="version-label">v4.3.0</small>
     </div>
   </div>
-  <a class="link-button" href="index.html?v=4.2.2">Página pública</a>
+  <a class="link-button" href="index.html?v=4.3.0">Página pública</a>
 </header>
 
 <div id="panelSidebarBackdrop" class="panel-sidebar-backdrop hidden"></div>
@@ -56,7 +56,7 @@
 
   <div class="panel-sidebar-actions">
     <button id="panelSidebarRefresh" type="button" class="panel-sidebar-action">↻ Actualizar datos</button>
-    <a class="panel-sidebar-action" href="index.html?v=4.2.2">← Página de miembros</a>
+    <a class="panel-sidebar-action" href="index.html?v=4.3.0">← Página de miembros</a>
     <button id="panelSidebarLogout" type="button" class="panel-sidebar-action danger">Cerrar sesión</button>
   </div>
 </aside>
@@ -116,31 +116,20 @@
     <section id="unitLeadershipCard" class="card unit-leadership-card hidden panel-section" data-panel-section="units">
       <div class="card-header">
         <div>
-          <span class="eyebrow">Administración multi-barrio</span>
+          <span class="eyebrow">Administración de Iquique</span>
           <h2>Barrios y liderazgo</h2>
-          <p>Busca un barrio o rama y asigna el Obispo, Consejeros y Secretario que administrarán únicamente esa unidad.</p>
+          <p>Administra los barrios de Iquique y asigna el Obispo, Consejeros y Secretario de cada unidad.</p>
         </div>
       </div>
 
       <div class="unit-admin-search-grid scalable-unit-filters">
-        <label>País<select id="adminUnitCountry">
-          <option value="BO">Bolivia</option>
-          <option value="CL">Chile</option>
-        </select></label>
-        <label>Región / Departamento<select id="adminUnitRegion"><option value="">Todos</option></select></label>
-        <label>Ciudad<select id="adminUnitCity"><option value="">Todas las ciudades</option></select></label>
-        <label>Barrio, rama o capilla<input id="adminUnitQuery" placeholder="Ej. Gómez Carreño"></label>
+        <label>Barrio o capilla<input id="adminUnitQuery" placeholder="Ej. Gómez Carreño"></label>
         <label>Cobertura<select id="adminCoverageFilter">
-          <option value="">Toda la zona</option>
+          <option value="">Todos los barrios</option>
           <option value="covered">Con cobertura</option>
           <option value="no_coverage">Sin cobertura</option>
         </select></label>
         <button id="adminUnitSearchBtn" class="secondary-button" type="button">Buscar</button>
-      </div>
-
-      <div class="directory-sync-row">
-        <button id="syncOfficialDirectory" class="mini-button" type="button">Actualizar directorio oficial del país</button>
-        <span id="directorySyncStatus" class="muted-text"></span>
       </div>
 
       <div id="adminUnitSearchStatus" class="catalog-search-status"></div>
@@ -471,7 +460,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=4.2.2"></script>
-<script src="panel.js?v=4.2.2"></script>
+<script src="config.js?v=4.3.0"></script>
+<script src="panel.js?v=4.3.0"></script>
 </body>
 </html>
