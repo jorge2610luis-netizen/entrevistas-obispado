@@ -1225,7 +1225,27 @@
     $("adminUnitSearchStatus").textContent="Buscando barrios y ramas…";
 
     try {
-      if (city) {
+      const runLocalSearch = async () => {
+        const {data,error}=await db.rpc("search_church_catalog_v2",{
+          p_query:query || null,
+          p_country_code:countryCode || null,
+          p_region:region || null,
+          p_city:city || null,
+          p_coverage:coverage || null,
+          p_limit:100,
+          p_offset:0
+        });
+        if (error) throw error;
+        return groupAdminUnitRows(data||[]);
+      };
+
+      // La búsqueda normal siempre usa primero la base de datos.
+      state.adminUnitResults=await runLocalSearch();
+
+      // Si esa ciudad todavía no fue cargada, intentamos una sincronización puntual
+      // y consultamos nuevamente. La búsqueda no depende del botón de actualización.
+      if (!state.adminUnitResults.length && city) {
+        $("adminUnitSearchStatus").textContent="No hay barrios cacheados todavía. Sincronizando "+city+"…";
         try {
           await Promise.race([
             db.functions.invoke("church-directory",{
@@ -1233,25 +1253,15 @@
             }),
             new Promise(resolve=>setTimeout(()=>resolve(null),15000))
           ]);
-        } catch (_) {}
+        } catch (error) {
+          console.warn("city directory sync failed",error);
+        }
+        state.adminUnitResults=await runLocalSearch();
       }
 
-      const {data,error}=await db.rpc("search_church_catalog_v2",{
-        p_query:query || null,
-        p_country_code:countryCode || null,
-        p_region:region || null,
-        p_city:city || null,
-        p_coverage:coverage || null,
-        p_limit:100,
-        p_offset:0
-      });
-
-      if (error) throw error;
-
-      state.adminUnitResults=groupAdminUnitRows(data||[]);
       $("adminUnitSearchStatus").textContent=state.adminUnitResults.length
         ? state.adminUnitResults.length+" barrio(s)/rama(s) encontrado(s)."
-        : "No encontramos barrios con esos filtros. Puedes sincronizar el directorio oficial del país.";
+        : "La ciudad está disponible en el directorio, pero sus barrios/ramas todavía no están cacheados. Puedes actualizar el directorio oficial o probar otra ciudad.";
       renderAdminUnitResults();
     } catch (error) {
       $("adminUnitSearchStatus").textContent=error?.message || "No se pudo buscar el barrio.";
