@@ -19,7 +19,7 @@
     nearbyMeetinghouses:[]
   };
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.5.0";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.5.1";
 
 
   const PHONE_COUNTRIES = [
@@ -256,6 +256,12 @@
     if (!raw.startsWith("+")) return raw;
     const digits = raw.slice(1);
     return "+"+digits.replace(/(\d{1,3})(?=\d)/,"$1 ");
+  }
+
+  function memberAuthEmail(phone) {
+    const digits = String(phone || "").replace(/\D/g,"");
+    if (!digits) throw new Error("Número de teléfono inválido.");
+    return "m"+digits+"@members.example.com";
   }
 
   function dateKeyBolivia(value) {
@@ -909,7 +915,7 @@
     button.textContent = "Ingresando…";
 
     const {data,error} = await db.auth.signInWithPassword({
-      phone,
+      email:memberAuthEmail(phone),
       password:$("memberLoginPassword").value
     });
 
@@ -950,12 +956,13 @@
     button.textContent = "Creando…";
 
     const {data,error} = await db.auth.signUp({
-      phone,
+      email:memberAuthEmail(phone),
       password,
       options:{
         data:{
           account_type:"member",
-          full_name:fullName
+          full_name:fullName,
+          phone_e164:phone
         }
       }
     });
@@ -965,9 +972,7 @@
 
     if (error) {
       const msg = String(error.message||"");
-      if (/phone provider|phone signups|sms/i.test(msg)) {
-        showAuthMessage("La cuenta por teléfono todavía debe habilitarse en Supabase. El sistema ya está preparado.");
-      } else if (/already|registered|exists/i.test(msg)) {
+      if (/already|registered|exists/i.test(msg)) {
         showAuthMessage("Ese número ya tiene una cuenta. Usa “Ingresar”.");
       } else {
         showAuthMessage(msg || "No se pudo crear la cuenta.");
@@ -978,7 +983,7 @@
     if (data?.session) {
       await loadMember(data.session);
     } else {
-      showAuthMessage("Cuenta creada. Supabase está solicitando verificación del teléfono. Para usar únicamente teléfono + contraseña, hay que desactivar la confirmación por SMS en la configuración de Phone Auth.","info");
+      showAuthMessage("La cuenta fue creada, pero Supabase todavía exige confirmar el correo interno. Desactiva “Confirm email” en Authentication → Providers → Email para que teléfono + contraseña funcione sin SMS.","info");
     }
   };
 
