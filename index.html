@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#005581">
   <meta name="description" content="Solicitud y seguimiento de entrevistas con el obispado.">
   <title>Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=2.4.3">
+  <link rel="stylesheet" href="styles.css?v=2.5.0">
 </head>
 <body>
 <header class="topbar">
@@ -18,10 +18,10 @@
     <div>
       <strong>Entrevistas del Obispado</strong>
       <small id="unitName">Barrio / Rama</small>
-      <small id="appVersion" class="version-label">v2.4.3</small>
+      <small id="appVersion" class="version-label">v2.5.0</small>
     </div>
   </div>
-  <a class="link-button" href="panel.html?v=2.4.3">Acceso de líderes</a>
+  <a class="link-button" href="panel.html?v=2.5.0">Acceso de líderes</a>
 </header>
 
 <main class="container">
@@ -94,6 +94,53 @@
         <p id="memberAccountPhone"></p>
       </div>
       <button id="memberLogoutBtn" class="secondary-button" type="button">Cerrar sesión</button>
+    </section>
+
+    <section class="card member-unit-card">
+      <div class="card-header">
+        <div>
+          <span class="eyebrow">Ubicación y unidad</span>
+          <h2>Mi barrio y capilla</h2>
+          <p>Usa tu ubicación para encontrar centros de reuniones cercanos y confirmar tu barrio o rama.</p>
+        </div>
+        <button id="useMemberLocation" class="primary-button" type="button">Usar mi ubicación</button>
+      </div>
+
+      <div id="currentMemberUnit" class="current-unit-box">
+        <strong>Unidad todavía no configurada</strong>
+        <span>Puedes buscar una capilla cercana o confirmar tu barrio manualmente.</span>
+      </div>
+
+      <div class="privacy-note location-privacy-note">
+        <strong>Privacidad:</strong> tu ubicación exacta se usa solamente durante la búsqueda en este dispositivo. No guardamos tus coordenadas GPS.
+      </div>
+
+      <div id="memberLocationStatus" class="alert hidden"></div>
+      <div id="nearbyMeetinghouses" class="meetinghouse-list"></div>
+
+      <section id="unitConfirmPanel" class="unit-confirm-panel hidden">
+        <div>
+          <span class="eyebrow">Confirmar unidad</span>
+          <h3 id="selectedMeetinghouseName">Capilla seleccionada</h3>
+          <p id="selectedMeetinghouseMeta"></p>
+        </div>
+
+        <label>Barrio o Rama
+          <input id="memberUnitName" maxlength="160" placeholder="Ej. Barrio Gómez Carreño" required>
+        </label>
+
+        <div class="unit-link-actions">
+          <a id="selectedGoogleMapsLink" class="secondary-button hidden" target="_blank" rel="noopener">Abrir en Google Maps</a>
+          <a class="secondary-button" href="https://www.churchofjesuschrist.org/welcome/find-a-church?lang=spa" target="_blank" rel="noopener">Verificar en localizador oficial</a>
+        </div>
+
+        <div class="unit-confirm-actions">
+          <button id="cancelMeetinghouseSelection" class="secondary-button" type="button">Cancelar</button>
+          <button id="saveMemberUnit" class="primary-button" type="button">Guardar barrio</button>
+        </div>
+      </section>
+
+      <button id="manualUnitBtn" class="text-action-button" type="button">No encuentro mi capilla: ingresar mi barrio manualmente</button>
     </section>
 
     <section class="card member-appointments-card">
@@ -186,7 +233,7 @@
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=2.4.3"></script>
-<script src="public.js?v=2.4.3"></script>
+<script src="config.js?v=2.5.0"></script>
+<script src="public.js?v=2.5.0"></script>
 </body>
 </html>
