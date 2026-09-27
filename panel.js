@@ -305,7 +305,7 @@
     if (!select) return;
 
     const previous=select.value;
-    select.innerHTML='<option value="">Todas las '+(countryCode==="BO"?"departamentos":"regiones")+'</option>'+
+    select.innerHTML='<option value="">'+(countryCode==="BO"?"Todos los departamentos":"Todas las regiones")+'</option>'+
       state.regions.map(x=>'<option value="'+e(x.region_name)+'">'+e(x.region_name)+'</option>').join("");
 
     if (previous && state.regions.some(x=>x.region_name===previous)) {
@@ -2158,6 +2158,16 @@
       searchAdminUnits();
     }
   });
+
+  $("openUnitCreateUser").onclick = () => {
+    if (!state.adminSelectedUnit?.id) return;
+    $("userCreateResult").className="alert hidden";
+    $("userRole").value="bishop";
+    $("userUnitWrap").classList.remove("hidden");
+    $("userUnit").value=state.adminSelectedUnit.id;
+    $("userCreateModal").classList.remove("hidden");
+    document.body.classList.add("modal-open");
+  };
 
   $("assignExistingStaffForm").onsubmit = assignExistingStaff;
   $("createUnitStaffForm").onsubmit = createUnitStaff;
