@@ -18,7 +18,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v2.5.1";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v2.5.2";
 
   const leaderRole = {
     bishop:"bishop",
