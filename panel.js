@@ -445,11 +445,13 @@
   }
 
   function renderStats() {
+    const unitId=currentUnitId();
     const rows = state.appointments.filter(canManage);
     const open = rows.filter(x=>!["completed","cancelled","rejected"].includes(x.status)).length;
     const approved = rows.filter(x=>x.status==="approved").length;
     const relevantSchedules = state.schedule.filter(x=>
-      isSecretaryStaff() || x.leaders?.code===leaderRole[state.profile.role]
+      (!unitId || x.church_unit_id===unitId) &&
+      (isSecretaryStaff() || x.assigned_profile_id===state.user?.id)
     );
 
     $("stats").innerHTML =
