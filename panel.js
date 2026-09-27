@@ -14,11 +14,10 @@
     appointments:[],
     schedule:[],
     profiles:[],
-    calendarMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),
-    selectedDateKey:null
+    selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version || "v2.2.0";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version || "v2.3.0";
 
   const leaderRole = {
     bishop:"bishop",
@@ -65,7 +64,7 @@
   }).format(new Date(value));
 
   const isSecretaryStaff = () => ["secretary_admin","secretary"].includes(state.profile?.role);
-  const isSecretaryAdmin = () => state.profile?.role === "secretary_admin";
+  const isSecretaryAdmin = () => state.profile?.role==="secretary_admin";
 
   function alertGlobal(message,type="info") {
     const el = $("globalAlert");
@@ -87,24 +86,30 @@
     }).format(new Date(value));
   }
 
-  function localDateKey(date) {
-    const y = date.getFullYear();
-    const m = String(date.getMonth()+1).padStart(2,"0");
-    const d = String(date.getDate()).padStart(2,"0");
-    return y+"-"+m+"-"+d;
+  function dateKeyUTC(date) {
+    return date.toISOString().slice(0,10);
   }
 
-  function monthTitle(date) {
-    return new Intl.DateTimeFormat("es-BO",{month:"long",year:"numeric"})
-      .format(date)
-      .replace(/^./,c=>c.toUpperCase());
+  function shortDateUTC(date) {
+    return new Intl.DateTimeFormat("es-BO",{
+      timeZone:"UTC",
+      day:"numeric",
+      month:"short"
+    }).format(date).replace(".","");
   }
 
-  function longDateFromKey(key) {
+  function weekdayShortUTC(date) {
+    return new Intl.DateTimeFormat("es-BO",{
+      timeZone:"UTC",
+      weekday:"short"
+    }).format(date).replace(".","").replace(/^./,c=>c.toUpperCase());
+  }
+
+  function longDateKey(key) {
     const [y,m,d] = key.split("-").map(Number);
     return new Intl.DateTimeFormat("es-BO",{
       weekday:"long",day:"numeric",month:"long",year:"numeric"
-    }).format(new Date(y,m-1,d)).replace(/^./,c=>c.toUpperCase());
+    }).format(new Date(Date.UTC(y,m-1,d))).replace(/^./,c=>c.toUpperCase());
   }
 
   function timeLabel(value) {
@@ -116,7 +121,7 @@
   }
 
   function leaderForRole() {
-    return state.leaders.find(x => x.code===leaderRole[state.profile?.role]);
+    return state.leaders.find(x=>x.code===leaderRole[state.profile?.role]);
   }
 
   function selectedLeaderId() {
@@ -168,14 +173,15 @@
 
     $("roleTitle").textContent = titleByRole[profile.role] || "Panel";
     $("roleSubtitle").textContent = isSecretaryAdmin()
-      ? "Administración general: usuarios, solicitudes y calendarios de todos los líderes."
+      ? "Administración general: usuarios, solicitudes y horarios de todos los líderes."
       : profile.role==="secretary"
-        ? "Revisa solicitudes y administra los calendarios de todos los líderes."
-        : "Revisa tus solicitudes y administra tu calendario.";
+        ? "Revisa solicitudes y administra los horarios de todos los líderes."
+        : "Revisa tus solicitudes y administra tus propios horarios.";
 
     const {data:settings} = await db.from("settings").select("unit_name").eq("id",1).maybeSingle();
     if (settings?.unit_name) $("panelUnit").textContent = settings.unit_name;
 
+    setInitialMonth();
     await refresh();
   }
 
@@ -215,8 +221,7 @@
       );
     }
 
-    const results = await Promise.all(requests);
-    const [leadersResult,appointmentsResult,scheduleResult,profilesResult] = results;
+    const [leadersResult,appointmentsResult,scheduleResult,profilesResult] = await Promise.all(requests);
 
     if (
       leadersResult.error ||
@@ -246,8 +251,8 @@
 
     renderStats();
     renderAppointments();
-    renderAdminCalendar();
-    renderSelectedDay();
+    renderWeekStrip();
+    renderSchedule();
     if (isSecretaryAdmin()) renderUsers();
   }
 
@@ -255,7 +260,7 @@
     const rows = state.appointments.filter(canManage);
     const open = rows.filter(x=>!["completed","cancelled","rejected"].includes(x.status)).length;
     const approved = rows.filter(x=>x.status==="approved").length;
-    const relevantSchedules = state.schedule.filter(x =>
+    const relevantSchedules = state.schedule.filter(x=>
       isSecretaryStaff() || x.leaders?.code===leaderRole[state.profile.role]
     );
 
@@ -268,7 +273,6 @@
 
   function actions(appointment) {
     if (!canManage(appointment)) return "";
-
     const button = (label,status,cls="") =>
       '<button data-id="'+appointment.id+'" data-status="'+status+'" class="'+cls+'">'+label+'</button>';
 
@@ -316,14 +320,14 @@
 
   function renderAppointments() {
     const filter = $("statusFilter").value;
-    const rows = state.appointments.filter(a =>
+    const rows = state.appointments.filter(a=>
       canManage(a) && (filter==="all" || a.status===filter)
     );
 
     $("requestsHint").textContent = rows.length+" solicitud(es) visibles";
     const list = $("requestsList");
 
-    list.innerHTML = rows.length ? rows.map(a =>
+    list.innerHTML = rows.length ? rows.map(a=>
       '<article class="request-item">'+
         '<div class="request-top">'+
           '<div>'+
@@ -340,7 +344,7 @@
       '</article>'
     ).join("") : '<div class="empty">No hay solicitudes para este filtro.</div>';
 
-    list.querySelectorAll("button[data-id]").forEach(button => {
+    list.querySelectorAll("button[data-id]").forEach(button=>{
       button.onclick = async () => {
         button.disabled = true;
         const {error} = await db.from("appointments")
@@ -358,11 +362,9 @@
   }
 
   function renderUsers() {
-    const list = $("usersList");
     const rows = state.profiles.filter(x=>x.role!=="unassigned");
     $("usersCount").textContent = rows.length+" usuario(s)";
-
-    list.innerHTML = rows.length ? rows.map(x =>
+    $("usersList").innerHTML = rows.length ? rows.map(x=>
       '<div class="user-row">'+
         '<div><strong>'+e(x.display_name||x.email||"Usuario")+'</strong><small>'+e(x.email||"Sin correo")+'</small></div>'+
         '<div class="user-row-right">'+
@@ -373,7 +375,7 @@
       '</div>'
     ).join("") : '<div class="empty">No hay usuarios configurados.</div>';
 
-    list.querySelectorAll("[data-edit-user]").forEach(button => {
+    $("usersList").querySelectorAll("[data-edit-user]").forEach(button=>{
       button.onclick = () => openUserEditor(button.dataset.editUser);
     });
   }
@@ -400,131 +402,123 @@
     $("editUserResult").className = "alert hidden";
   }
 
-  function schedulesForLeader() {
-    const leaderId = selectedLeaderId();
-    return state.schedule.filter(x=>x.leader_id===leaderId);
+  function setInitialMonth() {
+    const now = new Date();
+    $("scheduleMonth").value = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+    populateWeeks();
   }
 
-  function scheduleMap() {
-    const map = new Map();
-    schedulesForLeader().forEach(slot => {
-      const key = dateKeyBolivia(slot.start_at);
-      if (!map.has(key)) map.set(key,[]);
-      map.get(key).push(slot);
-    });
-    return map;
+  function populateWeeks() {
+    const value = $("scheduleMonth").value;
+    if (!value) return;
+
+    const [year,month] = value.split("-").map(Number);
+    const firstOfMonth = new Date(Date.UTC(year,month-1,1));
+    const lastOfMonth = new Date(Date.UTC(year,month,0));
+    const daysBack = (firstOfMonth.getUTCDay()+6)%7;
+    const firstMonday = new Date(firstOfMonth);
+    firstMonday.setUTCDate(firstMonday.getUTCDate()-daysBack);
+
+    const weeks = [];
+    let cursor = new Date(firstMonday);
+    let number = 1;
+
+    while (cursor<=lastOfMonth) {
+      const start = new Date(cursor);
+      const end = new Date(cursor);
+      end.setUTCDate(end.getUTCDate()+6);
+      weeks.push({
+        key:dateKeyUTC(start),
+        label:"Semana "+number+" · Lun "+shortDateUTC(start)+" – Dom "+shortDateUTC(end)
+      });
+      cursor.setUTCDate(cursor.getUTCDate()+7);
+      number++;
+    }
+
+    $("scheduleWeek").innerHTML = weeks.map(w=>
+      '<option value="'+w.key+'">'+e(w.label)+'</option>'
+    ).join("");
+
+    state.selectedDates.clear();
+
+    const today = new Date();
+    if (year===today.getFullYear() && month===today.getMonth()+1) {
+      const todayUTC = new Date(Date.UTC(today.getFullYear(),today.getMonth(),today.getDate()));
+      const monday = new Date(todayUTC);
+      monday.setUTCDate(monday.getUTCDate()-((monday.getUTCDay()+6)%7));
+      const key = dateKeyUTC(monday);
+      if (weeks.some(w=>w.key===key)) $("scheduleWeek").value = key;
+    }
+
+    renderWeekStrip();
+    renderSchedule();
   }
 
-  function renderAdminCalendar() {
-    const month = state.calendarMonth;
-    $("adminMonthTitle").textContent = monthTitle(month);
-
-    const year = month.getFullYear();
-    const monthIndex = month.getMonth();
-    const firstDow = new Date(year,monthIndex,1).getDay();
-    const daysInMonth = new Date(year,monthIndex+1,0).getDate();
-    const previousDays = new Date(year,monthIndex,0).getDate();
-    const byDate = scheduleMap();
-    const cells = [];
-
-    for (let i=firstDow-1;i>=0;i--) {
-      cells.push({day:previousDays-i,muted:true,date:new Date(year,monthIndex-1,previousDays-i)});
-    }
-
-    for (let day=1;day<=daysInMonth;day++) {
-      cells.push({day,muted:false,date:new Date(year,monthIndex,day)});
-    }
-
-    while (cells.length % 7 !== 0 || cells.length < 42) {
-      const day = cells.length - (firstDow + daysInMonth) + 1;
-      cells.push({day,muted:true,date:new Date(year,monthIndex+1,day)});
-    }
-
-    $("adminCalendar").innerHTML = cells.map(cell => {
-      const key = localDateKey(cell.date);
-      const rows = byDate.get(key) || [];
-      const available = rows.filter(x=>x.is_active&&!x.is_booked).length;
-      const booked = rows.filter(x=>x.is_booked).length;
-      const inactive = rows.filter(x=>!x.is_active&&!x.is_booked).length;
-
-      const classes = [
-        "calendar-day",
-        "admin-day",
-        cell.muted ? "outside-month" : "",
-        rows.length ? "has-schedule" : "",
-        state.selectedDateKey===key ? "selected" : ""
-      ].filter(Boolean).join(" ");
-
-      return '<button type="button" class="'+classes+'" data-date="'+key+'">'+
-        '<span class="day-number">'+cell.day+'</span>'+
-        '<span class="admin-day-counts">'+
-          (available?'<small class="count-available">'+available+' disp.</small>':'')+
-          (booked?'<small class="count-booked">'+booked+' ocup.</small>':'')+
-          (inactive?'<small class="count-inactive">'+inactive+' off</small>':'')+
-        '</span>'+
-      '</button>';
-    }).join("");
-
-    $("adminCalendar").querySelectorAll("[data-date]").forEach(button => {
-      button.onclick = () => selectAdminDay(button.dataset.date);
+  function weekDates() {
+    const value = $("scheduleWeek").value;
+    if (!value) return [];
+    const start = new Date(value+"T00:00:00Z");
+    return Array.from({length:7},(_,i)=>{
+      const d = new Date(start);
+      d.setUTCDate(d.getUTCDate()+i);
+      return d;
     });
   }
 
-  function selectAdminDay(key) {
-    state.selectedDateKey = key;
-    renderAdminCalendar();
-    renderSelectedDay();
-    $("calendarDayEditor").classList.remove("hidden");
-    $("calendarDayEditor").scrollIntoView({behavior:"smooth",block:"nearest"});
-  }
-
-  function renderSelectedDay() {
-    const key = state.selectedDateKey;
-    if (!key) {
-      $("calendarDayEditor").classList.add("hidden");
+  function renderWeekStrip() {
+    const dates = weekDates();
+    if (!dates.length) {
+      $("weekDayStrip").innerHTML = "";
       return;
     }
 
-    $("calendarSelectedDate").textContent = longDateFromKey(key);
-    const rows = schedulesForLeader()
-      .filter(x=>dateKeyBolivia(x.start_at)===key)
-      .sort((a,b)=>new Date(a.start_at)-new Date(b.start_at));
+    $("weekDayStrip").innerHTML = dates.map(date=>{
+      const key = dateKeyUTC(date);
+      const selected = state.selectedDates.has(key) ? " selected" : "";
+      return '<button type="button" class="week-day-button'+selected+'" data-date="'+key+'">'+
+        '<strong>'+e(weekdayShortUTC(date))+'</strong>'+
+        '<span>'+e(shortDateUTC(date))+'</span>'+
+      '</button>';
+    }).join("");
 
-    $("dayScheduleCount").textContent = rows.length+" horario(s)";
-    $("dayScheduleList").innerHTML = rows.length ? rows.map(slot =>
-      '<div class="slot-row">'+
-        '<div>'+
-          '<strong>'+e(timeLabel(slot.start_at))+'–'+e(timeLabel(slot.end_at))+'</strong><br>'+
-          '<small>'+(slot.is_booked?"Ocupado / solicitado":slot.is_active?"Disponible":"Desactivado")+'</small>'+
-        '</div>'+
-        (slot.is_booked ? '' :
-          '<button data-slot="'+slot.id+'" data-active="'+(slot.is_active?"0":"1")+'">'+
-            (slot.is_active?"Desactivar":"Activar")+
-          '</button>')+
-      '</div>'
-    ).join("") : '<div class="empty">Todavía no hay horarios para este día.</div>';
-
-    $("dayScheduleList").querySelectorAll("[data-slot]").forEach(button => {
-      button.onclick = async () => {
-        const {error} = await db.from("availability")
-          .update({is_active:button.dataset.active==="1"})
-          .eq("id",button.dataset.slot);
-
-        if (error) alertGlobal(error.message || "No se pudo cambiar el horario.","error");
-        else await refresh();
+    $("weekDayStrip").querySelectorAll("[data-date]").forEach(button=>{
+      button.onclick = () => {
+        const key = button.dataset.date;
+        if (state.selectedDates.has(key)) state.selectedDates.delete(key);
+        else state.selectedDates.add(key);
+        renderWeekStrip();
+        updateScheduleSummary();
       };
     });
+
+    updateScheduleSummary();
   }
 
-  function buildDaySlots() {
-    const leaderId = selectedLeaderId();
-    const dateKey = state.selectedDateKey;
-    const startTime = $("dayStartTime").value;
-    const endTime = $("dayEndTime").value;
-    const duration = Number($("dayDuration").value || 30);
+  function updateScheduleSummary() {
+    const selected = [...state.selectedDates].sort();
+    const from = $("scheduleStartTime").value;
+    const to = $("scheduleEndTime").value;
+    const duration = $("scheduleDuration").value;
 
-    if (!leaderId || !dateKey || !startTime || !endTime) {
-      throw new Error("Selecciona un día y completa el rango horario.");
+    if (!selected.length) {
+      $("scheduleSummary").textContent = "Selecciona uno o varios días de la semana.";
+      return;
+    }
+
+    const labels = selected.map(longDateKey);
+    $("scheduleSummary").textContent = labels.join(" · ")+
+      (from&&to ? " · "+from+"–"+to+" · cada "+duration+" min." : "");
+  }
+
+  function buildSlots() {
+    const leaderId = selectedLeaderId();
+    const dates = [...state.selectedDates].sort();
+    const startTime = $("scheduleStartTime").value;
+    const endTime = $("scheduleEndTime").value;
+    const duration = Number($("scheduleDuration").value || 30);
+
+    if (!leaderId || !dates.length || !startTime || !endTime) {
+      throw new Error("Selecciona líder, uno o varios días y el rango horario.");
     }
 
     const [sh,sm] = startTime.split(":").map(Number);
@@ -538,21 +532,76 @@
 
     const slots = [];
 
-    for (let minutes=startMinutes;minutes+duration<=endMinutes;minutes+=duration) {
-      const hh = String(Math.floor(minutes/60)).padStart(2,"0");
-      const mm = String(minutes%60).padStart(2,"0");
-      const end = minutes+duration;
-      const ehh = String(Math.floor(end/60)).padStart(2,"0");
-      const emm = String(end%60).padStart(2,"0");
+    dates.forEach(dateKey=>{
+      for (let minutes=startMinutes;minutes+duration<=endMinutes;minutes+=duration) {
+        const hh = String(Math.floor(minutes/60)).padStart(2,"0");
+        const mm = String(minutes%60).padStart(2,"0");
+        const end = minutes+duration;
+        const ehh = String(Math.floor(end/60)).padStart(2,"0");
+        const emm = String(end%60).padStart(2,"0");
 
-      const start_at = new Date(dateKey+"T"+hh+":"+mm+":00-04:00").toISOString();
-      const end_at = new Date(dateKey+"T"+ehh+":"+emm+":00-04:00").toISOString();
+        const start_at = new Date(dateKey+"T"+hh+":"+mm+":00-04:00").toISOString();
+        const end_at = new Date(dateKey+"T"+ehh+":"+emm+":00-04:00").toISOString();
 
-      if (new Date(start_at).getTime()<=Date.now()) continue;
-      slots.push({leader_id:leaderId,start_at,end_at,is_active:true});
-    }
+        if (new Date(start_at).getTime()<=Date.now()) continue;
+        slots.push({leader_id:leaderId,start_at,end_at,is_active:true});
+      }
+    });
 
     return slots;
+  }
+
+  function scheduleForSelectedWeek() {
+    const leaderId = selectedLeaderId();
+    const dates = new Set(weekDates().map(dateKeyUTC));
+    return state.schedule.filter(slot=>
+      slot.leader_id===leaderId && dates.has(dateKeyBolivia(slot.start_at))
+    );
+  }
+
+  function renderSchedule() {
+    const rows = scheduleForSelectedWeek();
+    $("scheduleCount").textContent = rows.length+" horario(s)";
+
+    if (!rows.length) {
+      $("scheduleList").innerHTML = '<div class="empty">No hay horarios cargados para esta semana.</div>';
+      return;
+    }
+
+    const groups = new Map();
+    rows.forEach(slot=>{
+      const key = dateKeyBolivia(slot.start_at);
+      if (!groups.has(key)) groups.set(key,[]);
+      groups.get(key).push(slot);
+    });
+
+    $("scheduleList").innerHTML = [...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([key,slots])=>
+      '<div class="schedule-day-group">'+
+        '<strong class="schedule-day-title">'+e(longDateKey(key))+'</strong>'+
+        slots.sort((a,b)=>new Date(a.start_at)-new Date(b.start_at)).map(slot=>
+          '<div class="slot-row">'+
+            '<div><strong>'+e(timeLabel(slot.start_at))+'–'+e(timeLabel(slot.end_at))+'</strong><br>'+
+              '<small>'+(slot.is_booked?"Ocupado / solicitado":slot.is_active?"Disponible":"Desactivado")+'</small>'+
+            '</div>'+
+            (slot.is_booked ? "" :
+              '<button data-slot="'+slot.id+'" data-active="'+(slot.is_active?"0":"1")+'">'+
+                (slot.is_active?"Desactivar":"Activar")+
+              '</button>')+
+          '</div>'
+        ).join("")+
+      '</div>'
+    ).join("");
+
+    $("scheduleList").querySelectorAll("[data-slot]").forEach(button=>{
+      button.onclick = async () => {
+        const {error} = await db.from("availability")
+          .update({is_active:button.dataset.active==="1"})
+          .eq("id",button.dataset.slot);
+
+        if (error) alertGlobal(error.message || "No se pudo cambiar el horario.","error");
+        else await refresh();
+      };
+    });
   }
 
   $("loginForm").onsubmit = async event => {
@@ -663,35 +712,35 @@
     setTimeout(closeUserEditor,700);
   };
 
-  $("dayScheduleForm").onsubmit = async event => {
+  $("scheduleForm").onsubmit = async event => {
     event.preventDefault();
 
     let slots;
     try {
-      slots = buildDaySlots();
-      if (!slots.length) throw new Error("No se generaron horarios futuros con ese rango.");
+      slots = buildSlots();
+      if (!slots.length) throw new Error("No se generaron horarios futuros con esa selección.");
     } catch (error) {
-      alertGlobal(error.message || "Revisa la configuración del día.","error");
+      alertGlobal(error.message || "Revisa la configuración de horarios.","error");
       return;
     }
 
     const button = event.currentTarget.querySelector('button[type="submit"]');
     button.disabled = true;
-    button.textContent = "Agregando…";
+    button.textContent = "Generando…";
 
     const {data,error} = await db.from("availability")
       .upsert(slots,{onConflict:"leader_id,start_at",ignoreDuplicates:true})
       .select("id");
 
     button.disabled = false;
-    button.textContent = "Agregar horarios";
+    button.textContent = "Generar horarios";
 
     if (error) {
       alertGlobal(error.message || "No se pudieron generar los horarios.","error");
       return;
     }
 
-    alertGlobal("Horarios agregados: "+(data?.length||0)+". Los duplicados se omitieron.","success");
+    alertGlobal("Horarios generados: "+(data?.length||0)+". Los duplicados existentes se omitieron.","success");
     await refresh();
   };
 
@@ -704,6 +753,7 @@
 
   $("cancelEditUser").onclick = closeUserEditor;
   $("cancelEditUserTop").onclick = closeUserEditor;
+
   $("toggleUserPassword").onclick = () => {
     const input = $("userPassword");
     const show = input.type==="password";
@@ -717,32 +767,20 @@
   $("statusFilter").onchange = renderAppointments;
 
   $("scheduleLeader").onchange = () => {
-    state.selectedDateKey = null;
-    renderAdminCalendar();
-    renderSelectedDay();
+    renderSchedule();
   };
 
-  $("adminPrevMonth").onclick = () => {
-    const m = state.calendarMonth;
-    state.calendarMonth = new Date(m.getFullYear(),m.getMonth()-1,1);
-    state.selectedDateKey = null;
-    renderAdminCalendar();
-    renderSelectedDay();
+  $("scheduleMonth").onchange = populateWeeks;
+
+  $("scheduleWeek").onchange = () => {
+    state.selectedDates.clear();
+    renderWeekStrip();
+    renderSchedule();
   };
 
-  $("adminNextMonth").onclick = () => {
-    const m = state.calendarMonth;
-    state.calendarMonth = new Date(m.getFullYear(),m.getMonth()+1,1);
-    state.selectedDateKey = null;
-    renderAdminCalendar();
-    renderSelectedDay();
-  };
-
-  $("closeDayEditor").onclick = () => {
-    state.selectedDateKey = null;
-    renderAdminCalendar();
-    renderSelectedDay();
-  };
+  $("scheduleStartTime").oninput = updateScheduleSummary;
+  $("scheduleEndTime").oninput = updateScheduleSummary;
+  $("scheduleDuration").onchange = updateScheduleSummary;
 
   db.auth.onAuthStateChange(event => {
     if (event==="SIGNED_OUT") {
