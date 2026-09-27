@@ -36,7 +36,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v3.0.0";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v3.1.0";
 
 
   const PHONE_COUNTRIES = [
