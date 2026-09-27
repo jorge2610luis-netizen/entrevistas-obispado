@@ -906,6 +906,7 @@
 
     if (isSecretaryAdmin()) {
       await loadRegionsForCountry($("adminUnitCountry")?.value||"BO");
+      await loadCountryPlaces($("adminUnitCountry")?.value||"BO");
       await loadDirectoryPage();
       renderAdminSelectedUnit();
     }
@@ -2138,6 +2139,7 @@
   $("adminUnitCountry").onchange = async () => {
     $("adminUnitRegion").value="";
     await loadRegionsForCountry($("adminUnitCountry").value);
+    await loadCountryPlaces($("adminUnitCountry").value);
     state.adminUnitResults=[];
     $("adminUnitResults").innerHTML="";
     $("adminUnitSearchStatus").textContent="Selecciona región, ciudad o busca un barrio.";
