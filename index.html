@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#005581">
   <meta name="description" content="Solicitud y seguimiento de entrevistas con el obispado.">
   <title>Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=2.5.3">
+  <link rel="stylesheet" href="styles.css?v=2.6.0">
 </head>
 <body>
 <header class="topbar">
@@ -18,14 +18,14 @@
     <div>
       <strong>Entrevistas del Obispado</strong>
       <small id="unitName">Barrio / Rama</small>
-      <small id="appVersion" class="version-label">v2.5.3</small>
+      <small id="appVersion" class="version-label">v2.6.0</small>
     </div>
   </div>
-  <a class="link-button" href="panel.html?v=2.5.3">Acceso de líderes</a>
+  <a class="link-button" href="panel.html?v=2.6.0">Acceso de líderes</a>
 </header>
 
 <main class="container">
-  <section class="hero">
+  <section id="publicHero" class="hero">
     <div>
       <span class="eyebrow">Agenda de entrevistas</span>
       <h1>Reserva y sigue tu entrevista</h1>
@@ -86,141 +86,207 @@
     <div id="memberAuthMessage" class="alert hidden"></div>
   </section>
 
-  <section id="memberArea" class="hidden">
-    <section class="card member-account-card">
-      <div>
-        <span class="eyebrow">Mi cuenta</span>
-        <h2 id="memberAccountName">Mi cuenta</h2>
-        <p id="memberAccountPhone"></p>
-      </div>
-      <button id="memberLogoutBtn" class="secondary-button" type="button">Cerrar sesión</button>
-    </section>
+  <section id="memberArea" class="hidden member-app">
+    <button id="memberMenuToggle" class="member-menu-toggle" type="button" aria-expanded="false" aria-controls="memberSidebar">
+      ☰ <span>Menú</span>
+    </button>
 
-    <section class="card member-unit-card">
-      <div class="card-header">
-        <div>
-          <span class="eyebrow">Ubicación y unidad</span>
-          <h2>Mi barrio y capilla</h2>
-          <p>Usa tu ubicación para encontrar centros de reuniones cercanos y confirmar tu barrio o rama.</p>
-        </div>
-        <button id="useMemberLocation" class="primary-button" type="button">Usar mi ubicación</button>
-      </div>
+    <div id="memberSidebarBackdrop" class="member-sidebar-backdrop"></div>
 
-      <div id="currentMemberUnit" class="current-unit-box">
-        <strong>Unidad todavía no configurada</strong>
-        <span>Puedes buscar una capilla cercana o confirmar tu barrio manualmente.</span>
-      </div>
-
-      <div class="privacy-note location-privacy-note">
-        <strong>Privacidad:</strong> tu ubicación exacta se usa solamente durante la búsqueda en este dispositivo. No guardamos tus coordenadas GPS.
-      </div>
-
-      <div id="memberLocationStatus" class="alert hidden"></div>
-      <div id="nearbyMeetinghouses" class="meetinghouse-list"></div>
-
-      <section id="unitConfirmPanel" class="unit-confirm-panel hidden">
-        <div>
-          <span class="eyebrow">Confirmar unidad</span>
-          <h3 id="selectedMeetinghouseName">Capilla seleccionada</h3>
-          <p id="selectedMeetinghouseMeta"></p>
-        </div>
-
-        <label>Barrio o Rama
-          <input id="memberUnitName" maxlength="160" placeholder="Ej. Barrio Gómez Carreño" required>
-        </label>
-
-        <div class="unit-link-actions">
-          <a id="selectedGoogleMapsLink" class="secondary-button hidden" target="_blank" rel="noopener">Abrir en Google Maps</a>
-          <a class="secondary-button" href="https://www.churchofjesuschrist.org/welcome/find-a-church?lang=spa" target="_blank" rel="noopener">Verificar en localizador oficial</a>
-        </div>
-
-        <div class="unit-confirm-actions">
-          <button id="cancelMeetinghouseSelection" class="secondary-button" type="button">Cancelar</button>
-          <button id="saveMemberUnit" class="primary-button" type="button">Guardar barrio</button>
-        </div>
-      </section>
-
-      <button id="manualUnitBtn" class="text-action-button" type="button">No encuentro mi capilla: ingresar mi barrio manualmente</button>
-    </section>
-
-    <section class="card member-appointments-card">
-      <div class="card-header">
-        <div>
-          <h2>Mis entrevistas</h2>
-          <p>Solo tú puedes ver estas solicitudes.</p>
-        </div>
-        <button id="memberRefreshAppointments" class="secondary-button" type="button">Actualizar</button>
-      </div>
-      <div id="memberAppointmentsList" class="member-appointments-list">
-        <div class="empty">Cargando tus entrevistas...</div>
-      </div>
-    </section>
-
-    <section id="bookingCard" class="card">
-      <div class="section-heading">
-        <span class="step">1</span>
-        <div>
-          <h2>Elige con quién necesitas reunirte</h2>
-          <p>Solo se muestran líderes activos.</p>
-        </div>
-      </div>
-
-      <div id="leaderGrid" class="leader-grid">
-        <div class="empty">Cargando líderes...</div>
-      </div>
-
-      <form id="bookingForm" class="booking-form hidden">
-        <div class="section-heading compact">
-          <span class="step">2</span>
+    <div class="member-shell">
+      <aside id="memberSidebar" class="member-sidebar" aria-label="Menú de miembro">
+        <div class="member-sidebar-profile">
+          <div class="member-avatar">E</div>
           <div>
-            <h2>Selecciona entrevista y día</h2>
-            <p>Solo aparecen los días que tienen horas disponibles.</p>
+            <strong id="memberAccountName">Mi cuenta</strong>
+            <span id="memberAccountPhone"></span>
           </div>
         </div>
 
-        <label class="public-type-label">
-          Tipo de entrevista
-          <select id="interviewType" required></select>
-        </label>
+        <nav class="member-nav">
+          <button class="member-nav-item active" type="button" data-member-view="home">
+            <span class="member-nav-icon">⌂</span><span>Inicio</span>
+          </button>
+          <button class="member-nav-item" type="button" data-member-view="unit">
+            <span class="member-nav-icon">⌖</span><span>Mi barrio y capilla</span>
+          </button>
+          <button class="member-nav-item" type="button" data-member-view="appointments">
+            <span class="member-nav-icon">✓</span><span>Mis entrevistas</span>
+          </button>
+          <button class="member-nav-item" type="button" data-member-view="booking">
+            <span class="member-nav-icon">＋</span><span>Nueva entrevista</span>
+          </button>
+        </nav>
 
-        <div class="available-days-block">
-          <span class="field-label">Días disponibles</span>
-          <div id="availableDays" class="available-day-list"></div>
-        </div>
+        <button id="memberLogoutBtn" class="member-logout-button" type="button">Cerrar sesión</button>
+      </aside>
 
-        <section id="publicDayPanel" class="public-day-panel hidden">
-          <div class="subheading-row">
-            <div>
-              <span class="eyebrow">Horas disponibles</span>
-              <h3 id="publicSelectedDate"></h3>
+      <main class="member-main">
+        <section id="memberViewHome" class="member-view">
+          <div class="card member-home-card">
+            <span class="eyebrow">Mi espacio</span>
+            <h1>Bienvenido</h1>
+            <p>Desde aquí puedes administrar tu barrio o capilla, revisar el estado de tus entrevistas y solicitar una nueva.</p>
+
+            <div class="member-home-grid">
+              <button type="button" class="member-home-action" data-member-view="unit">
+                <span class="member-home-icon">⌖</span>
+                <strong>Mi barrio y capilla</strong>
+                <small>Buscar o confirmar tu unidad</small>
+              </button>
+              <button type="button" class="member-home-action" data-member-view="appointments">
+                <span class="member-home-icon">✓</span>
+                <strong>Mis entrevistas</strong>
+                <small>Ver estados y seguimiento</small>
+              </button>
+              <button type="button" class="member-home-action" data-member-view="booking">
+                <span class="member-home-icon">＋</span>
+                <strong>Nueva entrevista</strong>
+                <small>Elegir líder, día y hora</small>
+              </button>
             </div>
+
+            <div id="memberHomeUnit" class="member-home-status"></div>
           </div>
-          <div id="publicTimeSlots" class="time-slot-grid"></div>
         </section>
 
-        <div class="section-heading compact">
-          <span class="step">3</span>
-          <div>
-            <h2>Confirmar solicitud</h2>
-            <p id="selectedSlotSummary">Selecciona primero un día y una hora.</p>
-          </div>
-        </div>
+        <section id="memberViewUnit" class="member-view hidden">
+          <section class="card member-unit-card">
+            <div class="card-header">
+              <div>
+                <span class="eyebrow">Ubicación y unidad</span>
+                <h2>Mi barrio y capilla</h2>
+                <p>Usa tu ubicación para encontrar centros de reuniones cercanos y confirmar tu barrio o rama.</p>
+              </div>
+              <button id="useMemberLocation" class="primary-button" type="button">Usar mi ubicación</button>
+            </div>
 
-        <div class="privacy-note"><strong>Importante:</strong> la hora seleccionada queda solicitada, pero la entrevista se confirma después de la revisión del Secretario y del líder.</div>
-        <div id="bookingError" class="alert error hidden"></div>
-        <button id="submitBooking" class="primary-button" type="submit">Solicitar entrevista</button>
-      </form>
-    </section>
+            <div id="currentMemberUnit" class="current-unit-box">
+              <strong>Unidad todavía no configurada</strong>
+              <span>Puedes buscar una capilla cercana o confirmar tu barrio manualmente.</span>
+            </div>
 
-    <section id="successBox" class="card success-box hidden">
-      <div class="success-icon">✓</div>
-      <h2>Solicitud enviada</h2>
-      <p>Ya aparece en “Mis entrevistas”. El Secretario revisará tu solicitud.</p>
-      <button id="newRequestBtn" class="secondary-button" type="button">Solicitar otra entrevista</button>
-    </section>
+            <div class="privacy-note location-privacy-note">
+              <strong>Privacidad:</strong> tu ubicación exacta se usa solamente durante la búsqueda en este dispositivo. No guardamos tus coordenadas GPS.
+            </div>
+
+            <div id="memberLocationStatus" class="alert hidden"></div>
+            <div id="nearbyMeetinghouses" class="meetinghouse-list"></div>
+
+            <section id="unitConfirmPanel" class="unit-confirm-panel hidden">
+              <div>
+                <span class="eyebrow">Confirmar unidad</span>
+                <h3 id="selectedMeetinghouseName">Capilla seleccionada</h3>
+                <p id="selectedMeetinghouseMeta"></p>
+              </div>
+
+              <label>Barrio o Rama
+                <input id="memberUnitName" maxlength="160" placeholder="Ej. Barrio Gómez Carreño" required>
+              </label>
+
+              <div class="unit-link-actions">
+                <a id="selectedGoogleMapsLink" class="secondary-button hidden" target="_blank" rel="noopener">Abrir en Google Maps</a>
+                <a class="secondary-button" href="https://www.churchofjesuschrist.org/welcome/find-a-church?lang=spa" target="_blank" rel="noopener">Verificar en localizador oficial</a>
+              </div>
+
+              <div class="unit-confirm-actions">
+                <button id="cancelMeetinghouseSelection" class="secondary-button" type="button">Cancelar</button>
+                <button id="saveMemberUnit" class="primary-button" type="button">Guardar barrio</button>
+              </div>
+            </section>
+
+            <button id="manualUnitBtn" class="text-action-button" type="button">No encuentro mi capilla: ingresar mi barrio manualmente</button>
+          </section>
+        </section>
+
+        <section id="memberViewAppointments" class="member-view hidden">
+          <section class="card member-appointments-card">
+            <div class="card-header">
+              <div>
+                <span class="eyebrow">Seguimiento</span>
+                <h2>Mis entrevistas</h2>
+                <p>Solo tú puedes ver estas solicitudes.</p>
+              </div>
+              <button id="memberRefreshAppointments" class="secondary-button" type="button">Actualizar</button>
+            </div>
+            <div id="memberAppointmentsList" class="member-appointments-list">
+              <div class="empty">Cargando tus entrevistas...</div>
+            </div>
+          </section>
+        </section>
+
+        <section id="memberViewBooking" class="member-view hidden">
+          <section id="bookingCard" class="card">
+            <div class="section-heading">
+              <span class="step">1</span>
+              <div>
+                <h2>Elige con quién necesitas reunirte</h2>
+                <p>Solo se muestran líderes activos.</p>
+              </div>
+            </div>
+
+            <div id="leaderGrid" class="leader-grid">
+              <div class="empty">Cargando líderes...</div>
+            </div>
+
+            <form id="bookingForm" class="booking-form hidden">
+              <div class="section-heading compact">
+                <span class="step">2</span>
+                <div>
+                  <h2>Selecciona entrevista y día</h2>
+                  <p>Solo aparecen los días que tienen horas disponibles.</p>
+                </div>
+              </div>
+
+              <label class="public-type-label">
+                Tipo de entrevista
+                <select id="interviewType" required></select>
+              </label>
+
+              <div class="available-days-block">
+                <span class="field-label">Días disponibles</span>
+                <div id="availableDays" class="available-day-list"></div>
+              </div>
+
+              <section id="publicDayPanel" class="public-day-panel hidden">
+                <div class="subheading-row">
+                  <div>
+                    <span class="eyebrow">Horas disponibles</span>
+                    <h3 id="publicSelectedDate"></h3>
+                  </div>
+                </div>
+                <div id="publicTimeSlots" class="time-slot-grid"></div>
+              </section>
+
+              <div class="section-heading compact">
+                <span class="step">3</span>
+                <div>
+                  <h2>Confirmar solicitud</h2>
+                  <p id="selectedSlotSummary">Selecciona primero un día y una hora.</p>
+                </div>
+              </div>
+
+              <div class="privacy-note"><strong>Importante:</strong> la hora seleccionada queda solicitada, pero la entrevista se confirma después de la revisión del Secretario y del líder.</div>
+              <div id="bookingError" class="alert error hidden"></div>
+              <button id="submitBooking" class="primary-button" type="submit">Solicitar entrevista</button>
+            </form>
+          </section>
+
+          <section id="successBox" class="card success-box hidden">
+            <div class="success-icon">✓</div>
+            <h2>Solicitud enviada</h2>
+            <p>Ya aparece en “Mis entrevistas”. El Secretario revisará tu solicitud.</p>
+            <div class="success-actions">
+              <button id="viewMyAppointmentsBtn" class="secondary-button" type="button">Ver mis entrevistas</button>
+              <button id="newRequestBtn" class="primary-button" type="button">Solicitar otra entrevista</button>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
   </section>
 
-  <section class="info-grid">
+  <section id="publicInfoGrid" class="info-grid">
     <article class="info-card"><span>1</span><h3>Crea tu cuenta</h3><p>Usa tu teléfono como usuario y define una contraseña.</p></article>
     <article class="info-card"><span>2</span><h3>Reserva</h3><p>Elige únicamente entre los días y horas disponibles.</p></article>
     <article class="info-card"><span>3</span><h3>Haz seguimiento</h3><p>Revisa el estado de cada solicitud desde “Mis entrevistas”.</p></article>
@@ -233,7 +299,7 @@
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=2.5.3"></script>
-<script src="public.js?v=2.5.3"></script>
+<script src="config.js?v=2.6.0"></script>
+<script src="public.js?v=2.6.0"></script>
 </body>
 </html>
