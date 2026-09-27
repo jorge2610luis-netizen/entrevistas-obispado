@@ -36,7 +36,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v3.3.5";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.0.0";
 
 
   const PHONE_COUNTRIES = [
@@ -513,7 +513,7 @@
 
     if (!state.leaders.length) {
       $("leaderGrid").innerHTML =
-        '<div class="empty">Tu barrio todavía no tiene Obispo o Consejeros asignados en el sistema. Comunícate con Secretaría.</div>';
+        '<div class="empty coverage-empty"><strong>Aún no tenemos cobertura en este barrio.</strong><br>No hay Obispo o Consejeros habilitados para reservar entrevistas en esta zona. El barrio seguirá apareciendo en el directorio y la reserva se activará cuando se asigne liderazgo.</div>';
       $("bookingForm").classList.add("hidden");
       return;
     }
