@@ -1,18 +1,204 @@
 <!doctype html>
-<html lang="es"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0"><meta name="theme-color" content="#005581">
-<title>Panel | Entrevistas del Obispado</title><link rel="stylesheet" href="styles.css?v=2.0.4">
-</head><body>
-<header class="topbar"><div class="brand"><div class="brand-mark">E</div><div><strong>Panel de Entrevistas</strong><small id="panelUnit">Barrio / Rama</small><small id="panelVersion" class="version-label">v2.0.4</small></div></div><a class="link-button" href="index.html">Página pública</a></header>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="theme-color" content="#005581">
+  <title>Panel | Entrevistas del Obispado</title>
+  <link rel="stylesheet" href="styles.css?v=2.1.0">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">E</div>
+    <div>
+      <strong>Panel de Entrevistas</strong>
+      <small id="panelUnit">Barrio / Rama</small>
+      <small id="panelVersion" class="version-label">v2.1.0</small>
+    </div>
+  </div>
+  <a class="link-button" href="index.html">Página pública</a>
+</header>
+
 <main class="container">
-<section id="authLoadingView" class="card auth-card auth-loading"><div class="loading-spinner" aria-hidden="true"></div><h2>Cargando panel…</h2><p>Comprobando tu sesión.</p></section>
-<section id="loginView" class="card auth-card hidden"><span class="eyebrow">Acceso interno</span><h1>Iniciar sesión</h1><p>Solo para Secretario, Obispo y Consejeros autorizados.</p>
-<form id="loginForm" class="login-form"><label>Correo electrónico<input id="loginEmail" type="email" required autocomplete="username"></label><label>Contraseña<input id="loginPassword" type="password" required autocomplete="current-password"></label><div id="loginError" class="alert error hidden"></div><button class="primary-button" type="submit">Ingresar</button></form></section>
-<section id="unauthorizedView" class="card hidden"><h2>Cuenta sin rol asignado</h2><p>El usuario existe, pero aún no tiene un rol interno autorizado.</p><button id="unauthorizedLogout" class="secondary-button">Cerrar sesión</button></section>
-<section id="dashboard" class="hidden"><div class="dashboard-header"><div><span class="eyebrow">Panel interno</span><h1 id="roleTitle">Panel</h1><p id="roleSubtitle"></p></div><div class="header-actions"><button id="refreshBtn" class="secondary-button">Actualizar</button><button id="logoutBtn" class="secondary-button">Cerrar sesión</button></div></div>
-<div id="globalAlert" class="alert hidden"></div><div id="stats" class="stats"></div>
-<div class="dashboard-grid"><section class="card"><div class="card-header"><div><h2>Solicitudes</h2><p id="requestsHint"></p></div><select id="statusFilter"><option value="all">Todos los estados</option><option value="pending_secretary">Pendiente de secretario</option><option value="contacted">Contactado</option><option value="pending_leader">Pendiente de líder</option><option value="approved">Aprobado</option><option value="rejected">Rechazado</option><option value="reschedule">Reprogramación</option><option value="completed">Completado</option><option value="cancelled">Cancelado</option></select></div><div id="requestsList" class="requests-list"></div></section>
-<aside class="card"><div class="card-header"><div><h2>Disponibilidad</h2><p>Agrega y administra horarios.</p></div></div><div id="leaderSelectorWrap" class="hidden"><label>Líder<select id="scheduleLeader"></select></label></div><form id="scheduleForm" class="schedule-form"><label>Fecha<input id="scheduleDate" type="date" required></label><label>Hora<input id="scheduleTime" type="time" required></label><label>Duración<select id="scheduleDuration"><option value="30">30 minutos</option><option value="45">45 minutos</option><option value="60">60 minutos</option></select></label><button class="primary-button" type="submit">Agregar horario</button></form><div id="scheduleList" class="schedule-list"></div></aside></div>
-</section></main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script><script src="config.js?v=2.0.4"></script><script src="panel.js?v=2.0.4"></script>
-</body></html>
+  <section id="authLoadingView" class="card auth-card auth-loading">
+    <div class="loading-spinner" aria-hidden="true"></div>
+    <h2>Cargando panel…</h2>
+    <p>Comprobando tu sesión.</p>
+  </section>
+
+  <section id="loginView" class="card auth-card hidden">
+    <span class="eyebrow">Acceso interno</span>
+    <h1>Iniciar sesión</h1>
+    <p>Solo para Secretario, Obispo y Consejeros autorizados.</p>
+    <form id="loginForm" class="login-form">
+      <label>Correo electrónico<input id="loginEmail" type="email" required autocomplete="username"></label>
+      <label>Contraseña<input id="loginPassword" type="password" required autocomplete="current-password"></label>
+      <div id="loginError" class="alert error hidden"></div>
+      <button class="primary-button" type="submit">Ingresar</button>
+    </form>
+  </section>
+
+  <section id="unauthorizedView" class="card hidden">
+    <h2>Cuenta sin rol asignado</h2>
+    <p>El usuario existe, pero aún no tiene un rol interno autorizado.</p>
+    <button id="unauthorizedLogout" class="secondary-button">Cerrar sesión</button>
+  </section>
+
+  <section id="dashboard" class="hidden">
+    <div class="dashboard-header">
+      <div>
+        <span class="eyebrow">Panel interno</span>
+        <h1 id="roleTitle">Panel</h1>
+        <p id="roleSubtitle"></p>
+      </div>
+      <div class="header-actions">
+        <button id="refreshBtn" class="secondary-button">Actualizar</button>
+        <button id="logoutBtn" class="secondary-button">Cerrar sesión</button>
+      </div>
+    </div>
+
+    <div id="globalAlert" class="alert hidden"></div>
+
+    <section id="userAdminCard" class="card user-admin-card hidden">
+      <div class="card-header">
+        <div>
+          <span class="eyebrow">Solo Secretario Administrador</span>
+          <h2>Usuarios internos</h2>
+          <p>Crea accesos para Obispo, Consejeros y Secretarios. Las contraseñas no se guardan en este panel.</p>
+        </div>
+      </div>
+
+      <form id="userForm" class="user-create-form">
+        <label>Nombre
+          <input id="userDisplayName" maxlength="120" required placeholder="Ej. Obispo">
+        </label>
+        <label>Correo
+          <input id="userEmail" type="email" required autocomplete="off" placeholder="correo@ejemplo.com">
+        </label>
+        <label>Rol
+          <select id="userRole" required>
+            <option value="bishop">Obispo</option>
+            <option value="first_counselor">Primer Consejero</option>
+            <option value="second_counselor">Segundo Consejero</option>
+            <option value="secretary">Secretario</option>
+            <option value="secretary_admin">Secretario Administrador</option>
+          </select>
+        </label>
+        <label>Contraseña temporal
+          <div class="password-row">
+            <input id="userPassword" type="password" minlength="8" required autocomplete="new-password" placeholder="Mínimo 8 caracteres">
+            <button id="toggleUserPassword" class="mini-button" type="button">Mostrar</button>
+          </div>
+        </label>
+        <button id="createUserBtn" class="primary-button" type="submit">Crear usuario</button>
+      </form>
+      <div id="userCreateResult" class="alert hidden"></div>
+      <div class="subheading-row">
+        <h3>Usuarios configurados</h3>
+        <span id="usersCount" class="muted-text"></span>
+      </div>
+      <div id="usersList" class="users-list"><div class="empty">Cargando usuarios…</div></div>
+    </section>
+
+    <div id="stats" class="stats"></div>
+
+    <div class="dashboard-grid">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h2>Solicitudes</h2>
+            <p id="requestsHint"></p>
+          </div>
+          <select id="statusFilter">
+            <option value="all">Todos los estados</option>
+            <option value="pending_secretary">Pendiente de secretario</option>
+            <option value="contacted">Contactado</option>
+            <option value="pending_leader">Pendiente de líder</option>
+            <option value="approved">Aprobado</option>
+            <option value="rejected">Rechazado</option>
+            <option value="reschedule">Reprogramación</option>
+            <option value="completed">Completado</option>
+            <option value="cancelled">Cancelado</option>
+          </select>
+        </div>
+        <div id="requestsList" class="requests-list"></div>
+      </section>
+
+      <aside class="card schedule-card">
+        <div class="card-header">
+          <div>
+            <h2>Generar horarios</h2>
+            <p>Elige un mes, una semana y los días. Luego define desde qué hora, hasta qué hora y la duración de cada entrevista.</p>
+          </div>
+        </div>
+
+        <div id="leaderSelectorWrap" class="hidden">
+          <label>Líder
+            <select id="scheduleLeader"></select>
+          </label>
+        </div>
+
+        <form id="scheduleForm" class="weekly-schedule-form">
+          <div class="form-grid schedule-period-grid">
+            <label>Mes
+              <input id="scheduleMonth" type="month" required>
+            </label>
+            <label>Semana
+              <select id="scheduleWeek" required></select>
+            </label>
+          </div>
+
+          <div>
+            <span class="field-label">Días de la semana</span>
+            <div class="weekday-selector">
+              <label><input type="checkbox" name="weekday" value="1">Lun</label>
+              <label><input type="checkbox" name="weekday" value="2">Mar</label>
+              <label><input type="checkbox" name="weekday" value="3">Mié</label>
+              <label><input type="checkbox" name="weekday" value="4">Jue</label>
+              <label><input type="checkbox" name="weekday" value="5">Vie</label>
+              <label><input type="checkbox" name="weekday" value="6">Sáb</label>
+              <label><input type="checkbox" name="weekday" value="0">Dom</label>
+            </div>
+          </div>
+
+          <div class="form-grid schedule-time-grid">
+            <label>Desde
+              <input id="scheduleStartTime" type="time" required>
+            </label>
+            <label>Hasta
+              <input id="scheduleEndTime" type="time" required>
+            </label>
+            <label>Duración por entrevista
+              <select id="scheduleDuration">
+                <option value="15">15 minutos</option>
+                <option value="20">20 minutos</option>
+                <option value="30" selected>30 minutos</option>
+                <option value="45">45 minutos</option>
+                <option value="60">60 minutos</option>
+              </select>
+            </label>
+          </div>
+
+          <div id="scheduleSummary" class="schedule-summary">Selecciona la semana y los días para generar los turnos.</div>
+          <button class="primary-button" type="submit">Generar horarios de la semana</button>
+        </form>
+
+        <div class="subheading-row">
+          <h3>Horarios cargados</h3>
+          <span id="scheduleCount" class="muted-text"></span>
+        </div>
+        <div id="scheduleList" class="schedule-list"></div>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
+<script src="config.js?v=2.1.0"></script>
+<script src="panel.js?v=2.1.0"></script>
+</body>
+</html>
