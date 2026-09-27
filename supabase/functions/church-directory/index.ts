@@ -32,9 +32,13 @@ function stripTags(value: string) {
 }
 
 function absoluteUrl(href: string) {
-  if (href.startsWith("http")) return href;
-  if (!href.startsWith("/")) href = "/" + href;
-  return OFFICIAL_HOST + href;
+  try {
+    return new URL(href, OFFICIAL_HOST + "/").toString();
+  } catch (_) {
+    if (href.startsWith("http")) return href;
+    if (!href.startsWith("/")) href = "/" + href;
+    return OFFICIAL_HOST + href;
+  }
 }
 
 async function fetchHtml(url: string) {
@@ -202,15 +206,22 @@ async function syncCity(city: string, countryCode: string) {
   for (const cityPageUrl of cityUrls) {
     try {
       const cityHtml = await fetchHtml(cityPageUrl);
-      const cityPath = new URL(cityPageUrl).pathname.replace(/\/$/, "");
+      const cityUrlObj = new URL(cityPageUrl);
+      const citySlug = cityUrlObj.pathname.split("/").filter(Boolean).pop() || "";
+      const locationPrefix = `/es/${cc}/${citySlug}/`;
+
       for (const a of anchors(cityHtml)) {
-        const href = a.href.split("?")[0].replace(/\/$/, "");
-        if (
-          href.startsWith(cityPath + "/") ||
-          href.startsWith(new URL(cityPageUrl).pathname.replace(/\/$/, "") + "/")
-        ) {
-          locationLinkSet.add(href);
-        }
+        try {
+          const resolved = new URL(a.href, OFFICIAL_HOST);
+          const path = resolved.pathname.replace(/\/$/, "");
+          if (
+            path.startsWith(locationPrefix) &&
+            !path.includes("/units/") &&
+            !path.includes("/events/")
+          ) {
+            locationLinkSet.add(resolved.toString());
+          }
+        } catch (_) {}
       }
     } catch (_) {}
   }
