@@ -48,7 +48,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.0.0";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.0.1";
 
   const leaderRole = {
     bishop:"bishop",
@@ -539,6 +539,38 @@
     document.body.classList.remove("panel-menu-open");
   }
 
+  function closeDesktopToolModal() {
+    document.querySelectorAll(".desktop-tool-modal.desktop-modal-open").forEach(section=>{
+      section.classList.remove("desktop-modal-open");
+    });
+    document.body.classList.remove("desktop-tool-modal-open");
+  }
+
+  async function openDesktopTool(view) {
+    const map={
+      users:"userAdminCard",
+      requests:"panelRequestsSection",
+      schedule:"panelScheduleSection"
+    };
+    const id=map[view];
+    const section=id ? $(id) : null;
+    if (!section || section.classList.contains("hidden")) return;
+
+    closeDesktopToolModal();
+    section.classList.add("desktop-modal-open");
+    document.body.classList.add("desktop-tool-modal-open");
+    state.panelView=view;
+
+    if (view==="users" && isSecretaryAdmin()) {
+      await loadDirectoryPage({reset:true});
+    } else if (view==="requests" && isSecretaryStaff()) {
+      await loadRequestLeaderOptions();
+      await loadRequestPage({reset:true});
+    } else if (view==="schedule") {
+      await reloadSelectedSchedule();
+    }
+  }
+
   function setPanelView(view,{scroll=true}={}) {
     let next=view || "overview";
     let target=document.querySelector('[data-panel-section="'+next+'"]');
@@ -548,6 +580,13 @@
       target=document.querySelector('[data-panel-section="overview"]');
     }
 
+    if (window.matchMedia("(min-width: 761px)").matches && ["users","requests","schedule"].includes(next)) {
+      closePanelMenu();
+      openDesktopTool(next);
+      return;
+    }
+
+    closeDesktopToolModal();
     state.panelView=next;
 
     document.querySelectorAll("[data-panel-section]").forEach(section=>{
@@ -571,6 +610,7 @@
     $("panelMenuToggle")?.classList.remove("hidden");
     $("panelNavUnits")?.classList.toggle("hidden",!admin);
     $("panelNavUsers")?.classList.toggle("hidden",!admin);
+    $("desktopOpenDirectory")?.classList.toggle("hidden",!admin);
     $("panelSidebarRole").textContent=roleText[state.profile?.role] || "Panel interno";
 
     if (!admin && ["units","users"].includes(state.panelView)) {
@@ -2045,6 +2085,13 @@
   };
   $("panelSidebarLogout").onclick = logout;
 
+  $("desktopOpenDirectory").onclick = () => openDesktopTool("users");
+  $("desktopOpenRequests").onclick = () => openDesktopTool("requests");
+  $("desktopOpenSchedule").onclick = () => openDesktopTool("schedule");
+  $("closeDesktopUsers").onclick = closeDesktopToolModal;
+  $("closeDesktopRequests").onclick = closeDesktopToolModal;
+  $("closeDesktopSchedule").onclick = closeDesktopToolModal;
+
   $("toggleUserPassword").onclick = () => {
     const input = $("userPassword");
     const show = input.type==="password";
@@ -2224,6 +2271,12 @@
   $("scheduleStartTime").oninput = updateScheduleSummary;
   $("scheduleEndTime").oninput = updateScheduleSummary;
   $("scheduleDuration").onchange = updateScheduleSummary;
+
+  document.addEventListener("keydown",event=>{
+    if (event.key==="Escape" && document.body.classList.contains("desktop-tool-modal-open")) {
+      closeDesktopToolModal();
+    }
+  });
 
   db.auth.onAuthStateChange(event => {
     if (event==="SIGNED_OUT") {
