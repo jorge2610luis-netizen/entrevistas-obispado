@@ -7,7 +7,7 @@
   );
   const $=id=>document.getElementById(id);
   const state={user:null,profile:null,leaders:[],appointments:[],schedule:[],profiles:[]};
-  if($("panelVersion")) $("panelVersion").textContent=window.APP_CONFIG.version||"v2.1.2";
+  if($("panelVersion")) $("panelVersion").textContent=window.APP_CONFIG.version||"v2.1.3";
 
   const leaderRole={bishop:"bishop",first_counselor:"first_counselor",second_counselor:"second_counselor"};
   const titleByRole={
@@ -270,17 +270,63 @@
     populateWeeks();
   }
 
+
+  function dateKeyUTC(date){
+    return date.toISOString().slice(0,10);
+  }
+
+  function shortDateUTC(date){
+    return new Intl.DateTimeFormat("es-BO",{
+      timeZone:"UTC",
+      day:"numeric",
+      month:"short"
+    }).format(date).replace(".","");
+  }
+
+  function longWeekdayDateUTC(date){
+    return new Intl.DateTimeFormat("es-BO",{
+      timeZone:"UTC",
+      weekday:"short",
+      day:"numeric",
+      month:"short"
+    }).format(date).replace(".","");
+  }
+
   function populateWeeks(){
     const value=$("scheduleMonth").value;
     if(!value)return;
+
     const [year,month]=value.split("-").map(Number);
-    const days=new Date(year,month,0).getDate();
-    const total=Math.ceil(days/7);
-    $("scheduleWeek").innerHTML=Array.from({length:total},(_,i)=>{
-      const start=i*7+1;
-      const end=Math.min(start+6,days);
-      return `<option value="${i+1}">Semana ${i+1} · ${start}–${end}</option>`;
-    }).join("");
+    const firstOfMonth=new Date(Date.UTC(year,month-1,1));
+    const lastOfMonth=new Date(Date.UTC(year,month,0));
+
+    const firstDow=firstOfMonth.getUTCDay();
+    const daysBackToMonday=(firstDow+6)%7;
+    const firstMonday=new Date(firstOfMonth);
+    firstMonday.setUTCDate(firstMonday.getUTCDate()-daysBackToMonday);
+
+    const weeks=[];
+    let cursor=new Date(firstMonday);
+    let weekNumber=1;
+
+    while(cursor<=lastOfMonth){
+      const weekStart=new Date(cursor);
+      const weekEnd=new Date(cursor);
+      weekEnd.setUTCDate(weekEnd.getUTCDate()+6);
+
+      weeks.push({
+        value:dateKeyUTC(weekStart),
+        label:`Semana ${weekNumber} · ${shortDateUTC(weekStart)}–${shortDateUTC(weekEnd)}`
+      });
+
+      cursor.setUTCDate(cursor.getUTCDate()+7);
+      weekNumber++;
+    }
+
+    $("scheduleWeek").innerHTML=weeks.map(w=>
+      `<option value="${w.value}">${e(w.label)}</option>`
+    ).join("");
+
     updateScheduleSummary();
   }
 
@@ -288,48 +334,69 @@
     return [...document.querySelectorAll('input[name="weekday"]:checked')].map(x=>Number(x.value));
   }
 
+  function selectedDatesForWeek(){
+    const weekStartValue=$("scheduleWeek").value;
+    const weekdays=selectedWeekdays();
+    if(!weekStartValue||!weekdays.length) return [];
+
+    const weekStart=new Date(weekStartValue+"T00:00:00Z");
+    const dates=[];
+
+    for(let i=0;i<7;i++){
+      const d=new Date(weekStart);
+      d.setUTCDate(d.getUTCDate()+i);
+      if(weekdays.includes(d.getUTCDay())) dates.push(d);
+    }
+    return dates;
+  }
+
   function updateScheduleSummary(){
-    const month=$("scheduleMonth").value;
-    const week=$("scheduleWeek").selectedOptions[0]?.textContent||"";
-    const days=[...document.querySelectorAll('input[name="weekday"]:checked')].map(x=>x.parentElement.textContent.trim());
+    const weekLabel=$("scheduleWeek").selectedOptions[0]?.textContent||"";
+    const dates=selectedDatesForWeek();
     const from=$("scheduleStartTime").value;
     const to=$("scheduleEndTime").value;
     const duration=$("scheduleDuration").value;
-    $("scheduleSummary").textContent=days.length&&from&&to
-      ?`${week} de ${month}: ${days.join(", ")} · ${from}–${to} · cada ${duration} min.`
-      :"Selecciona la semana, los días y el rango horario.";
+
+    if(dates.length&&from&&to){
+      $("scheduleSummary").textContent=
+        `${weekLabel}: ${dates.map(longWeekdayDateUTC).join(", ")} · ${from}–${to} · cada ${duration} min.`;
+    }else{
+      $("scheduleSummary").textContent="Selecciona la semana, los días y el rango horario.";
+    }
   }
 
   function buildWeeklySlots(){
     const leader_id=selectedLeaderId();
-    const monthValue=$("scheduleMonth").value;
-    const week=Number($("scheduleWeek").value);
+    const weekStartValue=$("scheduleWeek").value;
     const weekdays=selectedWeekdays();
     const startTime=$("scheduleStartTime").value;
     const endTime=$("scheduleEndTime").value;
     const duration=Number($("scheduleDuration").value||30);
 
-    if(!leader_id||!monthValue||!week||!weekdays.length||!startTime||!endTime){
-      throw new Error("Completa líder, mes, semana, días y rango horario.");
+    if(!leader_id||!weekStartValue||!weekdays.length||!startTime||!endTime){
+      throw new Error("Completa líder, semana, días y rango horario.");
     }
 
-    const [year,month]=monthValue.split("-").map(Number);
-    const daysInMonth=new Date(year,month,0).getDate();
-    const firstDay=(week-1)*7+1;
-    const lastDay=Math.min(firstDay+6,daysInMonth);
     const [sh,sm]=startTime.split(":").map(Number);
     const [eh,em]=endTime.split(":").map(Number);
     const startMinutes=sh*60+sm;
     const endMinutes=eh*60+em;
+
     if(endMinutes<=startMinutes) throw new Error("La hora final debe ser posterior a la hora inicial.");
     if(duration<10||duration>180) throw new Error("Duración no válida.");
 
+    const weekStart=new Date(weekStartValue+"T00:00:00Z");
     const slots=[];
     const now=Date.now();
 
-    for(let day=firstDay;day<=lastDay;day++){
-      const weekday=new Date(Date.UTC(year,month-1,day)).getUTCDay();
-      if(!weekdays.includes(weekday)) continue;
+    for(let i=0;i<7;i++){
+      const dayDate=new Date(weekStart);
+      dayDate.setUTCDate(dayDate.getUTCDate()+i);
+      if(!weekdays.includes(dayDate.getUTCDay())) continue;
+
+      const year=dayDate.getUTCFullYear();
+      const month=dayDate.getUTCMonth()+1;
+      const day=dayDate.getUTCDate();
 
       for(let minutes=startMinutes;minutes+duration<=endMinutes;minutes+=duration){
         const hh=String(Math.floor(minutes/60)).padStart(2,"0");
@@ -339,12 +406,15 @@
         const emm=String(end%60).padStart(2,"0");
         const dd=String(day).padStart(2,"0");
         const mon=String(month).padStart(2,"0");
+
         const start_at=new Date(`${year}-${mon}-${dd}T${hh}:${mm}:00-04:00`).toISOString();
         const end_at=new Date(`${year}-${mon}-${dd}T${ehh}:${emm}:00-04:00`).toISOString();
+
         if(new Date(start_at).getTime()<=now) continue;
         slots.push({leader_id,start_at,end_at,is_active:true});
       }
     }
+
     return slots;
   }
 
