@@ -524,6 +524,7 @@
             '<h3>'+e(a.member_name)+'</h3>'+
             '<div class="request-meta">'+
               e(a.interview_types?.name||"Entrevista")+' · '+e(a.interview_types?.leaders?.title||"")+'<br>'+
+              (a.church_units?.unit_name?'<strong>Barrio/Rama:</strong> '+e(a.church_units.unit_name)+'<br>':'')+
               (a.availability?.start_at?e(fmt(a.availability.start_at)):"Sin horario")+'<br>'+
               e(a.member_phone)+(a.member_email?' · '+e(a.member_email):'')+
               (() => {
@@ -1361,9 +1362,55 @@
   $("leaderRoleFilter").onchange = renderUsers;
   $("memberUserFilter").oninput = renderMemberUsers;
 
+  $("userRole").onchange = () => {
+    const adminRole=$("userRole").value==="secretary_admin";
+    $("userUnitWrap")?.classList.toggle("hidden",adminRole);
+  };
+
+  $("activeUnitSelect").onchange = async () => {
+    state.activeUnitId=$("activeUnitSelect").value || null;
+    const unit=currentUnit();
+    $("activeUnitMeta").textContent=unit
+      ? [unit.meetinghouse_name,unit.city,unit.country_code].filter(Boolean).join(" · ")
+      : "";
+    if (unit) $("panelUnit").textContent=unit.unit_name;
+
+    state.selectedDates.clear();
+    await loadActiveUnitTeam();
+    renderStats();
+    renderAppointments();
+    renderWeekStrip();
+    renderSchedule();
+  };
+
+  $("adminUnitSearchBtn").onclick = searchAdminUnits;
+  $("adminUnitQuery").addEventListener("keydown",event=>{
+    if (event.key==="Enter") {
+      event.preventDefault();
+      searchAdminUnits();
+    }
+  });
+  $("adminUnitCity").addEventListener("keydown",event=>{
+    if (event.key==="Enter") {
+      event.preventDefault();
+      searchAdminUnits();
+    }
+  });
+
+  $("assignExistingStaffForm").onsubmit = assignExistingStaff;
+  $("createUnitStaffForm").onsubmit = createUnitStaff;
+  $("unitAssignRole").onchange = populateUnitAssignProfiles;
+  $("closeAdminUnitManager").onclick = () => {
+    state.adminSelectedUnit=null;
+    state.adminUnitTeam=[];
+    $("adminUnitManager").classList.add("hidden");
+  };
+
   $("statusFilter").onchange = renderAppointments;
 
   $("scheduleLeader").onchange = () => {
+    state.selectedDates.clear();
+    renderWeekStrip();
     renderSchedule();
   };
 
