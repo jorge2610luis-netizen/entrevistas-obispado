@@ -7,9 +7,9 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#005581">
-  <meta name="description" content="Solicitud de entrevistas con el obispado.">
+  <meta name="description" content="Solicitud y seguimiento de entrevistas con el obispado.">
   <title>Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=2.3.0">
+  <link rel="stylesheet" href="styles.css?v=2.4.0">
 </head>
 <body>
 <header class="topbar">
@@ -18,99 +18,165 @@
     <div>
       <strong>Entrevistas del Obispado</strong>
       <small id="unitName">Barrio / Rama</small>
-      <small id="appVersion" class="version-label">v2.3.0</small>
+      <small id="appVersion" class="version-label">v2.4.0</small>
     </div>
   </div>
-  <a class="link-button" href="panel.html?v=2.3.0">Acceso de líderes</a>
+  <a class="link-button" href="panel.html?v=2.4.0">Acceso de líderes</a>
 </header>
 
 <main class="container">
   <section class="hero">
     <div>
       <span class="eyebrow">Agenda de entrevistas</span>
-      <h1>Solicita una entrevista</h1>
-      <p>Elige con quién necesitas reunirte y te mostraremos únicamente los días y horarios que ese líder tenga disponibles.</p>
+      <h1>Reserva y sigue tu entrevista</h1>
+      <p>Crea tu cuenta con tu número de teléfono. Desde tu cuenta podrás reservar y revisar el estado de tus entrevistas.</p>
     </div>
     <div class="hero-card">
       <span class="hero-check">✓</span>
-      <strong>Proceso de confirmación</strong>
+      <strong>Seguimiento personal</strong>
       <span>Solicitud → Secretario → Líder → Confirmada</span>
     </div>
   </section>
 
-  <section id="bookingCard" class="card">
-    <div class="section-heading">
-      <span class="step">1</span>
+  <section id="memberAuthCard" class="card member-auth-card">
+    <div class="member-auth-heading">
       <div>
-        <h2>Elige con quién necesitas reunirte</h2>
-        <p>Solo se muestran líderes activos.</p>
+        <span class="eyebrow">Cuenta de miembro</span>
+        <h2>Ingresa o crea tu cuenta</h2>
+        <p>Tu número de teléfono será tu usuario.</p>
+      </div>
+      <div class="auth-tabs">
+        <button id="showMemberLogin" class="auth-tab active" type="button">Ingresar</button>
+        <button id="showMemberRegister" class="auth-tab" type="button">Crear cuenta</button>
       </div>
     </div>
 
-    <div id="leaderGrid" class="leader-grid">
-      <div class="empty">Cargando líderes...</div>
-    </div>
-
-    <form id="bookingForm" class="booking-form hidden">
-      <div class="section-heading compact">
-        <span class="step">2</span>
-        <div>
-          <h2>Selecciona entrevista y día</h2>
-          <p>Solo aparecen los días que tienen horas disponibles.</p>
+    <form id="memberLoginForm" class="member-auth-form">
+      <label>Número de teléfono
+        <div class="phone-input-wrap">
+          <span>+591</span>
+          <input id="memberLoginPhone" inputmode="tel" autocomplete="tel" required placeholder="70000000">
         </div>
-      </div>
-
-      <label class="public-type-label">
-        Tipo de entrevista
-        <select id="interviewType" required></select>
       </label>
-
-      <div class="available-days-block">
-        <span class="field-label">Días disponibles</span>
-        <div id="availableDays" class="available-day-list"></div>
-      </div>
-
-      <section id="publicDayPanel" class="public-day-panel hidden">
-        <div class="subheading-row">
-          <div>
-            <span class="eyebrow">Horas disponibles</span>
-            <h3 id="publicSelectedDate"></h3>
-          </div>
-        </div>
-        <div id="publicTimeSlots" class="time-slot-grid"></div>
-      </section>
-
-      <div class="section-heading compact">
-        <span class="step">3</span>
-        <div>
-          <h2>Tus datos</h2>
-          <p id="selectedSlotSummary">Selecciona primero un día y una hora.</p>
-        </div>
-      </div>
-
-      <div class="form-grid">
-        <label>Nombre completo<input id="memberName" maxlength="120" required autocomplete="name"></label>
-        <label>Teléfono / WhatsApp<input id="memberPhone" maxlength="40" required inputmode="tel" autocomplete="tel"></label>
-        <label>Correo electrónico <span class="optional">(opcional)</span><input id="memberEmail" maxlength="254" type="email" autocomplete="email"></label>
-      </div>
-
-      <div class="privacy-note"><strong>Privacidad:</strong> no escribas detalles confidenciales de la entrevista. El formulario solicita únicamente información de coordinación.</div>
-      <div id="bookingError" class="alert error hidden"></div>
-      <button id="submitBooking" class="primary-button" type="submit">Enviar solicitud</button>
+      <label>Contraseña
+        <input id="memberLoginPassword" type="password" minlength="8" autocomplete="current-password" required>
+      </label>
+      <button class="primary-button" type="submit">Ingresar</button>
     </form>
+
+    <form id="memberRegisterForm" class="member-auth-form hidden">
+      <label>Nombre completo
+        <input id="memberRegisterName" maxlength="120" autocomplete="name" required>
+      </label>
+      <label>Número de teléfono
+        <div class="phone-input-wrap">
+          <span>+591</span>
+          <input id="memberRegisterPhone" inputmode="tel" autocomplete="tel" required placeholder="70000000">
+        </div>
+      </label>
+      <label>Contraseña
+        <input id="memberRegisterPassword" type="password" minlength="8" autocomplete="new-password" required placeholder="Mínimo 8 caracteres">
+      </label>
+      <label>Repetir contraseña
+        <input id="memberRegisterPassword2" type="password" minlength="8" autocomplete="new-password" required>
+      </label>
+      <button class="primary-button" type="submit">Crear mi cuenta</button>
+    </form>
+
+    <div id="memberAuthMessage" class="alert hidden"></div>
   </section>
 
-  <section id="successBox" class="card success-box hidden">
-    <div class="success-icon">✓</div>
-    <h2>Solicitud enviada</h2>
-    <p>Tu solicitud quedó pendiente de revisión por el secretario. La cita aún no está confirmada.</p>
-    <button id="newRequestBtn" class="secondary-button" type="button">Solicitar otra entrevista</button>
+  <section id="memberArea" class="hidden">
+    <section class="card member-account-card">
+      <div>
+        <span class="eyebrow">Mi cuenta</span>
+        <h2 id="memberAccountName">Mi cuenta</h2>
+        <p id="memberAccountPhone"></p>
+      </div>
+      <button id="memberLogoutBtn" class="secondary-button" type="button">Cerrar sesión</button>
+    </section>
+
+    <section class="card member-appointments-card">
+      <div class="card-header">
+        <div>
+          <h2>Mis entrevistas</h2>
+          <p>Solo tú puedes ver estas solicitudes.</p>
+        </div>
+        <button id="memberRefreshAppointments" class="secondary-button" type="button">Actualizar</button>
+      </div>
+      <div id="memberAppointmentsList" class="member-appointments-list">
+        <div class="empty">Cargando tus entrevistas...</div>
+      </div>
+    </section>
+
+    <section id="bookingCard" class="card">
+      <div class="section-heading">
+        <span class="step">1</span>
+        <div>
+          <h2>Elige con quién necesitas reunirte</h2>
+          <p>Solo se muestran líderes activos.</p>
+        </div>
+      </div>
+
+      <div id="leaderGrid" class="leader-grid">
+        <div class="empty">Cargando líderes...</div>
+      </div>
+
+      <form id="bookingForm" class="booking-form hidden">
+        <div class="section-heading compact">
+          <span class="step">2</span>
+          <div>
+            <h2>Selecciona entrevista y día</h2>
+            <p>Solo aparecen los días que tienen horas disponibles.</p>
+          </div>
+        </div>
+
+        <label class="public-type-label">
+          Tipo de entrevista
+          <select id="interviewType" required></select>
+        </label>
+
+        <div class="available-days-block">
+          <span class="field-label">Días disponibles</span>
+          <div id="availableDays" class="available-day-list"></div>
+        </div>
+
+        <section id="publicDayPanel" class="public-day-panel hidden">
+          <div class="subheading-row">
+            <div>
+              <span class="eyebrow">Horas disponibles</span>
+              <h3 id="publicSelectedDate"></h3>
+            </div>
+          </div>
+          <div id="publicTimeSlots" class="time-slot-grid"></div>
+        </section>
+
+        <div class="section-heading compact">
+          <span class="step">3</span>
+          <div>
+            <h2>Confirmar solicitud</h2>
+            <p id="selectedSlotSummary">Selecciona primero un día y una hora.</p>
+          </div>
+        </div>
+
+        <div class="privacy-note"><strong>Importante:</strong> la hora seleccionada queda solicitada, pero la entrevista se confirma después de la revisión del Secretario y del líder.</div>
+        <div id="bookingError" class="alert error hidden"></div>
+        <button id="submitBooking" class="primary-button" type="submit">Solicitar entrevista</button>
+      </form>
+    </section>
+
+    <section id="successBox" class="card success-box hidden">
+      <div class="success-icon">✓</div>
+      <h2>Solicitud enviada</h2>
+      <p>Ya aparece en “Mis entrevistas”. El Secretario revisará tu solicitud.</p>
+      <button id="newRequestBtn" class="secondary-button" type="button">Solicitar otra entrevista</button>
+    </section>
   </section>
 
   <section class="info-grid">
-    <article class="info-card"><span>1</span><h3>Selecciona</h3><p>Elige líder, entrevista, día y hora.</p></article>
-    <article class="info-card"><span>2</span><h3>Secretario</h3><p>Revisa y confirma contigo los datos.</p></article>
-    <article class="info-card"><span>3</span><h3>Líder</h3><p>Aprueba finalmente la entrevista.</p></article>
+    <article class="info-card"><span>1</span><h3>Crea tu cuenta</h3><p>Usa tu teléfono como usuario y define una contraseña.</p></article>
+    <article class="info-card"><span>2</span><h3>Reserva</h3><p>Elige únicamente entre los días y horas disponibles.</p></article>
+    <article class="info-card"><span>3</span><h3>Haz seguimiento</h3><p>Revisa el estado de cada solicitud desde “Mis entrevistas”.</p></article>
   </section>
 </main>
 
@@ -120,7 +186,7 @@
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=2.3.0"></script>
-<script src="public.js?v=2.3.0"></script>
+<script src="config.js?v=2.4.0"></script>
+<script src="public.js?v=2.4.0"></script>
 </body>
 </html>
