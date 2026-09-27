@@ -1,30 +1,80 @@
-# Entrevistas del Obispado — v2 Supabase
+# Entrevistas del Obispado
 
-Aplicación para solicitar y gestionar entrevistas: formulario público, revisión del secretario, decisión final del líder y administración de horarios.
+Aplicación web multi-barrio para solicitar, coordinar y dar seguimiento a entrevistas con el Obispado.
+
+**Versión actual declarada:** v4.1.0  
+**Producción:** https://mientrevista.online  
+**Backend:** Supabase  
+**Deploy:** GitHub Pages desde `main`
+
+## Antes de modificar el proyecto
+
+Lee primero:
+
+**[docs/PROJECT_HANDOFF.md](docs/PROJECT_HANDOFF.md)**
+
+Ese documento contiene el contexto completo para IA/desarrolladores:
+
+- arquitectura actual;
+- autenticación de miembros y líderes;
+- roles y permisos;
+- multi-barrio;
+- horarios;
+- flujo de solicitudes;
+- GPS/directorio de capillas;
+- Chile/Bolivia;
+- Supabase/RLS/RPC;
+- Edge Functions;
+- historial de decisiones;
+- funciones eliminadas o reemplazadas;
+- migraciones aplicadas;
+- pendientes reales;
+- problemas conocidos;
+- checklist de publicación.
+
+## Arquitectura resumida
+
+```text
+País
+└─ Región / Departamento
+   └─ Ciudad
+      └─ Capilla
+         └─ Barrio / Rama
+            ├─ Obispo
+            ├─ Consejeros
+            ├─ Secretario(s)
+            ├─ Miembros
+            ├─ Horarios
+            └─ Solicitudes
+```
+
+El sistema separa los datos por unidad mediante Supabase RLS y asignaciones explícitas de liderazgo.
 
 ## Seguridad
 
-- Usa Supabase Auth para el acceso interno.
-- La clave de `config.js` es una clave pública para frontend.
-- No agregues claves `service_role` ni claves secretas al repositorio.
-- Las reglas RLS de Supabase controlan los datos y acciones por rol.
+- Supabase Auth.
+- RLS en las tablas de aplicación.
+- La publishable key del frontend no es una clave secreta.
+- **Nunca** agregar `service_role`, contraseñas ni tokens privados al repositorio.
+- No almacenar motivos confidenciales de entrevistas ni coordenadas GPS precisas de miembros.
 
-## Roles
+## Producción
 
-- `secretary`: revisa solicitudes y administra horarios de todos los líderes.
-- `bishop`, `first_counselor`, `second_counselor`: revisan sus propias solicitudes y horarios.
+El workflow `.github/workflows/pages.yml` despliega automáticamente cada push a `main`.
 
-## Publicación
+Por eso, antes de publicar cambios:
 
-En GitHub: **Settings → Pages → Deploy from a branch → main → /(root) → Save**.
+1. revisar el handoff;
+2. incrementar la versión;
+3. sincronizar query strings de assets;
+4. probar miembro + panel interno;
+5. revisar móvil y escritorio;
+6. comprobar GitHub Pages;
+7. ejecutar Supabase Security Advisor.
 
-Después crea los usuarios internos en Supabase Authentication y asígnales su rol en la tabla `profiles`.
+## Estado del directorio geográfico
 
+Chile y Bolivia están en proceso de indexación/sincronización.
 
-## v2.1.0
-
-- Nuevo rol `secretary_admin`.
-- El Secretario Administrador puede crear accesos internos desde el panel.
-- Roles disponibles: Secretario Administrador, Secretario, Obispo, Primer Consejero y Segundo Consejero.
-- Nuevo generador semanal de disponibilidad por mes, semana, días, rango horario y duración.
-- El flujo del Secretario exige marcar primero al miembro como contactado antes de derivarlo al líder.
+**No asumir que todos los barrios/ramas ya están cargados.**  
+Consultar la sección “PENDIENTES / NO ASUMIR” del handoff antes de trabajar en cobertura geográfica.
