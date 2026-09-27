@@ -1229,7 +1229,7 @@
         const {data,error}=await db.rpc("search_church_catalog_v2",{
           p_query:query || null,
           p_country_code:countryCode || null,
-          p_region:region || null,
+          p_region:city ? null : (region || null),
           p_city:city || null,
           p_coverage:coverage || null,
           p_limit:100,
