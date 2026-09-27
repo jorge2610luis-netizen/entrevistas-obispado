@@ -60,6 +60,251 @@ async function fetchHtml(url: string) {
   }
 }
 
+async function fetchText(url: string, timeoutMs=15000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "accept": "application/xml,text/xml,text/plain,text/html,*/*",
+        "accept-language": "es,en;q=0.8",
+        "user-agent": "Mozilla/5.0 (compatible; EntrevistasObispado/1.0)"
+      }
+    });
+    if (!res.ok) throw new Error("Official directory returned " + res.status);
+    return await res.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function decodeXml(value: string) {
+  return value
+    .replace(/&amp;/g,"&")
+    .replace(/&lt;/g,"<")
+    .replace(/&gt;/g,">")
+    .replace(/&quot;/g,'"')
+    .replace(/&#39;/g,"'");
+}
+
+function sitemapLocations(xml: string) {
+  const out:string[]=[];
+  const re=/<loc>\s*([\s\S]*?)\s*<\/loc>/gi;
+  let m;
+  while ((m=re.exec(xml))) {
+    const url=decodeXml(String(m[1]||"").trim());
+    if (url) out.push(url);
+  }
+  return out;
+}
+
+async function discoverUnitUrls(countryCode:string) {
+  const cc=countryCode.toLowerCase();
+  const queue=[OFFICIAL_HOST+"/sitemap.xml"];
+  const visited=new Set<string>();
+  const unitUrls=new Set<string>();
+
+  while (queue.length && visited.size<60 && unitUrls.size<5000) {
+    const sitemapUrl=queue.shift()!;
+    if (visited.has(sitemapUrl)) continue;
+    visited.add(sitemapUrl);
+
+    try {
+      const xml=await fetchText(sitemapUrl,18000);
+      for (const loc of sitemapLocations(xml)) {
+        const normalized=loc.split("?")[0].replace(/\/$/,"");
+        if (/\.xml(?:\.gz)?$/i.test(normalized)) {
+          if (!visited.has(normalized) && queue.length<120) queue.push(normalized);
+          continue;
+        }
+
+        try {
+          const u=new URL(normalized);
+          const path=u.pathname.toLowerCase();
+          if (
+            path.includes("/es/units/"+cc+"/") &&
+            !path.includes("/events/")
+          ) {
+            unitUrls.add(u.toString());
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  const rows=[...unitUrls].map(officialUrl=>{
+    let slug="";
+    try {
+      slug=new URL(officialUrl).pathname.split("/").filter(Boolean).pop() || "";
+    } catch (_) {}
+    return {
+      official_url:officialUrl,
+      country_code:countryCode.toUpperCase(),
+      unit_slug:slug || null,
+      sync_status:"pending",
+      last_error:null,
+      updated_at:new Date().toISOString()
+    };
+  });
+
+  for (let i=0;i<rows.length;i+=500) {
+    const chunk=rows.slice(i,i+500);
+    if (!chunk.length) continue;
+    const {error}=await admin.from("church_directory_unit_index").upsert(
+      chunk,
+      {onConflict:"official_url",ignoreDuplicates:false}
+    );
+    if (error) throw error;
+  }
+
+  return {
+    countryCode:countryCode.toUpperCase(),
+    discovered:rows.length,
+    sitemapDocuments:visited.size
+  };
+}
+
+async function syncUnitIndexBatch(countryCode:string, limit:number) {
+  const safeLimit=Math.max(1,Math.min(Number(limit||4),8));
+
+  const {data:indexRows,error:indexError}=await admin
+    .from("church_directory_unit_index")
+    .select("official_url,country_code,unit_slug")
+    .eq("country_code",countryCode.toUpperCase())
+    .neq("sync_status","synced")
+    .order("updated_at",{ascending:true})
+    .limit(safeLimit);
+
+  if (indexError) throw indexError;
+
+  const results:any[]=[];
+
+  for (const row of indexRows||[]) {
+    const officialUrl=String(row.official_url||"");
+    if (!officialUrl) continue;
+
+    try {
+      const html=await fetchHtml(officialUrl);
+      const parsed=parseUnitPage(html);
+      const place=parsed.place;
+
+      if (!parsed.title || !place?.address) {
+        throw new Error("Unit page did not include a usable title/address");
+      }
+
+      const country=String(place.countryCode||countryCode).toUpperCase() || countryCode.toUpperCase();
+      const city=String(place.city||"").trim();
+      const region=String(place.region||"").trim();
+
+      let meetinghouse:any=null;
+
+      if (city) {
+        const existing=await admin
+          .from("church_meetinghouses")
+          .select("id,name,address,city,region,country_code,latitude,longitude,official_url")
+          .eq("country_code",country)
+          .eq("city",city)
+          .eq("address",place.address)
+          .maybeSingle();
+        meetinghouse=existing.data || null;
+      }
+
+      if (!meetinghouse) {
+        const mhName="Capilla "+(place.address.split(",")[0] || city || parsed.title);
+        const saved=await admin
+          .from("church_meetinghouses")
+          .upsert({
+            name:mhName,
+            address:place.address,
+            city:city || null,
+            region:region || null,
+            country_code:country,
+            latitude:place.latitude,
+            longitude:place.longitude,
+            official_url:null,
+            source:"official_unit_page",
+            source_verified_at:new Date().toISOString(),
+            is_active:true
+          },{onConflict:"country_code,city,address",ignoreDuplicates:false})
+          .select("id,name,address,city,region,country_code,latitude,longitude,official_url")
+          .single();
+
+        if (saved.error) throw saved.error;
+        meetinghouse=saved.data;
+      }
+
+      const type=/\brama\b|\bbranch\b/i.test(parsed.title) ? "branch" : "ward";
+
+      const savedUnit=await admin
+        .from("church_units")
+        .upsert({
+          unit_name:parsed.title,
+          unit_type:type,
+          meetinghouse_id:meetinghouse?.id || null,
+          meetinghouse_name:meetinghouse?.name || null,
+          address:place.address,
+          city:city || null,
+          region:region || null,
+          country_code:country,
+          latitude:place.latitude,
+          longitude:place.longitude,
+          official_url:officialUrl,
+          sunday_service:parsed.service || null,
+          is_active:true,
+          source_verified_at:new Date().toISOString()
+        },{onConflict:"official_url",ignoreDuplicates:false})
+        .select("id,unit_name,city,region,country_code,meetinghouse_id,official_url")
+        .single();
+
+      if (savedUnit.error) throw savedUnit.error;
+
+      await admin
+        .from("church_directory_unit_index")
+        .update({
+          sync_status:"synced",
+          last_error:null,
+          synced_at:new Date().toISOString(),
+          updated_at:new Date().toISOString()
+        })
+        .eq("official_url",officialUrl);
+
+      results.push({
+        ok:true,
+        unitName:savedUnit.data?.unit_name || parsed.title,
+        city:city || null,
+        url:officialUrl
+      });
+    } catch (error) {
+      const message=error instanceof Error?error.message:"Unit sync failed";
+      await admin
+        .from("church_directory_unit_index")
+        .update({
+          sync_status:"error",
+          last_error:message.slice(0,500),
+          updated_at:new Date().toISOString()
+        })
+        .eq("official_url",officialUrl);
+
+      results.push({ok:false,url:officialUrl,error:message});
+    }
+  }
+
+  const {count:remaining}=await admin
+    .from("church_directory_unit_index")
+    .select("official_url",{count:"exact",head:true})
+    .eq("country_code",countryCode.toUpperCase())
+    .neq("sync_status","synced");
+
+  return {
+    countryCode:countryCode.toUpperCase(),
+    processed:(indexRows||[]).length,
+    remaining:Number(remaining||0),
+    done:Number(remaining||0)===0,
+    results
+  };
+}
+
 function anchors(html: string) {
   const out: { href: string; text: string }[] = [];
   const re = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
@@ -160,7 +405,7 @@ function parseUnitPage(html: string) {
   const service =
     stripTags(html.match(/Servicio dominical[\s\S]{0,300}?([0-2]?\d:\d{2})/i)?.[1] || "") ||
     stripTags(html.match(/Sunday Service[\s\S]{0,300}?([0-2]?\d:\d{2})/i)?.[1] || "");
-  return { title, service };
+  return { title, service, place:parsePlace(html) };
 }
 
 async function reverseLookup(lat: number, lon: number) {
@@ -429,6 +674,23 @@ Deno.serve(async (req: Request) => {
         countryCode,
         Number(body.offset||0),
         Number(body.limit||3)
+      );
+      return new Response(JSON.stringify(result),{
+        headers:{"content-type":"application/json","cache-control":"no-store"}
+      });
+    }
+
+    if (action==="unit-index") {
+      const result=await discoverUnitUrls(countryCode);
+      return new Response(JSON.stringify(result),{
+        headers:{"content-type":"application/json","cache-control":"no-store"}
+      });
+    }
+
+    if (action==="sync-unit-batch") {
+      const result=await syncUnitIndexBatch(
+        countryCode,
+        Number(body.limit||4)
       );
       return new Response(JSON.stringify(result),{
         headers:{"content-type":"application/json","cache-control":"no-store"}
