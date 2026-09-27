@@ -19,7 +19,7 @@
     nearbyMeetinghouses:[]
   };
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.5.2";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.5.3";
 
 
   const PHONE_COUNTRIES = [
@@ -975,7 +975,7 @@
       if (/already|registered|exists/i.test(msg)) {
         showAuthMessage("Ese número ya tiene una cuenta. Usa “Ingresar”.");
       } else {
-        showAuthMessage("No se pudo crear la cuenta. Revisa los datos e inténtalo nuevamente.");
+        showAuthMessage(/email rate limit exceeded/i.test(msg) ? "Supabase está intentando enviar un correo de confirmación. Desactiva Confirm email en Authentication → Providers → Email, guarda y vuelve a intentarlo." : "No se pudo crear la cuenta. Revisa los datos e inténtalo nuevamente.");
       }
       return;
     }
