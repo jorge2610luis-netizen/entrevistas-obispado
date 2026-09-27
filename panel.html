@@ -8,7 +8,7 @@
   <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#005581">
   <title>Panel | Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=3.3.5">
+  <link rel="stylesheet" href="styles.css?v=4.0.0">
 </head>
 <body>
 <header class="topbar panel-topbar">
@@ -20,10 +20,10 @@
     <div>
       <strong>Panel de Entrevistas</strong>
       <small id="panelUnit">Barrio / Rama</small>
-      <small id="panelVersion" class="version-label">v3.3.5</small>
+      <small id="panelVersion" class="version-label">v4.0.0</small>
     </div>
   </div>
-  <a class="link-button" href="index.html?v=3.3.5">Página pública</a>
+  <a class="link-button" href="index.html?v=4.0.0">Página pública</a>
 </header>
 
 <div id="panelSidebarBackdrop" class="panel-sidebar-backdrop hidden"></div>
@@ -56,7 +56,7 @@
 
   <div class="panel-sidebar-actions">
     <button id="panelSidebarRefresh" type="button" class="panel-sidebar-action">↻ Actualizar datos</button>
-    <a class="panel-sidebar-action" href="index.html?v=3.3.5">← Página de miembros</a>
+    <a class="panel-sidebar-action" href="index.html?v=4.0.0">← Página de miembros</a>
     <button id="panelSidebarLogout" type="button" class="panel-sidebar-action danger">Cerrar sesión</button>
   </div>
 </aside>
@@ -122,11 +122,25 @@
         </div>
       </div>
 
-      <div class="unit-admin-search-grid">
-        <label>País<select id="adminUnitCountry"></select></label>
-        <label>Ciudad<input id="adminUnitCity" placeholder="Ej. Iquique"></label>
-        <label>Barrio, capilla o dirección<input id="adminUnitQuery" placeholder="Ej. Gómez Carreño"></label>
-        <button id="adminUnitSearchBtn" class="secondary-button" type="button">Buscar barrio</button>
+      <div class="unit-admin-search-grid scalable-unit-filters">
+        <label>País<select id="adminUnitCountry">
+          <option value="BO">Bolivia</option>
+          <option value="CL">Chile</option>
+        </select></label>
+        <label>Región / Departamento<select id="adminUnitRegion"><option value="">Todos</option></select></label>
+        <label>Ciudad<input id="adminUnitCity" placeholder="Ej. Iquique, La Paz, Trinidad"></label>
+        <label>Barrio, rama o capilla<input id="adminUnitQuery" placeholder="Ej. Gómez Carreño"></label>
+        <label>Cobertura<select id="adminCoverageFilter">
+          <option value="">Toda la zona</option>
+          <option value="covered">Con cobertura</option>
+          <option value="no_coverage">Sin cobertura</option>
+        </select></label>
+        <button id="adminUnitSearchBtn" class="secondary-button" type="button">Buscar</button>
+      </div>
+
+      <div class="directory-sync-row">
+        <button id="syncOfficialDirectory" class="mini-button" type="button">Actualizar directorio oficial del país</button>
+        <span id="directorySyncStatus" class="muted-text"></span>
       </div>
 
       <div id="adminUnitSearchStatus" class="catalog-search-status"></div>
@@ -187,10 +201,16 @@
     <section id="userAdminCard" class="card user-admin-card hidden panel-section" data-panel-section="users">
       <div class="card-header user-directory-header">
         <div>
-          <span class="eyebrow">Solo Secretario Administrador</span>
-          <h2>Cuentas del sistema</h2>
-          <p>Separa los miembros que solicitan entrevistas de los líderes y secretarios que administran el sistema.</p>
+          <span class="eyebrow">Directorio</span>
+          <h2>Personas y accesos</h2>
+          <p>Filtra por barrio y administra líderes o miembros sin llenar la pantalla.</p>
         </div>
+        <button id="openUserCreateModal" class="primary-button compact-action" type="button">+ Crear</button>
+      </div>
+
+      <div class="directory-global-filters">
+        <label>Barrio / Rama<select id="directoryUnitFilter"><option value="">Todos los barrios</option></select></label>
+        <label>Buscar<input id="directoryGlobalSearch" type="search" placeholder="Nombre, teléfono o correo"></label>
       </div>
 
       <div class="user-directory-tabs" role="tablist" aria-label="Tipo de cuenta">
@@ -220,7 +240,13 @@
           </label>
         </div>
 
-        <form id="userForm" class="user-create-form">
+        <div id="userCreateModal" class="modal-backdrop hidden">
+          <div class="modal-card">
+            <div class="modal-card-head">
+              <div><span class="eyebrow">Nuevo acceso</span><h3>Crear usuario interno</h3></div>
+              <button id="closeUserCreateModal" class="mini-button" type="button">Cerrar</button>
+            </div>
+            <form id="userForm" class="user-create-form modal-form">
           <label>Nombre<input id="userDisplayName" maxlength="120" required placeholder="Ej. Obispo"></label>
           <label>Correo<input id="userEmail" type="email" required autocomplete="off" placeholder="correo@ejemplo.com"></label>
           <label>Rol
@@ -242,9 +268,10 @@
             </div>
           </label>
           <button id="createUserBtn" class="primary-button" type="submit">Crear usuario</button>
-        </form>
-
-        <div id="userCreateResult" class="alert hidden"></div>
+            </form>
+            <div id="userCreateResult" class="alert hidden"></div>
+          </div>
+        </div>
 
         <div class="subheading-row">
           <h3>Usuarios internos configurados</h3>
@@ -261,9 +288,7 @@
             <h3>Miembros registrados</h3>
             <p>Usuarios que ingresan con teléfono para solicitar y seguir sus entrevistas.</p>
           </div>
-          <label class="directory-member-search">Buscar miembro
-            <input id="memberUserFilter" type="search" placeholder="Nombre, teléfono, barrio o capilla">
-          </label>
+          <span class="muted-text">Usa los filtros superiores para buscar por barrio o persona.</span>
         </div>
 
         <div class="subheading-row">
@@ -320,7 +345,12 @@
             <h2>Solicitudes</h2>
             <p id="requestsHint"></p>
           </div>
-          <select id="statusFilter">
+        </div>
+
+        <div class="request-filter-grid">
+          <label>Barrio / Rama<select id="requestUnitFilter"><option value="">Todos</option></select></label>
+          <label>Líder<select id="requestLeaderFilter"><option value="">Todos</option></select></label>
+          <label>Estado<select id="statusFilter">
             <option value="all">Todos los estados</option>
             <option value="pending_secretary">Pendiente de secretario</option>
             <option value="contacted">Contactado</option>
@@ -330,9 +360,16 @@
             <option value="reschedule">Reprogramación</option>
             <option value="completed">Completado</option>
             <option value="cancelled">Cancelado</option>
-          </select>
+          </select></label>
+          <label>Buscar<input id="requestSearch" type="search" placeholder="Nombre o teléfono"></label>
         </div>
+
         <div id="requestsList" class="requests-list"></div>
+        <div class="pagination-row">
+          <button id="requestPrev" class="mini-button" type="button">Anterior</button>
+          <span id="requestPageInfo" class="muted-text"></span>
+          <button id="requestNext" class="mini-button" type="button">Siguiente</button>
+        </div>
       </section>
 
       <aside id="panelScheduleSection" class="card schedule-card panel-section" data-panel-section="schedule">
@@ -407,7 +444,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=3.3.5"></script>
-<script src="panel.js?v=3.3.5"></script>
+<script src="config.js?v=4.0.0"></script>
+<script src="panel.js?v=4.0.0"></script>
 </body>
 </html>
