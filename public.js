@@ -33,7 +33,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.9.0";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.9.1";
 
 
   const PHONE_COUNTRIES = [
@@ -354,6 +354,14 @@
     $("memberRegisterForm").classList.toggle("hidden",login);
     $("showMemberLogin").classList.toggle("active",login);
     $("showMemberRegister").classList.toggle("active",!login);
+    if ($("memberAuthTitle")) {
+      $("memberAuthTitle").textContent = login ? "Iniciar sesión" : "Crear cuenta";
+    }
+    if ($("memberAuthSubtitle")) {
+      $("memberAuthSubtitle").textContent = login
+        ? "Ingresa con tu número de teléfono y contraseña."
+        : "Crea tu cuenta con tu número de teléfono para reservar y hacer seguimiento de tus entrevistas.";
+    }
     clearAuthMessage();
   }
 
@@ -371,12 +379,13 @@
     const isMember = mode==="member";
 
     $("memberBootLoading")?.classList.toggle("hidden",!isLoading);
-    $("publicHero")?.classList.toggle("hidden",!isGuest);
+    $("publicHero")?.classList.add("hidden");
     $("memberAuthCard")?.classList.toggle("hidden",!isGuest);
-    $("publicInfoGrid")?.classList.toggle("hidden",!isGuest);
+    $("publicInfoGrid")?.classList.add("hidden");
     $("memberArea")?.classList.toggle("hidden",!isMember);
     $("memberMenuToggle")?.classList.toggle("hidden",!isMember);
     $("publicTopbar")?.classList.toggle("member-menu-enabled",isMember);
+    $("publicFooter")?.classList.toggle("hidden",!isMember);
 
     if (!isMember) closeMemberMenu();
   }
