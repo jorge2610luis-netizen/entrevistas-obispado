@@ -769,14 +769,20 @@
   }
 
   function buildSlots() {
+    const assignment = selectedScheduleAssignment();
     const leaderId = selectedLeaderId();
+    const unitId = currentUnitId();
     const dates = [...state.selectedDates].sort();
     const startTime = $("scheduleStartTime").value;
     const endTime = $("scheduleEndTime").value;
     const duration = Number($("scheduleDuration").value || 30);
 
-    if (!leaderId || !dates.length || !startTime || !endTime) {
-      throw new Error("Selecciona líder, uno o varios días y el rango horario.");
+    if (!unitId) {
+      throw new Error("Selecciona primero un barrio o rama.");
+    }
+
+    if (!assignment || !leaderId || !dates.length || !startTime || !endTime) {
+      throw new Error("Selecciona un líder asignado, uno o varios días y el rango horario.");
     }
 
     const [sh,sm] = startTime.split(":").map(Number);
@@ -802,7 +808,14 @@
         const end_at = new Date(dateKey+"T"+ehh+":"+emm+":00-04:00").toISOString();
 
         if (new Date(start_at).getTime()<=Date.now()) continue;
-        slots.push({leader_id:leaderId,start_at,end_at,is_active:true});
+        slots.push({
+          leader_id:leaderId,
+          church_unit_id:unitId,
+          assigned_profile_id:assignment.profile_id,
+          start_at,
+          end_at,
+          is_active:true
+        });
       }
     });
 
@@ -810,10 +823,18 @@
   }
 
   function scheduleForSelectedWeek() {
+    const assignment = selectedScheduleAssignment();
     const leaderId = selectedLeaderId();
+    const unitId = currentUnitId();
     const dates = new Set(weekDates().map(dateKeyUTC));
+
+    if (!assignment || !leaderId || !unitId) return [];
+
     return state.schedule.filter(slot=>
-      slot.leader_id===leaderId && dates.has(dateKeyBolivia(slot.start_at))
+      slot.church_unit_id===unitId &&
+      slot.assigned_profile_id===assignment.profile_id &&
+      slot.leader_id===leaderId &&
+      dates.has(dateKeyBolivia(slot.start_at))
     );
   }
 
@@ -987,7 +1008,7 @@
     button.textContent = "Generando…";
 
     const {data,error} = await db.from("availability")
-      .upsert(slots,{onConflict:"leader_id,start_at",ignoreDuplicates:true})
+      .upsert(slots,{onConflict:"church_unit_id,assigned_profile_id,start_at",ignoreDuplicates:true})
       .select("id");
 
     button.disabled = false;
