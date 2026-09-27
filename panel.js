@@ -272,10 +272,21 @@
   function populateCountrySelect() {
     const select=$("adminUnitCountry");
     if (!select) return;
-    if (select.options.length) return;
-    select.innerHTML=UNIT_COUNTRIES.map(([code,name])=>
-      '<option value="'+code+'" '+(code==="CL"?"selected":"")+'>'+e(name)+'</option>'
-    ).join("");
+
+    const preferred=currentUnit()?.country_code || state.accessibleUnits[0]?.country_code || "CL";
+
+    if (!select.options.length) {
+      select.innerHTML=[
+        ["BO","Bolivia"],
+        ["CL","Chile"]
+      ].map(([code,name])=>
+        '<option value="'+code+'">'+e(name)+'</option>'
+      ).join("");
+    }
+
+    if ([...select.options].some(o=>o.value===preferred)) {
+      select.value=preferred;
+    }
   }
 
   async function loadRegionsForCountry(countryCode) {
@@ -1203,7 +1214,8 @@
     const button=$("syncOfficialDirectory");
     const status=$("directorySyncStatus");
     const countryCode=$("adminUnitCountry").value;
-    let offset=0;
+    const progressKey="church-directory-progress-"+countryCode;
+    let offset=Number(localStorage.getItem(progressKey)||0);
     let total=null;
     let processedTotal=0;
 
@@ -1228,6 +1240,7 @@
         total=Number(data.total||0);
         processedTotal+=Number(data.processed||0);
         offset=Number(data.nextOffset||offset);
+        localStorage.setItem(progressKey,String(offset));
 
         const meetinghouses=(data.results||[]).reduce((sum,x)=>sum+Number(x.meetinghouses||0),0);
         const units=(data.results||[]).reduce((sum,x)=>sum+Number(x.units||0),0);
@@ -1238,9 +1251,12 @@
         if (data.done || !data.processed) break;
       }
 
-      status.textContent=(total && offset>=total)
-        ? "Directorio oficial actualizado. "+total+" zonas revisadas."
-        : "Sincronización pausada en "+processedTotal+" zonas. Puedes pulsar nuevamente para continuar.";
+      if (total && offset>=total) {
+        localStorage.removeItem(progressKey);
+        status.textContent="Directorio oficial actualizado. "+total+" zonas revisadas.";
+      } else {
+        status.textContent="Sincronización pausada. Se revisaron "+processedTotal+" zona(s) en esta tanda; pulsa nuevamente para continuar.";
+      }
 
       const unitsResult=await db.rpc("staff_accessible_units");
       if (!unitsResult.error) {
