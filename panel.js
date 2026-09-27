@@ -14,8 +14,8 @@
   async function boot(){
     const {data:{session}}=await db.auth.getSession();
     if(!session){showLogin();return;} state.user=session.user;
-    const {data:profile,error}=await db.from("profiles").select("role,full_name").eq("id",session.user.id).maybeSingle();
-    if(error||!profile?.role){$("loginView").classList.add("hidden");$("unauthorizedView").classList.remove("hidden");return;}
+    const {data:profile,error}=await db.from("profiles").select("role,display_name,is_active").eq("id",session.user.id).maybeSingle();
+    if(error||!profile?.role||profile.is_active===false){$("loginView").classList.add("hidden");$("unauthorizedView").classList.remove("hidden");return;}
     state.profile=profile;$("loginView").classList.add("hidden");$("dashboard").classList.remove("hidden");
     $("roleTitle").textContent=titleByRole[profile.role]||"Panel"; $("roleSubtitle").textContent=profile.role==="secretary"?"Revisa solicitudes y administra los horarios de todos los líderes.":"Revisa tus solicitudes y administra tus propios horarios.";
     const {data:settings}=await db.from("settings").select("unit_name").eq("id",1).maybeSingle();if(settings?.unit_name)$("panelUnit").textContent=settings.unit_name;
