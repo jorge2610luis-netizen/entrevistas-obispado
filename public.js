@@ -2,7 +2,15 @@
   const $ = id => document.getElementById(id);
   const db = window.supabase.createClient(
     window.APP_CONFIG.supabaseUrl,
-    window.APP_CONFIG.supabasePublishableKey
+    window.APP_CONFIG.supabasePublishableKey,
+    {
+      auth:{
+        storageKey:window.APP_CONFIG.memberAuthStorageKey || "obispado-member-auth-v1",
+        persistSession:true,
+        autoRefreshToken:true,
+        detectSessionInUrl:false
+      }
+    }
   );
 
   const state = {
@@ -25,7 +33,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.8.2";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v2.9.0";
 
 
   const PHONE_COUNTRIES = [
@@ -1625,7 +1633,7 @@
 
   $("memberLogoutBtn").onclick = async () => {
     showBootLoading("Cerrando sesión…");
-    await db.auth.signOut();
+    await db.auth.signOut({scope:"local"});
     state.session = null;
     state.member = null;
     setAuthTab("login");
