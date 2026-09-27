@@ -8,6 +8,41 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
 });
 
 const OFFICIAL_HOST = "https://local.churchofjesuschrist.org";
+const ADMIN_DIRECTORY_ACTIONS = new Set([
+  "sync-country-batch",
+  "unit-index",
+  "sync-unit-batch"
+]);
+
+function jsonResponse(body: Record<string, unknown>, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" }
+  });
+}
+
+async function requireSecretaryAdmin(req: Request) {
+  const authorization = req.headers.get("authorization") || "";
+  const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
+
+  if (!token) return jsonResponse({ error: "Authentication is required" }, 401);
+
+  const { data: userData, error: userError } = await admin.auth.getUser(token);
+  const userId = userData.user?.id;
+  if (userError || !userId) return jsonResponse({ error: "Authentication is required" }, 401);
+
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("role,is_active")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profileError || !profile || profile.is_active === false || profile.role !== "secretary_admin") {
+    return jsonResponse({ error: "Secretary administrator access is required" }, 403);
+  }
+
+  return null;
+}
 
 function normalizeText(value: string) {
   return value
@@ -650,6 +685,11 @@ Deno.serve(async (req: Request) => {
     const action=String(body.action || "sync-city");
     let city = String(body.city || "").trim();
     let countryCode = String(body.countryCode || "").trim().toUpperCase();
+
+    if (ADMIN_DIRECTORY_ACTIONS.has(action)) {
+      const authorizationError = await requireSecretaryAdmin(req);
+      if (authorizationError) return authorizationError;
+    }
 
     if (!/^[A-Z]{2}$/.test(countryCode) && action!=="sync-city") {
       return new Response(JSON.stringify({error:"countryCode is required"}),{
