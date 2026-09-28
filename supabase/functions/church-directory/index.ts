@@ -11,7 +11,8 @@ const OFFICIAL_HOST = "https://local.churchofjesuschrist.org";
 const ADMIN_DIRECTORY_ACTIONS = new Set([
   "sync-country-batch",
   "unit-index",
-  "sync-unit-batch"
+  "sync-unit-batch",
+  "sync-pending-city-batch"
 ]);
 
 const CORS_HEADERS = {
@@ -231,7 +232,19 @@ async function refreshStoredUnitCount(countryCode:string, city:string) {
     .eq("city_name",cityName);
 
   if (placeError) throw placeError;
+  await markCityQueue(code,cityName,null,unitCount);
   return unitCount;
+}
+
+async function markCityQueue(countryCode:string, city:string, officialUrl:string|null, unitCount:number) {
+  const code=String(countryCode||"").toUpperCase(), cityName=String(city||"").trim();
+  if (!code || !cityName) return;
+  const now=new Date().toISOString(), resolved=Number(unitCount||0)>0;
+  const payload=resolved
+    ? {country_code:code,city_name:cityName,official_url:officialUrl,status:"resolved",resolved_at:now,last_error:null,next_attempt_at:null,updated_at:now}
+    : {country_code:code,city_name:cityName,official_url:officialUrl,status:"pending",last_attempt_at:now,next_attempt_at:new Date(Date.now()+604800000).toISOString(),updated_at:now};
+  const {error}=await admin.from("church_directory_city_queue").upsert(payload,{onConflict:"country_code,city_name",ignoreDuplicates:false});
+  if (error) throw error;
 }
 
 async function syncUnitIndexBatch(countryCode:string, limit:number) {
@@ -627,16 +640,18 @@ async function syncCity(city: string, countryCode: string) {
     .eq("is_active",true);
   if (storedUnitCountError) throw storedUnitCountError;
 
+  const finalUnitCount=Math.max(units.length,Number(storedUnitCount || 0));
   await admin.from("church_directory_places").upsert({
     country_code: countryCode.toUpperCase(),
     city_name: city,
     region: firstRegion,
     official_url: cityUrl,
     meetinghouse_count: meetinghouses.length,
-    unit_count: Math.max(units.length,Number(storedUnitCount || 0)),
+    unit_count: finalUnitCount,
     last_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   }, { onConflict: "country_code,city_name", ignoreDuplicates: false });
+  await markCityQueue(countryCode,city,cityUrl,finalUnitCount);
 
   return {
     city,
@@ -646,6 +661,26 @@ async function syncCity(city: string, countryCode: string) {
     meetinghouses,
     units
   };
+}
+
+async function syncPendingCityBatch(countryCode:string, limit:number) {
+  const safeLimit=Math.max(1,Math.min(Number(limit||2),3)), now=new Date().toISOString();
+  const {data:rows,error}=await admin.from("church_directory_city_queue").select("city_name").eq("country_code",countryCode.toUpperCase()).eq("status","pending").or("next_attempt_at.is.null,next_attempt_at.lte."+now).order("next_attempt_at",{ascending:true,nullsFirst:true}).limit(safeLimit);
+  if (error) throw error;
+  const results:any[]=[];
+  for (const row of rows||[]) {
+    const city=String(row.city_name||"").trim(); if (!city) continue;
+    try {
+      const result=await syncCity(city,countryCode);
+      results.push({city,ok:true,meetinghouses:result.meetinghouses.length,units:result.units.length});
+    } catch (error) {
+      const message=error instanceof Error?error.message:"Sync failed";
+      await admin.from("church_directory_city_queue").update({last_error:message.slice(0,500),last_attempt_at:new Date().toISOString(),next_attempt_at:new Date(Date.now()+604800000).toISOString(),updated_at:new Date().toISOString()}).eq("country_code",countryCode.toUpperCase()).eq("city_name",city);
+      results.push({city,ok:false,error:message});
+    }
+  }
+  const {count:remaining}=await admin.from("church_directory_city_queue").select("city_name",{count:"exact",head:true}).eq("country_code",countryCode.toUpperCase()).eq("status","pending");
+  return {countryCode:countryCode.toUpperCase(),processed:(rows||[]).length,remaining:Number(remaining||0),results};
 }
 
 async function listCountryPlaces(countryCode: string) {
@@ -773,6 +808,13 @@ Deno.serve(async (req: Request) => {
         countryCode,
         Number(body.limit||4)
       );
+      return new Response(JSON.stringify(result),{
+        headers:{...CORS_HEADERS,"content-type":"application/json","cache-control":"no-store"}
+      });
+    }
+
+    if (action==="sync-pending-city-batch") {
+      const result=await syncPendingCityBatch(countryCode,Number(body.limit||2));
       return new Response(JSON.stringify(result),{
         headers:{...CORS_HEADERS,"content-type":"application/json","cache-control":"no-store"}
       });
