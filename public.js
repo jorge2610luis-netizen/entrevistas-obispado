@@ -36,8 +36,9 @@
   };
 
   let bootPromise = null;
+  const TERMS_VERSION = "2026-09-27-v1";
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.3.3";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.3.4";
 
 
   const PHONE_COUNTRIES = [
@@ -949,6 +950,11 @@
     const password = $("memberRegisterPassword").value;
     const password2 = $("memberRegisterPassword2").value;
 
+    if (!$("memberAcceptTerms")?.checked) {
+      showAuthMessage("Debes leer y aceptar los Términos y Condiciones antes de crear tu cuenta.");
+      return;
+    }
+
     if (password!==password2) {
       showAuthMessage("Las contraseñas no coinciden.");
       return;
@@ -973,7 +979,9 @@
         data:{
           account_type:"member",
           full_name:fullName,
-          phone_e164:phone
+          phone_e164:phone,
+          terms_accepted:true,
+          terms_version:TERMS_VERSION
         }
       }
     });
@@ -1102,6 +1110,29 @@
       }
     } else if (event==="SIGNED_IN" && session && state.booted && !state.member) {
       loadMember(session);
+    }
+  });
+
+  function openTermsModal() {
+    $("termsModal")?.classList.remove("hidden");
+    document.body.classList.add("modal-open");
+  }
+
+  function closeTermsModal() {
+    $("termsModal")?.classList.add("hidden");
+    document.body.classList.remove("modal-open");
+  }
+
+  $("openTermsFromRegister")?.addEventListener("click",openTermsModal);
+  $("openTermsFromFooter")?.addEventListener("click",openTermsModal);
+  $("closeTermsModal")?.addEventListener("click",closeTermsModal);
+  $("acceptTermsFromModal")?.addEventListener("click",closeTermsModal);
+  $("termsModal")?.addEventListener("click",event=>{
+    if (event.target===$("termsModal")) closeTermsModal();
+  });
+  document.addEventListener("keydown",event=>{
+    if (event.key==="Escape" && !$("termsModal")?.classList.contains("hidden")) {
+      closeTermsModal();
     }
   });
 
