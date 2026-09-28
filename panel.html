@@ -27,7 +27,7 @@
     <div>
       <strong>Panel de Entrevistas</strong>
       <small id="panelUnit">Barrio / Rama</small>
-      <small id="panelVersion" class="version-label">v4.4.2</small>
+      <small id="panelVersion" class="version-label">v4.5.0</small>
     </div>
   </div>
   <a class="link-button" href="index.html?v=4.4.2">Página pública</a>
@@ -123,20 +123,31 @@
     <section id="unitLeadershipCard" class="card unit-leadership-card hidden panel-section" data-panel-section="units">
       <div class="card-header">
         <div>
-          <span class="eyebrow">Administración de Iquique</span>
+          <span class="eyebrow">Administración multi-barrio</span>
           <h2>Barrios y liderazgo</h2>
-          <p>Administra los barrios de Iquique y asigna el Obispo, Consejeros y Secretario de cada unidad.</p>
+          <p>Busca un barrio o rama y asigna el Obispo, Consejeros y Secretario que administrarán únicamente esa unidad.</p>
         </div>
       </div>
 
       <div class="unit-admin-search-grid scalable-unit-filters">
-        <label>Barrio o capilla<input id="adminUnitQuery" placeholder="Ej. Gómez Carreño"></label>
+        <label>País<select id="adminUnitCountry">
+          <option value="BO">Bolivia</option>
+          <option value="CL">Chile</option>
+        </select></label>
+        <label>Región / Departamento<select id="adminUnitRegion"><option value="">Todos</option></select></label>
+        <label>Ciudad<select id="adminUnitCity"><option value="">Todas las ciudades</option></select></label>
+        <label>Barrio, rama o capilla<input id="adminUnitQuery" placeholder="Ej. Gómez Carreño"></label>
         <label>Cobertura<select id="adminCoverageFilter">
-          <option value="">Todos los barrios</option>
+          <option value="">Toda la zona</option>
           <option value="covered">Con cobertura</option>
           <option value="no_coverage">Sin cobertura</option>
         </select></label>
         <button id="adminUnitSearchBtn" class="secondary-button" type="button">Buscar</button>
+      </div>
+
+      <div class="directory-sync-row">
+        <button id="syncOfficialDirectory" class="mini-button" type="button">Actualizar directorio oficial del país</button>
+        <span id="directorySyncStatus" class="muted-text"></span>
       </div>
 
       <div id="adminUnitSearchStatus" class="catalog-search-status"></div>
