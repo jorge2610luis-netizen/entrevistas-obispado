@@ -50,7 +50,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.4.0";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.4.1";
 
   const leaderRole = {
     bishop:"bishop",
@@ -100,8 +100,11 @@
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
   }[c]));
 
-  const fmt = value => new Intl.DateTimeFormat("es-BO",{
-    timeZone:"America/La_Paz",
+  const APP_TIME_ZONE = window.APP_CONFIG.defaultTimeZone || "America/Santiago";
+  const APP_LOCALE = "es-CL";
+
+  const fmt = value => new Intl.DateTimeFormat(APP_LOCALE,{
+    timeZone:APP_TIME_ZONE,
     dateStyle:"medium",
     timeStyle:"short"
   }).format(new Date(value));
@@ -120,9 +123,9 @@
     $("globalAlert").textContent = "";
   }
 
-  function dateKeyBolivia(value) {
+  function dateKeyLocal(value) {
     return new Intl.DateTimeFormat("en-CA",{
-      timeZone:"America/La_Paz",
+      timeZone:APP_TIME_ZONE,
       year:"numeric",
       month:"2-digit",
       day:"2-digit"
@@ -134,7 +137,7 @@
   }
 
   function shortDateUTC(date) {
-    return new Intl.DateTimeFormat("es-BO",{
+    return new Intl.DateTimeFormat(APP_LOCALE,{
       timeZone:"UTC",
       day:"numeric",
       month:"short"
@@ -142,7 +145,7 @@
   }
 
   function weekdayShortUTC(date) {
-    return new Intl.DateTimeFormat("es-BO",{
+    return new Intl.DateTimeFormat(APP_LOCALE,{
       timeZone:"UTC",
       weekday:"short"
     }).format(date).replace(".","").replace(/^./,c=>c.toUpperCase());
@@ -150,17 +153,51 @@
 
   function longDateKey(key) {
     const [y,m,d] = key.split("-").map(Number);
-    return new Intl.DateTimeFormat("es-BO",{
+    return new Intl.DateTimeFormat(APP_LOCALE,{
+      timeZone:"UTC",
       weekday:"long",day:"numeric",month:"long",year:"numeric"
-    }).format(new Date(Date.UTC(y,m-1,d))).replace(/^./,c=>c.toUpperCase());
+    }).format(new Date(Date.UTC(y,m-1,d,12))).replace(/^./,c=>c.toUpperCase());
   }
 
   function timeLabel(value) {
-    return new Intl.DateTimeFormat("es-BO",{
-      timeZone:"America/La_Paz",
+    return new Intl.DateTimeFormat(APP_LOCALE,{
+      timeZone:APP_TIME_ZONE,
       hour:"2-digit",
       minute:"2-digit"
     }).format(new Date(value));
+  }
+
+  function zonedDateTimeToISO(dateKey,timeValue) {
+    const [year,month,day] = dateKey.split("-").map(Number);
+    const [hour,minute] = timeValue.split(":").map(Number);
+    const desiredUtc = Date.UTC(year,month-1,day,hour,minute,0,0);
+
+    const offsetAt = instantMs => {
+      const parts = new Intl.DateTimeFormat("en-US",{
+        timeZone:APP_TIME_ZONE,
+        year:"numeric",month:"2-digit",day:"2-digit",
+        hour:"2-digit",minute:"2-digit",second:"2-digit",
+        hourCycle:"h23"
+      }).formatToParts(new Date(instantMs));
+      const map = Object.fromEntries(parts.filter(x=>x.type!=="literal").map(x=>[x.type,x.value]));
+      const representedAsUtc = Date.UTC(
+        Number(map.year),Number(map.month)-1,Number(map.day),
+        Number(map.hour),Number(map.minute),Number(map.second)
+      );
+      return representedAsUtc-instantMs;
+    };
+
+    let offset = offsetAt(desiredUtc);
+    let instant = desiredUtc-offset;
+    const correctedOffset = offsetAt(instant);
+    if (correctedOffset!==offset) instant = desiredUtc-correctedOffset;
+    return new Date(instant).toISOString();
+  }
+
+  function addDaysToKey(key,days) {
+    const [y,m,d] = key.split("-").map(Number);
+    const date = new Date(Date.UTC(y,m-1,d+days,12));
+    return date.toISOString().slice(0,10);
   }
 
   const LEADER_ROLES = new Set(["bishop","first_counselor","second_counselor"]);
@@ -1580,8 +1617,8 @@
         const ehh = String(Math.floor(end/60)).padStart(2,"0");
         const emm = String(end%60).padStart(2,"0");
 
-        const start_at = new Date(dateKey+"T"+hh+":"+mm+":00-04:00").toISOString();
-        const end_at = new Date(dateKey+"T"+ehh+":"+emm+":00-04:00").toISOString();
+        const start_at = zonedDateTimeToISO(dateKey,hh+":"+mm);
+        const end_at = zonedDateTimeToISO(dateKey,ehh+":"+emm);
 
         if (new Date(start_at).getTime()<=Date.now()) continue;
         slots.push({
@@ -1610,7 +1647,7 @@
       slot.church_unit_id===unitId &&
       slot.assigned_profile_id===assignment.profile_id &&
       slot.leader_id===leaderId &&
-      dates.has(dateKeyBolivia(slot.start_at))
+      dates.has(dateKeyLocal(slot.start_at))
     );
   }
 
@@ -1625,9 +1662,8 @@
       return;
     }
 
-    const start=new Date(weekKey+"T04:00:00Z");
-    const end=new Date(start);
-    end.setUTCDate(end.getUTCDate()+7);
+    const start=new Date(zonedDateTimeToISO(weekKey,"00:00"));
+    const end=new Date(zonedDateTimeToISO(addDaysToKey(weekKey,7),"00:00"));
 
     const {data,error}=await db.from("availability")
       .select("id,leader_id,church_unit_id,assigned_profile_id,start_at,end_at,is_active,is_booked,leaders(id,code,title)")
@@ -1669,27 +1705,37 @@
 
     const groups = new Map();
     rows.forEach(slot=>{
-      const key = dateKeyBolivia(slot.start_at);
+      const key = dateKeyLocal(slot.start_at);
       if (!groups.has(key)) groups.set(key,[]);
       groups.get(key).push(slot);
     });
 
-    $("scheduleList").innerHTML = [...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([key,slots])=>
-      '<div class="schedule-day-group">'+
-        '<strong class="schedule-day-title">'+e(longDateKey(key))+'</strong>'+
-        slots.sort((a,b)=>new Date(a.start_at)-new Date(b.start_at)).map(slot=>
+    $("scheduleList").innerHTML = [...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([key,slots])=>{
+      const ordered=slots.sort((a,b)=>new Date(a.start_at)-new Date(b.start_at));
+      const removable=ordered.filter(slot=>!slot.is_booked);
+      return '<div class="schedule-day-group">'+
+        '<div class="schedule-day-heading">'+
+          '<strong class="schedule-day-title">'+e(longDateKey(key))+'</strong>'+
+          (removable.length
+            ? '<button class="schedule-delete-day" type="button" data-delete-day="'+e(key)+'">Eliminar día</button>'
+            : '')+
+        '</div>'+
+        ordered.map(slot=>
           '<div class="slot-row">'+
             '<div><strong>'+e(timeLabel(slot.start_at))+'–'+e(timeLabel(slot.end_at))+'</strong><br>'+
               '<small>'+(slot.is_booked?"Ocupado / solicitado":slot.is_active?"Disponible":"Desactivado")+'</small>'+
             '</div>'+
             (slot.is_booked ? "" :
-              '<button data-slot="'+slot.id+'" data-active="'+(slot.is_active?"0":"1")+'">'+
-                (slot.is_active?"Desactivar":"Activar")+
-              '</button>')+
+              '<div class="slot-row-actions">'+
+                '<button type="button" data-slot="'+slot.id+'" data-active="'+(slot.is_active?"0":"1")+'">'+
+                  (slot.is_active?"Desactivar":"Activar")+
+                '</button>'+
+                '<button type="button" class="danger" data-delete-slot="'+slot.id+'">Eliminar</button>'+
+              '</div>')+
           '</div>'
         ).join("")+
-      '</div>'
-    ).join("");
+      '</div>';
+    }).join("");
 
     $("scheduleList").querySelectorAll("[data-slot]").forEach(button=>{
       button.onclick = async () => {
@@ -1698,7 +1744,59 @@
           .eq("id",button.dataset.slot);
 
         if (error) alertGlobal(error.message || "No se pudo cambiar el horario.","error");
-        else await refresh();
+        else await reloadSelectedSchedule();
+      };
+    });
+
+    $("scheduleList").querySelectorAll("[data-delete-slot]").forEach(button=>{
+      button.onclick = async () => {
+        const slot=rows.find(item=>item.id===button.dataset.deleteSlot);
+        if (!slot || slot.is_booked) return;
+        if (!window.confirm("¿Eliminar este horario "+timeLabel(slot.start_at)+"?")) return;
+
+        button.disabled=true;
+        const {error}=await db.from("availability")
+          .delete()
+          .eq("id",slot.id)
+          .eq("is_booked",false);
+
+        if (error) {
+          alertGlobal(error.message || "No se pudo eliminar el horario.","error");
+        } else {
+          alertGlobal("Horario eliminado.","success");
+          await reloadSelectedSchedule();
+        }
+      };
+    });
+
+    $("scheduleList").querySelectorAll("[data-delete-day]").forEach(button=>{
+      button.onclick = async () => {
+        const dayKey=button.dataset.deleteDay;
+        const daySlots=groups.get(dayKey) || [];
+        const removableIds=daySlots.filter(slot=>!slot.is_booked).map(slot=>slot.id);
+        const bookedCount=daySlots.length-removableIds.length;
+
+        if (!removableIds.length) {
+          alertGlobal("Ese día solo tiene horarios ocupados y no se puede eliminar.","info");
+          return;
+        }
+
+        const message="¿Eliminar "+removableIds.length+" horario(s) del "+longDateKey(dayKey)+"?"+
+          (bookedCount ? " Los "+bookedCount+" horario(s) ocupados se conservarán." : "");
+        if (!window.confirm(message)) return;
+
+        button.disabled=true;
+        const {error}=await db.from("availability")
+          .delete()
+          .in("id",removableIds)
+          .eq("is_booked",false);
+
+        if (error) {
+          alertGlobal(error.message || "No se pudieron eliminar los horarios del día.","error");
+        } else {
+          alertGlobal("Se eliminaron los horarios libres de "+longDateKey(dayKey)+".","success");
+          await reloadSelectedSchedule();
+        }
       };
     });
   }

@@ -40,7 +40,7 @@
   let bootPromise = null;
   const TERMS_VERSION = "2026-09-27-v1";
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.4.0";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.4.1";
 
 
   const PHONE_COUNTRIES = [
@@ -285,23 +285,27 @@
     return "m"+digits+"@members.expressdelivery.pro";
   }
 
-  function dateKeyBolivia(value) {
+  const APP_TIME_ZONE = window.APP_CONFIG.defaultTimeZone || "America/Santiago";
+  const APP_LOCALE = "es-CL";
+
+  function dateKeyLocal(value) {
     return new Intl.DateTimeFormat("en-CA",{
-      timeZone:"America/La_Paz",
+      timeZone:APP_TIME_ZONE,
       year:"numeric",month:"2-digit",day:"2-digit"
     }).format(new Date(value));
   }
 
   function longDateFromKey(key) {
     const [y,m,d] = key.split("-").map(Number);
-    return new Intl.DateTimeFormat("es-BO",{
+    return new Intl.DateTimeFormat(APP_LOCALE,{
+      timeZone:"UTC",
       weekday:"long",day:"numeric",month:"long",year:"numeric"
-    }).format(new Date(y,m-1,d)).replace(/^./,c=>c.toUpperCase());
+    }).format(new Date(Date.UTC(y,m-1,d,12))).replace(/^./,c=>c.toUpperCase());
   }
 
   function dayButtonParts(key) {
     const [y,m,d] = key.split("-").map(Number);
-    const date = new Date(y,m-1,d);
+    const date = new Date(Date.UTC(y,m-1,d,12));
     return {
       weekday:new Intl.DateTimeFormat("es-BO",{weekday:"long"}).format(date).replace(/^./,c=>c.toUpperCase()),
       date:new Intl.DateTimeFormat("es-BO",{day:"numeric",month:"short"}).format(date).replace(".","")
@@ -309,15 +313,15 @@
   }
 
   function timeLabel(value) {
-    return new Intl.DateTimeFormat("es-BO",{
-      timeZone:"America/La_Paz",
+    return new Intl.DateTimeFormat(APP_LOCALE,{
+      timeZone:APP_TIME_ZONE,
       hour:"2-digit",minute:"2-digit"
     }).format(new Date(value));
   }
 
   function fullDateTime(value) {
-    return new Intl.DateTimeFormat("es-BO",{
-      timeZone:"America/La_Paz",
+    return new Intl.DateTimeFormat(APP_LOCALE,{
+      timeZone:APP_TIME_ZONE,
       weekday:"long",day:"numeric",month:"long",year:"numeric",
       hour:"2-digit",minute:"2-digit"
     }).format(new Date(value));
@@ -580,7 +584,7 @@
   function groupedSlots() {
     const map = new Map();
     state.slots.forEach(slot=>{
-      const key = dateKeyBolivia(slot.start_at);
+      const key = dateKeyLocal(slot.start_at);
       if (!map.has(key)) map.set(key,[]);
       map.get(key).push(slot);
     });
@@ -614,7 +618,7 @@
     state.selectedSlot = null;
     renderAvailableDays();
 
-    const rows = state.slots.filter(slot=>dateKeyBolivia(slot.start_at)===key);
+    const rows = state.slots.filter(slot=>dateKeyLocal(slot.start_at)===key);
     $("publicSelectedDate").textContent = longDateFromKey(key);
     $("publicTimeSlots").innerHTML = rows.map(slot=>
       '<button class="time-slot-button" type="button" data-slot="'+slot.id+'">'+

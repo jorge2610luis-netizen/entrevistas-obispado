@@ -2,7 +2,7 @@
 
 Aplicación web para solicitar, coordinar y dar seguimiento a entrevistas con el Obispado en **Iquique, Chile**.
 
-**Versión actual:** v4.4.0  
+**Versión actual:** v4.4.1  
 **Producción:** https://mientrevista.online  
 **Backend:** Supabase  
 **Deploy:** GitHub Pages desde `main`
@@ -50,7 +50,7 @@ Antes de publicar:
 5. revisar Supabase Security Advisor.
 
 
-## PWA y notificaciones v4.4.0
+## PWA y notificaciones v4.4.1
 
 - Instalable como PWA desde navegadores compatibles.
 - Service Worker con soporte offline básico del shell.
@@ -58,3 +58,12 @@ Antes de publicar:
 - Notificaciones automáticas por creación y cambios de estado de entrevistas.
 - Guía interactiva y opcional para miembros y panel interno.
 - La clave privada VAPID se genera en servidor y se guarda en Supabase Vault; no se publica en GitHub.
+
+
+## Corrección de horarios v4.4.1
+
+- Zona horaria oficial del sistema: `America/Santiago`.
+- Las fechas seleccionadas ya no se muestran un día antes.
+- La creación de horarios respeta el horario de verano de Chile.
+- Se puede eliminar un horario libre individual o todos los horarios libres de un día.
+- Los horarios ocupados no se eliminan desde estas acciones.
