@@ -240,9 +240,14 @@ async function markCityQueue(countryCode:string, city:string, officialUrl:string
   const code=String(countryCode||"").toUpperCase(), cityName=String(city||"").trim();
   if (!code || !cityName) return;
   const now=new Date().toISOString(), resolved=Number(unitCount||0)>0;
-  const payload=resolved
-    ? {country_code:code,city_name:cityName,official_url:officialUrl,status:"resolved",resolved_at:now,last_error:null,next_attempt_at:null,updated_at:now}
-    : {country_code:code,city_name:cityName,official_url:officialUrl,status:"pending",last_attempt_at:now,next_attempt_at:new Date(Date.now()+604800000).toISOString(),updated_at:now};
+  const payload={
+    country_code:code,
+    city_name:cityName,
+    ...(officialUrl ? {official_url:officialUrl} : {}),
+    ...(resolved
+      ? {status:"resolved",resolved_at:now,last_error:null,next_attempt_at:null,updated_at:now}
+      : {status:"pending",last_attempt_at:now,next_attempt_at:new Date(Date.now()+604800000).toISOString(),updated_at:now})
+  };
   const {error}=await admin.from("church_directory_city_queue").upsert(payload,{onConflict:"country_code,city_name",ignoreDuplicates:false});
   if (error) throw error;
 }
