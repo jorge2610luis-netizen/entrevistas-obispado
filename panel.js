@@ -1430,14 +1430,26 @@
         }
       }
 
+      let pendingQueue=null;
+      try {
+        const pendingResult=await db.functions.invoke("church-directory",{
+          body:{action:"sync-pending-city-batch",countryCode,limit:3}
+        });
+        if (!pendingResult.error) pendingQueue=pendingResult.data || null;
+      } catch (error) {
+        console.warn("pending city retry failed",error);
+      }
+
       if (unitIndex?.discovered && unitRemaining===0) {
         status.textContent="Directorio oficial actualizado: "+unitIndex.discovered+
-          " páginas de barrio/rama indexadas para "+countryCode+".";
+          " páginas de barrio/rama indexadas para "+countryCode+"."+
+          (pendingQueue?.remaining ? " · "+pendingQueue.remaining+" ciudad(es) con capillas siguen pendientes de enlaces oficiales.":"");
       } else if (unitProcessed>0) {
         status.textContent="Directorio actualizado parcialmente: "+unitProcessed+
           " barrio(s)/rama(s) procesados en esta tanda"+
           (unitRemaining!==null?" · "+unitRemaining+" pendientes.":".")+
-          " Pulsa nuevamente para continuar.";
+          " Pulsa nuevamente para continuar."+
+          (pendingQueue?.remaining ? " · "+pendingQueue.remaining+" ciudad(es) con capillas siguen pendientes de enlaces oficiales.":"");
       } else if (total && offset>=total) {
         status.textContent="Directorio de ciudades y capillas actualizado. Los barrios/ramas se completarán en las siguientes tandas.";
       } else {
