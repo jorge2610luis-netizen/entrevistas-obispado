@@ -301,12 +301,14 @@
     }
 
     if (state.db && state.user) {
-      await state.db.rpc("remove_push_subscription", {
-        p_endpoint: subscription.endpoint
-      }).catch(() => null);
+      try {
+        await state.db.rpc("remove_push_subscription", {
+          p_endpoint: subscription.endpoint
+        });
+      } catch (_) {}
     }
 
-    await subscription.unsubscribe().catch(() => false);
+    try { await subscription.unsubscribe(); } catch (_) {}
     setStatus("Notificaciones desactivadas en este dispositivo.","info");
     await refreshNotificationButton();
   }
