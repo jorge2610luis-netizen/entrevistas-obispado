@@ -1,4 +1,4 @@
-const CACHE_NAME = "obispado-pwa-v4.4.2";
+const CACHE_NAME = "obispado-pwa-v4.5.2";
 const APP_SHELL = [
   "/",
   "/index.html",
