@@ -1979,6 +1979,7 @@
     await db.auth.signOut({scope:"local"});
     state.session = null;
     state.member = null;
+    window.ObispadoPWA?.clearUser();
     resetMemberHistory();
     setAuthTab("login");
     setMemberAppMode("guest");
@@ -2003,11 +2004,37 @@
     if (event==="SIGNED_OUT") {
       state.session = null;
       state.member = null;
+      window.ObispadoPWA?.clearUser();
       resetMemberHistory();
       if (state.booted) {
         setAuthTab("login");
         setMemberAppMode("guest");
       }
+    } else if (event==="SIGNED_IN" && session && state.booted && !state.member) {
+      loadMember(session);
+    }
+  });
+
+  function openTermsModal() {
+    $("termsModal")?.classList.remove("hidden");
+    document.body.classList.add("modal-open");
+  }
+
+  function closeTermsModal() {
+    $("termsModal")?.classList.add("hidden");
+    document.body.classList.remove("modal-open");
+  }
+
+  $("openTermsFromRegister")?.addEventListener("click",openTermsModal);
+  $("openTermsFromFooter")?.addEventListener("click",openTermsModal);
+  $("closeTermsModal")?.addEventListener("click",closeTermsModal);
+  $("acceptTermsFromModal")?.addEventListener("click",closeTermsModal);
+  $("termsModal")?.addEventListener("click",event=>{
+    if (event.target===$("termsModal")) closeTermsModal();
+  });
+  document.addEventListener("keydown",event=>{
+    if (event.key==="Escape" && !$("termsModal")?.classList.contains("hidden")) {
+      closeTermsModal();
     }
   });
 
