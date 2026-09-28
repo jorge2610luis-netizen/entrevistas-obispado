@@ -1569,7 +1569,7 @@
                   (unit.coverageStatus==="covered"?' · Con cobertura':' · Sin cobertura')+
                 '</button>'
               ).join("")+'</div>'
-            : '<small>Capilla registrada; si tu barrio todavía no está cargado podrás escribirlo al seleccionar.</small>')+
+            : '<small>Capilla registrada. Los barrios/ramas de esta ciudad están pendientes de actualización; puedes escribir tu unidad al seleccionar.</small>')+
         '</div>'+
         (!item.units?.length
           ? '<button class="secondary-button" type="button" data-catalog-meetinghouse="'+index+'">Seleccionar capilla</button>'
@@ -1631,7 +1631,9 @@
 
       const counts = catalogCounts(state.catalogResults);
       $("catalogSearchStatus").textContent = counts.meetinghouses
-        ? counts.meetinghouses+" capilla(s) y "+counts.units+" barrio(s)/rama(s) encontrados."
+        ? (counts.units
+          ? counts.meetinghouses+" capilla(s) y "+counts.units+" barrio(s)/rama(s) encontrados."
+          : counts.meetinghouses+" capilla(s) encontradas. Los barrios/ramas de esta ciudad aún no tienen un enlace oficial verificable; quedó pendiente de actualización. Puedes seleccionar la capilla y escribir tu barrio.")
         : "No hay coincidencias todavía. Puedes escribir tu barrio manualmente.";
       renderCatalogResults();
     } finally {
