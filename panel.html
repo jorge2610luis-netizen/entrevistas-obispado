@@ -80,8 +80,8 @@
     <h1>Iniciar sesión</h1>
     <p>Solo para Secretario, Obispo y Consejeros autorizados.</p>
     <form id="loginForm" class="login-form">
-      <label>Correo o teléfono internacional<input id="loginEmail" type="text" required autocomplete="username" placeholder="correo@ejemplo.com o +56912345678"></label>
-      <label>Contraseña<input id="loginPassword" type="password" required autocomplete="current-password"></label>
+      <label>Correo o teléfono internacional<input id="loginEmail" name="identifier" type="text" required autocomplete="username" placeholder="correo@ejemplo.com o +56912345678"></label>
+      <label>Contraseña<input id="loginPassword" name="password" type="password" required autocomplete="current-password"></label>
       <div id="loginError" class="alert error hidden"></div>
       <button class="primary-button" type="submit">Ingresar</button>
     </form>
