@@ -2,7 +2,7 @@
 
 Aplicación web para solicitar, coordinar y dar seguimiento a entrevistas con el Obispado en **Iquique, Chile**.
 
-**Versión actual:** v4.3.4  
+**Versión actual:** v4.4.0  
 **Producción:** https://mientrevista.online  
 **Backend:** Supabase  
 **Deploy:** GitHub Pages desde `main`
@@ -48,3 +48,13 @@ Antes de publicar:
 3. comprobar panel interno;
 4. mantener sincronizada la versión en `config.js`, `version.json`, HTML y assets;
 5. revisar Supabase Security Advisor.
+
+
+## PWA y notificaciones v4.4.0
+
+- Instalable como PWA desde navegadores compatibles.
+- Service Worker con soporte offline básico del shell.
+- Web Push asociado a cada cuenta y dispositivo.
+- Notificaciones automáticas por creación y cambios de estado de entrevistas.
+- Guía interactiva y opcional para miembros y panel interno.
+- La clave privada VAPID se genera en servidor y se guarda en Supabase Vault; no se publica en GitHub.

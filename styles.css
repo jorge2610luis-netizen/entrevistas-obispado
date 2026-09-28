@@ -1793,3 +1793,72 @@ body.modal-open{
   .terms-content{font-size:14px}
   .terms-actions .primary-button{width:100%}
 }
+
+
+/* PWA, instalación, notificaciones y guía v4.4.0 */
+.pwa-tools{
+  max-width:1180px;
+  margin:10px auto 0;
+  padding:0 20px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.pwa-tool-actions{display:flex;gap:8px;flex-wrap:wrap}
+.pwa-tool-button{padding:8px 12px;font-size:13px}
+.pwa-status{font-size:12px;color:var(--muted);text-align:right}
+.pwa-status.success{color:var(--success)}
+.pwa-status.error{color:var(--danger)}
+.pwa-status.info{color:var(--blue)}
+.pwa-guide-offer{
+  margin:0 0 16px;
+  padding:14px 16px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  box-shadow:0 8px 30px #10252f0d;
+}
+.pwa-guide-offer>div:first-child{display:grid;gap:3px}
+.pwa-guide-offer span{color:var(--muted);font-size:13px}
+.pwa-guide-offer-actions{display:flex;gap:8px;flex-shrink:0}
+.pwa-guide-card{
+  position:fixed;
+  z-index:310;
+  right:18px;
+  bottom:18px;
+  width:min(430px,calc(100vw - 36px));
+  padding:18px;
+  border:1px solid #b9ccd5;
+  border-radius:18px;
+  background:#fff;
+  box-shadow:0 22px 70px #10252f4a;
+}
+.pwa-guide-card h3{margin:5px 0 8px;font-size:22px;color:var(--ink)}
+.pwa-guide-card p{margin:0;color:var(--muted);line-height:1.55}
+.pwa-guide-progress{font-size:12px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.04em}
+.pwa-guide-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px}
+.pwa-guide-actions>div{display:flex;gap:8px}
+.pwa-guide-highlight{
+  position:relative!important;
+  z-index:305!important;
+  outline:4px solid #0c7aa8!important;
+  outline-offset:5px!important;
+  box-shadow:0 0 0 10px #ffffffd9,0 0 0 14px #0c7aa84d!important;
+  border-radius:12px;
+}
+@media(max-width:620px){
+  .pwa-tools{padding:0 16px;align-items:flex-start;flex-direction:column}
+  .pwa-tool-actions{width:100%}
+  .pwa-tool-button{flex:1;min-width:120px}
+  .pwa-status{text-align:left}
+  .pwa-guide-offer{flex-direction:column;align-items:stretch}
+  .pwa-guide-offer-actions button{flex:1}
+  .pwa-guide-card{right:12px;bottom:12px;width:calc(100vw - 24px)}
+  .pwa-guide-actions{align-items:stretch;flex-direction:column}
+  .pwa-guide-actions>div{display:grid;grid-template-columns:1fr 1fr}
+}
