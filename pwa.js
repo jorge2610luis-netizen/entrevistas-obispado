@@ -177,7 +177,7 @@
     if (!("serviceWorker" in navigator)) return null;
     if (!state.registrationPromise) {
       state.registrationPromise = navigator.serviceWorker
-        .register("/sw.js?v=4.4.2", { scope: "/" })
+        .register("/sw.js?v=4.5.2", { scope: "/" })
         .then(async registration => {
           state.registration = registration;
           await navigator.serviceWorker.ready;
