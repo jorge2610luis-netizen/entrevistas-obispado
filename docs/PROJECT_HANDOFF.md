@@ -2,12 +2,12 @@
 
 > Última actualización: 2026-09-27  
 > Rama de producción: `main`  
-> Versión: **v4.3.3**  
+> Versión: **v4.3.4**  
 > Sitio: https://mientrevista.online  
 > Panel: https://mientrevista.online/panel.html  
 > Supabase: `gyyahvrkcjocqhhoslho`
 
-## Corrección v4.3.3
+## Corrección v4.3.4
 
 Se restauraron los eventos del área de miembro que se habían eliminado accidentalmente al retirar el código geográfico:
 
@@ -20,6 +20,14 @@ Se restauraron los eventos del área de miembro que se habían eliminado acciden
 - botones de seguimiento posteriores a una solicitud.
 
 No se reintrodujo GPS ni lógica multipaís.
+
+## Términos y Condiciones v4.3.4
+
+Las cuentas nuevas de miembro deben aceptar los Términos y Condiciones versión `2026-09-27-v1` antes de registrarse.
+
+La aceptación se guarda en `member_profiles.terms_version` y `member_profiles.terms_accepted_at` mediante el trigger de Auth. Los usuarios existentes no se marcan retroactivamente.
+
+Los términos dejan explícito que la herramienta es local e independiente, no oficial, de uso voluntario y destinada únicamente a apoyar la coordinación de entrevistas.
 
 ## 1. Alcance
 
@@ -57,7 +65,7 @@ Gómez Carreño conserva los datos reales actualmente usados por miembros/lidera
 
 ## 3. Base de datos actual
 
-Después de la limpieza v4.3.3:
+Después de la limpieza v4.3.4:
 
 - `church_units`: 6
 - `church_meetinghouses`: 5
@@ -110,7 +118,7 @@ Panel interno.
 El Secretario Administrador puede administrar las seis unidades activas.
 
 ### `config.js` / `version.json`
-Versión actual: `v4.3.3`.
+Versión actual: `v4.3.4`.
 
 ## 5. Autenticación
 
