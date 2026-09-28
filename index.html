@@ -71,30 +71,30 @@
       <label>Número de teléfono
         <div class="phone-input-wrap multiphone">
           <select id="memberLoginCountry" class="country-select" aria-label="País"></select>
-          <input id="memberLoginPhone" inputmode="tel" autocomplete="tel" required placeholder="Número de teléfono">
+          <input id="memberLoginPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="Número de teléfono">
         </div>
       </label>
       <label>Contraseña
-        <input id="memberLoginPassword" type="password" minlength="8" autocomplete="current-password" required>
+        <input id="memberLoginPassword" name="password" type="password" minlength="8" autocomplete="current-password" required>
       </label>
       <button class="primary-button" type="submit">Ingresar</button>
     </form>
 
     <form id="memberRegisterForm" class="member-auth-form hidden">
       <label>Nombre completo
-        <input id="memberRegisterName" maxlength="120" autocomplete="name" required>
+        <input id="memberRegisterName" name="name" maxlength="120" autocomplete="name" required>
       </label>
       <label>Número de teléfono
         <div class="phone-input-wrap multiphone">
           <select id="memberRegisterCountry" class="country-select" aria-label="País"></select>
-          <input id="memberRegisterPhone" inputmode="tel" autocomplete="tel" required placeholder="Número de teléfono">
+          <input id="memberRegisterPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="Número de teléfono">
         </div>
       </label>
       <label>Contraseña
-        <input id="memberRegisterPassword" type="password" minlength="8" autocomplete="new-password" required placeholder="Mínimo 8 caracteres">
+        <input id="memberRegisterPassword" name="password" type="password" minlength="8" autocomplete="new-password" required placeholder="Mínimo 8 caracteres">
       </label>
       <label>Repetir contraseña
-        <input id="memberRegisterPassword2" type="password" minlength="8" autocomplete="new-password" required>
+        <input id="memberRegisterPassword2" name="password_confirmation" type="password" minlength="8" autocomplete="new-password" required>
       </label>
       <label class="terms-consent">
         <input id="memberAcceptTerms" type="checkbox" required>
