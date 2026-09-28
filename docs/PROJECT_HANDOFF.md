@@ -2,12 +2,12 @@
 
 > Última actualización: 2026-09-27  
 > Rama de producción: `main`  
-> Versión: **v4.4.0**  
+> Versión: **v4.4.1**  
 > Sitio: https://mientrevista.online  
 > Panel: https://mientrevista.online/panel.html  
 > Supabase: `gyyahvrkcjocqhhoslho`
 
-## Corrección v4.4.0
+## Corrección v4.4.1
 
 Se restauraron los eventos del área de miembro que se habían eliminado accidentalmente al retirar el código geográfico:
 
@@ -21,7 +21,7 @@ Se restauraron los eventos del área de miembro que se habían eliminado acciden
 
 No se reintrodujo GPS ni lógica multipaís.
 
-## Términos y Condiciones v4.4.0
+## Términos y Condiciones v4.4.1
 
 Las cuentas nuevas de miembro deben aceptar los Términos y Condiciones versión `2026-09-27-v1` antes de registrarse.
 
@@ -29,7 +29,7 @@ La aceptación se guarda en `member_profiles.terms_version` y `member_profiles.t
 
 Los términos dejan explícito que la herramienta es local e independiente, no oficial, de uso voluntario y destinada únicamente a apoyar la coordinación de entrevistas.
 
-## PWA, Web Push y guía v4.4.0
+## PWA, Web Push y guía v4.4.1
 
 La aplicación vuelve a ser instalable como PWA.
 
@@ -55,6 +55,19 @@ Eventos principales:
 - demás cambios de estado: miembro.
 
 La guía de uso es opcional y se ofrece una vez por usuario/dispositivo; siempre puede volver a abrirse desde “Guía de uso”.
+
+## Corrección de horarios v4.4.1
+
+El sistema de Iquique usa `America/Santiago`.
+
+Se corrigió un error heredado de `America/La_Paz` que hacía que martes apareciera como lunes y domingo como sábado en algunos títulos, además de desplazar una hora durante el horario de verano chileno.
+
+La administración de horarios permite:
+- eliminar un horario libre individual;
+- eliminar todos los horarios libres de un día;
+- conservar automáticamente horarios ocupados/solicitados.
+
+Los horarios futuros existentes de Iquique se reinterpretaron de La Paz a Santiago para conservar la hora de pared que el administrador había escrito.
 
 ## 1. Alcance
 
@@ -92,7 +105,7 @@ Gómez Carreño conserva los datos reales actualmente usados por miembros/lidera
 
 ## 3. Base de datos actual
 
-Después de la limpieza v4.4.0:
+Después de la limpieza v4.4.1:
 
 - `church_units`: 6
 - `church_meetinghouses`: 5
@@ -145,7 +158,7 @@ Panel interno.
 El Secretario Administrador puede administrar las seis unidades activas.
 
 ### `config.js` / `version.json`
-Versión actual: `v4.4.0`.
+Versión actual: `v4.4.1`.
 
 ## 5. Autenticación
 
