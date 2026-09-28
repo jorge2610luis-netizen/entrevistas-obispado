@@ -205,6 +205,35 @@ async function discoverUnitUrls(countryCode:string) {
   };
 }
 
+async function refreshStoredUnitCount(countryCode:string, city:string) {
+  const code=String(countryCode || "").toUpperCase();
+  const cityName=String(city || "").trim();
+  if (!code || !cityName) return 0;
+
+  const {count,error}=await admin
+    .from("church_units")
+    .select("id",{count:"exact",head:true})
+    .eq("country_code",code)
+    .eq("city",cityName)
+    .eq("is_active",true);
+
+  if (error) throw error;
+
+  const unitCount=Number(count || 0);
+  const {error:placeError}=await admin
+    .from("church_directory_places")
+    .update({
+      unit_count:unitCount,
+      last_synced_at:new Date().toISOString(),
+      updated_at:new Date().toISOString()
+    })
+    .eq("country_code",code)
+    .eq("city_name",cityName);
+
+  if (placeError) throw placeError;
+  return unitCount;
+}
+
 async function syncUnitIndexBatch(countryCode:string, limit:number) {
   const safeLimit=Math.max(1,Math.min(Number(limit||4),8));
 
@@ -298,6 +327,8 @@ async function syncUnitIndexBatch(countryCode:string, limit:number) {
         .single();
 
       if (savedUnit.error) throw savedUnit.error;
+
+      await refreshStoredUnitCount(country,city);
 
       await admin
         .from("church_directory_unit_index")
@@ -588,13 +619,21 @@ async function syncCity(city: string, countryCode: string) {
   }
 
   const firstRegion = meetinghouses.find((x:any)=>x.region)?.region || null;
+  const {count:storedUnitCount,error:storedUnitCountError}=await admin
+    .from("church_units")
+    .select("id",{count:"exact",head:true})
+    .eq("country_code",countryCode.toUpperCase())
+    .eq("city",city)
+    .eq("is_active",true);
+  if (storedUnitCountError) throw storedUnitCountError;
+
   await admin.from("church_directory_places").upsert({
     country_code: countryCode.toUpperCase(),
     city_name: city,
     region: firstRegion,
     official_url: cityUrl,
     meetinghouse_count: meetinghouses.length,
-    unit_count: units.length,
+    unit_count: Math.max(units.length,Number(storedUnitCount || 0)),
     last_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   }, { onConflict: "country_code,city_name", ignoreDuplicates: false });
