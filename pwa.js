@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = "v4.4.0";
+  const VERSION = "v4.4.1";
   const state = {
     db: null,
     user: null,
@@ -177,7 +177,7 @@
     if (!("serviceWorker" in navigator)) return null;
     if (!state.registrationPromise) {
       state.registrationPromise = navigator.serviceWorker
-        .register("/sw.js?v=4.4.0", { scope: "/" })
+        .register("/sw.js?v=4.4.1", { scope: "/" })
         .then(async registration => {
           state.registration = registration;
           await navigator.serviceWorker.ready;
