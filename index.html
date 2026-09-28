@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#005581">
   <meta name="description" content="Solicitud y seguimiento de entrevistas con el obispado.">
   <title>Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=4.3.3">
+  <link rel="stylesheet" href="styles.css?v=4.3.4">
 </head>
 <body>
 <header id="publicTopbar" class="topbar public-topbar">
@@ -21,10 +21,10 @@
     <div>
       <strong>Entrevistas del Obispado</strong>
       <small id="unitName">Barrio / Rama</small>
-      <small id="appVersion" class="version-label">v4.3.3</small>
+      <small id="appVersion" class="version-label">v4.3.4</small>
     </div>
   </div>
-  <a class="link-button" href="panel.html?v=4.3.3">Acceso de líderes</a>
+  <a class="link-button" href="panel.html?v=4.3.4">Acceso de líderes</a>
 </header>
 
 <main class="container">
@@ -88,6 +88,10 @@
       </label>
       <label>Repetir contraseña
         <input id="memberRegisterPassword2" type="password" minlength="8" autocomplete="new-password" required>
+      </label>
+      <label class="terms-consent">
+        <input id="memberAcceptTerms" type="checkbox" required>
+        <span>He leído y acepto los <button id="openTermsFromRegister" class="terms-link" type="button">Términos y Condiciones</button>.</span>
       </label>
       <button class="primary-button" type="submit">Crear mi cuenta</button>
     </form>
@@ -279,10 +283,61 @@
 <footer id="publicFooter" class="hidden">
   <p>Herramienta local para organización de entrevistas del obispado.</p>
   <p class="small">No es un sitio web oficial de La Iglesia de Jesucristo de los Santos de los Últimos Días.</p>
+  <button id="openTermsFromFooter" class="terms-footer-link" type="button">Términos y Condiciones</button>
 </footer>
 
+<section id="termsModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="termsTitle">
+  <article class="modal-card terms-modal-card">
+    <div class="modal-card-head">
+      <div>
+        <span class="eyebrow">Uso de la herramienta</span>
+        <h3 id="termsTitle">Términos y Condiciones</h3>
+        <p class="terms-version">Versión 2026-09-27-v1</p>
+      </div>
+      <button id="closeTermsModal" class="mini-button" type="button" aria-label="Cerrar términos">Cerrar</button>
+    </div>
+
+    <div class="terms-content">
+      <h4>1. Naturaleza independiente del servicio</h4>
+      <p>Esta aplicación es una herramienta local e independiente de apoyo para organizar solicitudes de entrevistas. No es un producto, sitio, servicio ni aplicación oficial de La Iglesia de Jesucristo de los Santos de los Últimos Días, ni representa, habla en nombre de, ni compromete a dicha institución.</p>
+
+      <h4>2. Finalidad</h4>
+      <p>Su finalidad es facilitar, de manera voluntaria, la coordinación entre miembros y líderes locales para solicitar y organizar entrevistas. La aplicación no reemplaza los canales oficiales, instrucciones, decisiones ni procedimientos de la Iglesia.</p>
+
+      <h4>3. Uso voluntario y responsabilidad del usuario</h4>
+      <p>El uso de la herramienta es voluntario. Cada usuario decide si desea utilizarla y es responsable de proporcionar información correcta, proteger su contraseña y utilizar su cuenta de forma adecuada. No debe emplearse para emergencias, situaciones de riesgo ni asuntos que requieran atención inmediata.</p>
+
+      <h4>4. Solicitudes y disponibilidad</h4>
+      <p>Enviar una solicitud o seleccionar un horario no garantiza que la entrevista sea aceptada o realizada. Los horarios pueden cambiar, ser reprogramados, rechazados o cancelados por razones organizativas o por decisión de los responsables locales.</p>
+
+      <h4>5. Datos personales</h4>
+      <p>Para operar la herramienta se utilizan datos básicos como nombre, teléfono, barrio o rama, solicitudes de entrevista y datos relacionados con la coordinación. Estos datos se utilizan para prestar y administrar esta función local. El usuario se compromete a no ingresar información innecesaria, sensible o de terceros que no sea requerida por el sistema.</p>
+
+      <h4>6. Disponibilidad y limitaciones</h4>
+      <p>La herramienta se ofrece como apoyo organizativo y puede presentar interrupciones, errores, información desactualizada o indisponibilidad temporal. En la medida permitida por la ley aplicable, sus responsables no garantizan un funcionamiento ininterrumpido ni asumen responsabilidad por daños indirectos derivados de fallos técnicos, retrasos o información incorrecta, sin afectar derechos que legalmente no puedan renunciarse o limitarse.</p>
+
+      <h4>7. Conducta y uso indebido</h4>
+      <p>No está permitido utilizar la aplicación para suplantar identidades, acceder a cuentas ajenas, interferir con el sistema, enviar solicitudes falsas, acosar a otras personas o realizar cualquier uso ilícito o contrario a su finalidad.</p>
+
+      <h4>8. Cambios</h4>
+      <p>Estos términos pueden actualizarse cuando cambie la herramienta o su funcionamiento. Cuando corresponda, podrá solicitarse una nueva aceptación de una versión posterior.</p>
+
+      <h4>9. Aceptación</h4>
+      <p>Al marcar la casilla de aceptación y crear una cuenta, el usuario declara que ha podido leer estos términos, que comprende el carácter no oficial e independiente de la herramienta y que acepta utilizarla bajo estas condiciones.</p>
+
+      <div class="terms-note">
+        <strong>Importante:</strong> Esta herramienta busca apoyar la organización local y no crea una relación de representación, mandato o autorización por parte de La Iglesia de Jesucristo de los Santos de los Últimos Días.
+      </div>
+    </div>
+
+    <div class="terms-actions">
+      <button id="acceptTermsFromModal" class="primary-button" type="button">Entendido</button>
+    </div>
+  </article>
+</section>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=4.3.3"></script>
-<script src="public.js?v=4.3.3"></script>
+<script src="config.js?v=4.3.4"></script>
+<script src="public.js?v=4.3.4"></script>
 </body>
 </html>
