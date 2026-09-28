@@ -18,6 +18,8 @@
     {auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}}
   );
 
+  window.ObispadoPWA?.attachClient(db,"staff").catch(error=>console.warn("PWA init",error));
+
   const state = {
     user:null,
     profile:null,
@@ -613,6 +615,12 @@
 
     setInitialMonth();
     await refresh();
+    window.ObispadoPWA?.setUser(session.user).catch(error=>console.warn("PWA user",error));
+
+    const requestedView=new URLSearchParams(location.search).get("view");
+    if (requestedView && ["overview","units","users","requests","schedule"].includes(requestedView)) {
+      setPanelView(requestedView,{scroll:false});
+    }
   }
 
   async function ensureLatestVersion() {
@@ -1910,6 +1918,7 @@
     await db.auth.signOut({scope:"local"});
     state.user = null;
     state.profile = null;
+    window.ObispadoPWA?.clearUser();
     showLogin();
   }
 
@@ -2114,6 +2123,7 @@
     if (event==="SIGNED_OUT") {
       state.user = null;
       state.profile = null;
+      window.ObispadoPWA?.clearUser();
       showLogin();
     }
   });
