@@ -13,6 +13,8 @@
     }
   );
 
+  window.ObispadoPWA?.attachClient(db,"member").catch(error=>console.warn("PWA init",error));
+
   const state = {
     session:null,
     member:null,
@@ -38,7 +40,7 @@
   let bootPromise = null;
   const TERMS_VERSION = "2026-09-27-v1";
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.3.4";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.4.0";
 
 
   const PHONE_COUNTRIES = [
@@ -442,6 +444,13 @@
 
     setMemberAppMode("member");
     initializeMemberHistory();
+    window.ObispadoPWA?.setUser(data).catch(error=>console.warn("PWA user",error));
+
+    const requestedView = new URLSearchParams(location.search).get("view");
+    if (requestedView && MEMBER_VIEWS[requestedView]) {
+      showMemberView(requestedView);
+    }
+
     return true;
   }
 
@@ -1079,6 +1088,7 @@
     await db.auth.signOut({scope:"local"});
     state.session = null;
     state.member = null;
+    window.ObispadoPWA?.clearUser();
     resetMemberHistory();
     setAuthTab("login");
     setMemberAppMode("guest");
@@ -1103,6 +1113,7 @@
     if (event==="SIGNED_OUT") {
       state.session = null;
       state.member = null;
+      window.ObispadoPWA?.clearUser();
       resetMemberHistory();
       if (state.booted) {
         setAuthTab("login");
