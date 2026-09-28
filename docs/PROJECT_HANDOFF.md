@@ -2,12 +2,12 @@
 
 > Última actualización: 2026-09-27  
 > Rama de producción: `main`  
-> Versión: **v4.4.1**  
+> Versión: **v4.4.2**  
 > Sitio: https://mientrevista.online  
 > Panel: https://mientrevista.online/panel.html  
 > Supabase: `gyyahvrkcjocqhhoslho`
 
-## Corrección v4.4.1
+## Corrección v4.4.2
 
 Se restauraron los eventos del área de miembro que se habían eliminado accidentalmente al retirar el código geográfico:
 
@@ -21,7 +21,7 @@ Se restauraron los eventos del área de miembro que se habían eliminado acciden
 
 No se reintrodujo GPS ni lógica multipaís.
 
-## Términos y Condiciones v4.4.1
+## Términos y Condiciones v4.4.2
 
 Las cuentas nuevas de miembro deben aceptar los Términos y Condiciones versión `2026-09-27-v1` antes de registrarse.
 
@@ -29,7 +29,7 @@ La aceptación se guarda en `member_profiles.terms_version` y `member_profiles.t
 
 Los términos dejan explícito que la herramienta es local e independiente, no oficial, de uso voluntario y destinada únicamente a apoyar la coordinación de entrevistas.
 
-## PWA, Web Push y guía v4.4.1
+## PWA, Web Push y guía v4.4.2
 
 La aplicación vuelve a ser instalable como PWA.
 
@@ -56,7 +56,7 @@ Eventos principales:
 
 La guía de uso es opcional y se ofrece una vez por usuario/dispositivo; siempre puede volver a abrirse desde “Guía de uso”.
 
-## Corrección de horarios v4.4.1
+## Corrección de horarios v4.4.2
 
 El sistema de Iquique usa `America/Santiago`.
 
@@ -68,6 +68,12 @@ La administración de horarios permite:
 - conservar automáticamente horarios ocupados/solicitados.
 
 Los horarios futuros existentes de Iquique se reinterpretaron de La Paz a Santiago para conservar la hora de pared que el administrador había escrito.
+
+## Corrección visual v4.4.2
+
+Se corrigieron secuencias literales `\\n` que habían quedado dentro de `index.html` y `panel.html` al integrar la PWA. Esas secuencias se estaban renderizando como texto visible sobre el encabezado.
+
+Se incrementó la versión a v4.4.2 para invalidar caché del navegador y del Service Worker.
 
 ## 1. Alcance
 
@@ -105,7 +111,7 @@ Gómez Carreño conserva los datos reales actualmente usados por miembros/lidera
 
 ## 3. Base de datos actual
 
-Después de la limpieza v4.4.1:
+Después de la limpieza v4.4.2:
 
 - `church_units`: 6
 - `church_meetinghouses`: 5
@@ -158,7 +164,7 @@ Panel interno.
 El Secretario Administrador puede administrar las seis unidades activas.
 
 ### `config.js` / `version.json`
-Versión actual: `v4.4.1`.
+Versión actual: `v4.4.2`.
 
 ## 5. Autenticación
 

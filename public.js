@@ -40,7 +40,7 @@
   let bootPromise = null;
   const TERMS_VERSION = "2026-09-27-v1";
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.4.1";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.4.2";
 
 
   const PHONE_COUNTRIES = [
