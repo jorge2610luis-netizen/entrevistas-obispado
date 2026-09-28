@@ -2,7 +2,7 @@
 
 Aplicación web para solicitar, coordinar y dar seguimiento a entrevistas con el Obispado en **Iquique, Chile**.
 
-**Versión actual:** v4.3.3  
+**Versión actual:** v4.3.4  
 **Producción:** https://mientrevista.online  
 **Backend:** Supabase  
 **Deploy:** GitHub Pages desde `main`
