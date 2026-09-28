@@ -1896,3 +1896,9 @@ body.modal-open{
   .schedule-day-heading{align-items:flex-start}
   .slot-row-actions{justify-content:flex-end}
 }
+
+.schedule-delete-help{
+  margin:4px 0 12px;
+  color:var(--muted);
+  font-size:13px;
+}
