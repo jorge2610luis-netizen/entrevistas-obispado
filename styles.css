@@ -1795,7 +1795,7 @@ body.modal-open{
 }
 
 
-/* PWA, instalación, notificaciones y guía v4.4.0 */
+/* PWA, instalación, notificaciones y guía v4.4.1 */
 .pwa-tools{
   max-width:1180px;
   margin:10px auto 0;
@@ -1861,4 +1861,38 @@ body.modal-open{
   .pwa-guide-card{right:12px;bottom:12px;width:calc(100vw - 24px)}
   .pwa-guide-actions{align-items:stretch;flex-direction:column}
   .pwa-guide-actions>div{display:grid;grid-template-columns:1fr 1fr}
+}
+
+
+/* Gestión de horarios v4.4.1 */
+.schedule-day-heading{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:8px;
+}
+.schedule-delete-day{
+  border:1px solid #c94b4b;
+  background:#fff;
+  color:#a52929;
+  border-radius:10px;
+  padding:7px 10px;
+  font-weight:700;
+  cursor:pointer;
+}
+.slot-row-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.slot-row-actions .danger{
+  border-color:#c94b4b;
+  color:#a52929;
+  background:#fff;
+}
+@media(max-width:620px){
+  .schedule-day-heading{align-items:flex-start}
+  .slot-row-actions{justify-content:flex-end}
 }
