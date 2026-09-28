@@ -37,7 +37,7 @@
 
   let bootPromise = null;
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.3.2";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.3.3";
 
 
   const PHONE_COUNTRIES = [
@@ -1016,6 +1016,9 @@
       showBookingError("Selecciona líder, día y hora.");
       return;
     }
+
+    const confirmed = window.confirm("¿Estás seguro de enviar la solicitud?");
+    if (!confirmed) return;
 
     const submit = $("submitBooking");
     submit.disabled = true;
