@@ -2,12 +2,12 @@
 
 > Última actualización: 2026-09-27  
 > Rama de producción: `main`  
-> Versión: **v4.3.1**  
+> Versión: **v4.3.2**  
 > Sitio: https://mientrevista.online  
 > Panel: https://mientrevista.online/panel.html  
 > Supabase: `gyyahvrkcjocqhhoslho`
 
-## Corrección v4.3.1
+## Corrección v4.3.2
 
 Se restauraron los eventos del área de miembro que se habían eliminado accidentalmente al retirar el código geográfico:
 
@@ -57,7 +57,7 @@ Gómez Carreño conserva los datos reales actualmente usados por miembros/lidera
 
 ## 3. Base de datos actual
 
-Después de la limpieza v4.3.1:
+Después de la limpieza v4.3.2:
 
 - `church_units`: 6
 - `church_meetinghouses`: 5
@@ -110,7 +110,7 @@ Panel interno.
 El Secretario Administrador puede administrar las seis unidades activas.
 
 ### `config.js` / `version.json`
-Versión actual: `v4.3.1`.
+Versión actual: `v4.3.2`.
 
 ## 5. Autenticación
 
