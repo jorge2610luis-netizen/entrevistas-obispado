@@ -750,7 +750,7 @@ Deno.serve(async (req: Request) => {
     if (!city || !/^[A-Z]{2}$/.test(countryCode)) {
       return new Response(JSON.stringify({ error: "city and countryCode are required" }), {
         status: 400,
-        headers: { "content-type": "application/json" }
+        headers: { ...CORS_HEADERS, "content-type": "application/json" }
       });
     }
 
@@ -767,7 +767,7 @@ Deno.serve(async (req: Request) => {
       error: error instanceof Error ? error.message : "Unexpected error"
     }), {
       status: 500,
-      headers: { "content-type": "application/json" }
+      headers: { ...CORS_HEADERS, "content-type": "application/json" }
     });
   }
 });
