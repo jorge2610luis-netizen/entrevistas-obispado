@@ -2,12 +2,12 @@
 
 > Última actualización: 2026-09-27  
 > Rama de producción: `main`  
-> Versión: **v4.3.4**  
+> Versión: **v4.4.0**  
 > Sitio: https://mientrevista.online  
 > Panel: https://mientrevista.online/panel.html  
 > Supabase: `gyyahvrkcjocqhhoslho`
 
-## Corrección v4.3.4
+## Corrección v4.4.0
 
 Se restauraron los eventos del área de miembro que se habían eliminado accidentalmente al retirar el código geográfico:
 
@@ -21,13 +21,40 @@ Se restauraron los eventos del área de miembro que se habían eliminado acciden
 
 No se reintrodujo GPS ni lógica multipaís.
 
-## Términos y Condiciones v4.3.4
+## Términos y Condiciones v4.4.0
 
 Las cuentas nuevas de miembro deben aceptar los Términos y Condiciones versión `2026-09-27-v1` antes de registrarse.
 
 La aceptación se guarda en `member_profiles.terms_version` y `member_profiles.terms_accepted_at` mediante el trigger de Auth. Los usuarios existentes no se marcan retroactivamente.
 
 Los términos dejan explícito que la herramienta es local e independiente, no oficial, de uso voluntario y destinada únicamente a apoyar la coordinación de entrevistas.
+
+## PWA, Web Push y guía v4.4.0
+
+La aplicación vuelve a ser instalable como PWA.
+
+Archivos:
+- `manifest.webmanifest`
+- `sw.js`
+- `pwa.js`
+- `icons/icon-192.png`
+- `icons/icon-512.png`
+- `supabase/functions/push-notifications/index.ts`
+
+Push:
+- `push_subscriptions` asocia un endpoint Push con un usuario.
+- `push_events` crea un token aleatorio por evento de entrevista.
+- Un trigger de `appointments` llama a `push-notifications` usando ese token.
+- La función Edge genera VAPID P-256 si aún no existe y guarda la clave privada en Supabase Vault.
+- Nunca guardar la clave privada VAPID en frontend o GitHub.
+
+Eventos principales:
+- solicitud creada: miembro + Secretaría + líder asignado;
+- enviada al líder: miembro + líder asignado;
+- aprobada por líder: miembro + Secretaría;
+- demás cambios de estado: miembro.
+
+La guía de uso es opcional y se ofrece una vez por usuario/dispositivo; siempre puede volver a abrirse desde “Guía de uso”.
 
 ## 1. Alcance
 
@@ -65,7 +92,7 @@ Gómez Carreño conserva los datos reales actualmente usados por miembros/lidera
 
 ## 3. Base de datos actual
 
-Después de la limpieza v4.3.4:
+Después de la limpieza v4.4.0:
 
 - `church_units`: 6
 - `church_meetinghouses`: 5
@@ -118,7 +145,7 @@ Panel interno.
 El Secretario Administrador puede administrar las seis unidades activas.
 
 ### `config.js` / `version.json`
-Versión actual: `v4.3.4`.
+Versión actual: `v4.4.0`.
 
 ## 5. Autenticación
 
