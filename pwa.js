@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = "v4.4.2";
+  const VERSION = "v4.5.2";
   const state = {
     db: null,
     user: null,
