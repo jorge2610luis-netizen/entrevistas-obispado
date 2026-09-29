@@ -11,12 +11,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Entrevistas">
-  <link rel="manifest" href="manifest.webmanifest?v=4.5.4">
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=4.5.4">
-  <link rel="apple-touch-icon" href="icons/icon-192.png?v=4.5.4">
+  <link rel="manifest" href="manifest.webmanifest?v=4.5.5">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=4.5.5">
+  <link rel="apple-touch-icon" href="icons/icon-192.png?v=4.5.5">
   <meta name="description" content="Solicitud y seguimiento de entrevistas con el obispado.">
   <title>Entrevistas del Obispado</title>
-  <link rel="stylesheet" href="styles.css?v=4.5.4">
+  <link rel="stylesheet" href="styles.css?v=4.5.5">
 </head>
 <body>
 <header id="publicTopbar" class="topbar public-topbar">
@@ -27,11 +27,11 @@
     <div class="brand-mark" aria-hidden="true">E</div>
     <div>
       <strong>Entrevistas del Obispado</strong>
-      <small id="unitName">Barrio / Rama</small>
-      <small id="appVersion" class="version-label">v4.5.4</small>
+      <small id="unitName">Iquique · Tarapacá</small>
+      <small id="appVersion" class="version-label">v4.5.5</small>
     </div>
   </div>
-  <a class="link-button" href="panel.html?v=4.5.4">Acceso de líderes</a>
+  <a class="link-button" href="panel.html?v=4.5.5">Acceso de líderes</a>
 </header>
 
 <main class="container">
@@ -170,19 +170,19 @@
           <section class="card member-unit-card">
             <div class="card-header">
               <div>
-                <span class="eyebrow">Ubicación y unidad</span>
+                <span class="eyebrow">Zona activa · Iquique, Tarapacá</span>
                 <h2>Mi barrio y capilla</h2>
-                <p>Busca desde tu casa. Primero usamos el catálogo interno de capillas y barrios; si hace falta, sincronizamos el directorio público oficial de la Iglesia para tu ciudad.</p>
+                <p>Por ahora el sistema trabaja únicamente con los barrios y capillas de Iquique, Región de Tarapacá.</p>
               </div>
-              <button id="useMemberLocation" class="primary-button compact-web-action" type="button">Usar mi ubicación</button>
+              <button id="useMemberLocation" class="primary-button compact-web-action hidden" type="button">Usar mi ubicación</button>
             </div>
 
             <div id="currentMemberUnit" class="current-unit-box">
-              <strong>Unidad todavía no configurada</strong>
-              <span>Puedes buscar por GPS o encontrar tu barrio manualmente por ciudad, capilla o nombre.</span>
+              <strong>Barrio todavía no configurado</strong>
+              <span>Selecciona tu barrio o capilla dentro de Iquique, Tarapacá.</span>
             </div>
 
-            <div class="privacy-note location-privacy-note">
+            <div class="privacy-note location-privacy-note hidden">
               <strong>Privacidad:</strong> usamos tu ubicación precisa solo durante la búsqueda. No guardamos tus coordenadas GPS en tu perfil.
             </div>
 
@@ -192,19 +192,21 @@
             <section id="catalogSearchCard" class="catalog-search-card hidden">
               <div class="catalog-search-heading">
                 <div>
-                  <span class="eyebrow">Búsqueda manual</span>
-                  <h3>Buscar barrio o capilla</h3>
-                  <p>Selecciona país y ciudad para ver los barrios/ramas disponibles. También puedes filtrar por nombre, capilla o dirección.</p>
+                  <span class="eyebrow">Zona fija</span>
+                  <h3>Buscar barrio o capilla en Iquique</h3>
+                  <p>Zona predeterminada: Iquique · Tarapacá. Busca por nombre de barrio, capilla o dirección.</p>
                 </div>
               </div>
 
               <div class="catalog-search-grid">
-                <label>País
-                  <select id="catalogCountry"></select>
-                </label>
-                <label>Ciudad
-                  <select id="catalogCity"><option value="">Selecciona una ciudad</option></select>
-                </label>
+                <div class="fixed-zone-controls hidden" aria-hidden="true">
+                  <label>País
+                    <select id="catalogCountry"><option value="CL" selected>Chile</option></select>
+                  </label>
+                  <label>Ciudad
+                    <select id="catalogCity"><option value="Iquique" selected>Iquique</option></select>
+                  </label>
+                </div>
                 <label class="catalog-query-label">Barrio, capilla o dirección
                   <input id="catalogQuery" maxlength="160" placeholder="Ej. Gómez Carreño, Zegers, Miramar...">
                 </label>
@@ -240,7 +242,7 @@
               </div>
             </section>
 
-            <button id="manualUnitBtn" class="text-action-button" type="button">Mi barrio todavía no aparece: escribirlo manualmente</button>
+            <button id="manualUnitBtn" class="text-action-button" type="button">Seleccionar o cambiar mi barrio de Iquique</button>
           </section>
         </section>
 
@@ -394,8 +396,8 @@
 </section>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=4.5.4"></script>
-<script src="pwa.js?v=4.5.4"></script>
-<script src="public.js?v=4.5.4"></script>
+<script src="config.js?v=4.5.5"></script>
+<script src="pwa.js?v=4.5.5"></script>
+<script src="public.js?v=4.5.5"></script>
 </body>
 </html>
