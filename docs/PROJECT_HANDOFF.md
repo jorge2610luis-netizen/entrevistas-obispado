@@ -75,6 +75,16 @@ Se corrigieron secuencias literales `\\n` que habían quedado dentro de `index.h
 
 Se incrementó la versión a v4.4.2 para invalidar caché del navegador y del Service Worker.
 
+## Zona fija v4.5.5
+
+La aplicación queda temporalmente en modo **Iquique · Tarapacá · Chile**.
+
+- `APP_CONFIG.fixedZone` fija `CL / Tarapacá / Iquique`.
+- Los controles país/región/ciudad y la sincronización nacional están ocultos.
+- La lógica de expansión se conserva en el código para una etapa futura.
+- Las unidades fuera de Iquique quedan inactivas, no eliminadas.
+- Las seis unidades de Iquique permanecen activas y se normalizan a región `Tarapacá`.
+
 ## 1. Alcance
 
 El producto activo funciona **solo en Iquique**.

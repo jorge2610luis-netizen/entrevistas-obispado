@@ -37,8 +37,15 @@
 
   let bootPromise = null;
   const TERMS_VERSION = "2026-09-27-v1";
+  const FIXED_ZONE = window.APP_CONFIG.fixedZone || {
+    countryCode:"CL",
+    countryName:"Chile",
+    region:"Tarapacá",
+    city:"Iquique",
+    label:"Iquique · Tarapacá"
+  };
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.5.0";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.5.5";
 
 
   const PHONE_COUNTRIES = [
@@ -189,20 +196,24 @@
     }
   }
 
-  function populateCatalogCountrySelect(detectedIso) {
+  function populateCatalogCountrySelect() {
     const select = $("catalogCountry");
     if (!select) return;
-    select.innerHTML = PHONE_COUNTRIES.map(([iso,,name]) =>
-      '<option value="'+iso+'" '+(iso===detectedIso?'selected':'')+'>'+name+'</option>'
-    ).join("");
-    if (![...select.options].some(option=>option.value===detectedIso)) {
-      select.value = "CL";
-    }
+    select.innerHTML = '<option value="'+FIXED_ZONE.countryCode+'" selected>'+FIXED_ZONE.countryName+'</option>';
+    select.value = FIXED_ZONE.countryCode;
+    select.disabled = true;
   }
 
   async function loadCatalogCities(countryCode,preferredCity="") {
     const select = $("catalogCity");
     if (!select) return;
+
+    if (FIXED_ZONE?.city) {
+      select.innerHTML = '<option value="'+escapeHtml(FIXED_ZONE.city)+'" selected>'+escapeHtml(FIXED_ZONE.city)+'</option>';
+      select.value = FIXED_ZONE.city;
+      select.disabled = true;
+      return;
+    }
 
     select.disabled = true;
     select.innerHTML = '<option value="">Cargando ciudades…</option>';
@@ -1424,7 +1435,7 @@
     $("catalogSearchCard")?.classList.add("hidden");
     state.manualCatalogOpen = false;
     state.unitSelectionSource = null;
-    if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Mi barrio todavía no aparece: buscar manualmente";
+    if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Seleccionar o cambiar mi barrio de Iquique";
 
     const button = $("useMemberLocation");
     button.disabled = true;
@@ -1497,7 +1508,7 @@
         state.manualCatalogOpen = true;
         if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Ocultar búsqueda manual";
         setLocationStatus(
-          "No encontramos una capilla automáticamente para esta ubicación. Usa la búsqueda manual por ciudad, capilla o barrio.",
+          "Busca tu barrio o capilla dentro de Iquique.",
           "info"
         );
       }
@@ -1590,14 +1601,13 @@
   }
 
   async function searchManualCatalog() {
-    const countryCode = $("catalogCountry").value;
-    const city = $("catalogCity").value.trim();
+    const countryCode = FIXED_ZONE.countryCode;
+    const city = FIXED_ZONE.city;
     const query = $("catalogQuery").value.trim();
     const button = $("catalogSearchBtn");
 
-    if (!city && !query) {
-      $("catalogSearchStatus").textContent = "Selecciona una ciudad o escribe un barrio, capilla o dirección.";
-      return;
+    if (!query) {
+      $("catalogSearchStatus").textContent = "Escribe un barrio, capilla o dirección de Iquique.";
     }
 
     button.disabled = true;
@@ -1614,20 +1624,7 @@
         limit:100
       });
 
-      if (!state.catalogResults.length && city) {
-        $("catalogSearchStatus").textContent = "La ciudad todavía no está cargada. Sincronizando el directorio oficial…";
-        await Promise.race([
-          syncOfficialDirectory({city,countryCode}),
-          new Promise(resolve=>setTimeout(()=>resolve(null),16000))
-        ]);
-
-        state.catalogResults = await searchCatalog({
-          query,
-          countryCode,
-          city,
-          limit:100
-        });
-      }
+      // La expansión geográfica está pausada. No se sincronizan otras ciudades desde la interfaz activa.
 
       const counts = catalogCounts(state.catalogResults);
       $("catalogSearchStatus").textContent = counts.meetinghouses
@@ -1914,25 +1911,12 @@
     } else {
       card?.classList.add("hidden");
       if (state.nearbyMeetinghouses?.length) $("nearbyMeetinghouses")?.classList.remove("hidden");
-      $("manualUnitBtn").textContent = "Mi barrio todavía no aparece: buscar manualmente";
+      $("manualUnitBtn").textContent = "Seleccionar o cambiar mi barrio de Iquique";
     }
   };
   $("catalogSearchBtn").onclick = searchManualCatalog;
-  $("catalogCountry").onchange = async () => {
-    state.catalogResults = [];
-    $("catalogResults").innerHTML = "";
-    $("catalogSearchStatus").textContent = "Cargando ciudades del país…";
-    await loadCatalogCities($("catalogCountry").value);
-    $("catalogSearchStatus").textContent = "Selecciona una ciudad para ver sus barrios/ramas.";
-  };
-  $("catalogCity").onchange = async () => {
-    if (!$("catalogCity").value) {
-      state.catalogResults = [];
-      $("catalogResults").innerHTML = "";
-      return;
-    }
-    await searchManualCatalog();
-  };
+  $("catalogCountry").onchange = () => {};
+  $("catalogCity").onchange = () => {};
   $("catalogQuery").addEventListener("keydown",event=>{
     if (event.key==="Enter") {
       event.preventDefault();
@@ -1955,7 +1939,7 @@
       $("catalogSearchCard")?.classList.add("hidden");
       if (state.nearbyMeetinghouses?.length) $("nearbyMeetinghouses")?.classList.remove("hidden");
       state.manualCatalogOpen = false;
-      if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Mi barrio todavía no aparece: buscar manualmente";
+      if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Seleccionar o cambiar mi barrio de Iquique";
     }
 
     state.unitSelectionSource = null;
@@ -2050,13 +2034,13 @@
         const detectedIso = detectCountryIso();
         populateCountrySelect("memberLoginCountry",detectedIso);
         populateCountrySelect("memberRegisterCountry",detectedIso);
-        populateCatalogCountrySelect(detectedIso);
+        populateCatalogCountrySelect();
         bindCountrySelectors();
 
         const [sessionResult] = await Promise.all([
           db.auth.getSession(),
           loadSettings(),
-          loadCatalogCities($("catalogCountry")?.value || detectedIso)
+          loadCatalogCities(FIXED_ZONE.countryCode,FIXED_ZONE.city)
         ]);
 
         if (sessionResult.error) {

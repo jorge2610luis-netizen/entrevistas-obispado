@@ -67,3 +67,13 @@ Antes de publicar:
 - La creación de horarios respeta el horario de verano de Chile.
 - Se puede eliminar un horario libre individual o todos los horarios libres de un día.
 - Los horarios ocupados no se eliminan desde estas acciones.
+
+
+## Zona fija v4.5.5
+
+La interfaz activa está limitada a **Iquique · Tarapacá · Chile**.
+
+- País, región y ciudad no se pueden cambiar desde la interfaz.
+- La sincronización geográfica nacional queda oculta/pausada.
+- Se conservan en la base los datos de otras zonas para una futura reactivación.
+- Solo las unidades de Iquique quedan activas para el flujo actual.

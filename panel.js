@@ -20,6 +20,14 @@
 
   window.ObispadoPWA?.attachClient(db,"staff").catch(error=>console.warn("PWA init",error));
 
+  const FIXED_ZONE = window.APP_CONFIG.fixedZone || {
+    countryCode:"CL",
+    countryName:"Chile",
+    region:"Tarapacá",
+    city:"Iquique",
+    label:"Iquique · Tarapacá"
+  };
+
   const state = {
     user:null,
     profile:null,
@@ -50,7 +58,7 @@
     selectedDates:new Set()
   };
 
-  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.5.0";
+  if ($("panelVersion")) $("panelVersion").textContent = window.APP_CONFIG.version||"v4.5.5";
 
   const leaderRole = {
     bishop:"bishop",
@@ -995,10 +1003,10 @@
 
     if (isSecretaryAdmin()) {
       await loadDirectoryPage();
-      const countryCode = $("adminUnitCountry")?.value || "BO";
-      await loadRegionsForCountry(countryCode);
-      await loadCountryPlaces(countryCode);
-      $("adminUnitSearchStatus").textContent = "Selecciona una ciudad para buscar o asignar liderazgo.";
+      if ($("adminUnitCountry")) $("adminUnitCountry").value=FIXED_ZONE.countryCode;
+      if ($("adminUnitRegion")) $("adminUnitRegion").value=FIXED_ZONE.region;
+      if ($("adminUnitCity")) $("adminUnitCity").value=FIXED_ZONE.city;
+      await searchAdminUnits();
       renderAdminSelectedUnit();
     }
   }
@@ -1256,9 +1264,9 @@
     if (!isSecretaryAdmin()) return;
 
     const button=$("adminUnitSearchBtn");
-    const countryCode=$("adminUnitCountry").value;
-    const region=$("adminUnitRegion")?.value || "";
-    const city=$("adminUnitCity").value.trim();
+    const countryCode=FIXED_ZONE.countryCode;
+    const region=FIXED_ZONE.region;
+    const city=FIXED_ZONE.city;
     const query=$("adminUnitQuery").value.trim();
     const coverage=$("adminCoverageFilter")?.value || "";
 
@@ -1284,28 +1292,9 @@
       // La búsqueda normal siempre usa primero la base de datos.
       state.adminUnitResults=await runLocalSearch();
 
-      // Si esa ciudad todavía no fue cargada, intentamos una sincronización puntual
-      // y consultamos nuevamente. La búsqueda no depende del botón de actualización.
-      if (!state.adminUnitResults.length && city) {
-        $("adminUnitSearchStatus").textContent="No hay barrios cacheados todavía. Sincronizando "+city+"…";
-        try {
-          await Promise.race([
-            db.functions.invoke("church-directory",{
-              body:{action:"sync-city",city,countryCode}
-            }),
-            new Promise(resolve=>setTimeout(()=>resolve(null),15000))
-          ]);
-        } catch (error) {
-          console.warn("city directory sync failed",error);
-        }
-        state.adminUnitResults=await runLocalSearch();
-      }
-
       $("adminUnitSearchStatus").textContent=state.adminUnitResults.length
-        ? state.adminUnitResults.length+" barrio(s)/rama(s) encontrado(s)."
-        : city
-          ? "La ciudad está disponible, pero sus barrios/ramas aún no se han sincronizado. Pulsa “Actualizar directorio oficial del país” e inténtalo nuevamente."
-          : "Selecciona una ciudad de la región o actualiza el directorio oficial.";
+        ? state.adminUnitResults.length+" barrio(s)/rama(s) de Iquique encontrado(s)."
+        : "No se encontraron barrios activos en Iquique.";
       renderAdminUnitResults();
     } catch (error) {
       $("adminUnitSearchStatus").textContent=error?.message || "No se pudo buscar el barrio.";
@@ -2368,29 +2357,13 @@
   $("goAssignLeaders").onclick = () => setPanelView("units");
 
   $("adminUnitSearchBtn").onclick = searchAdminUnits;
-  $("syncOfficialDirectory").onclick = syncOfficialCountryDirectory;
-  $("adminUnitCountry").onchange = async () => {
-    $("adminUnitRegion").value = "";
-    await loadRegionsForCountry($("adminUnitCountry").value);
-    await loadCountryPlaces($("adminUnitCountry").value);
-    state.adminUnitResults = [];
-    $("adminUnitResults").innerHTML = "";
-    $("adminUnitSearchStatus").textContent = "Selecciona una ciudad para buscar únicamente en esa ciudad.";
+  $("syncOfficialDirectory").onclick = () => {
+    $("directorySyncStatus").textContent="La expansión a otras zonas está pausada. Zona activa: "+FIXED_ZONE.label+".";
   };
-  $("adminUnitRegion").onchange = async () => {
-    const countryCode = $("adminUnitCountry").value;
-    const region = $("adminUnitRegion").value;
-    await loadCountryPlaces(countryCode, region);
-    state.adminUnitResults = [];
-    $("adminUnitResults").innerHTML = "";
-    $("adminUnitSearchStatus").textContent = region
-      ? "Selecciona una ciudad de la región elegida."
-      : "Selecciona una ciudad para buscar.";
-  };
-  $("adminUnitCity").onchange = searchAdminUnits;
-  $("adminCoverageFilter").onchange = () => {
-    if ($("adminUnitCity").value) searchAdminUnits();
-  };
+  $("adminUnitCountry").onchange = () => {};
+  $("adminUnitRegion").onchange = () => {};
+  $("adminUnitCity").onchange = () => {};
+  $("adminCoverageFilter").onchange = searchAdminUnits;
   $("adminUnitQuery").addEventListener("keydown", event => {
     if (event.key === "Enter") {
       event.preventDefault();
