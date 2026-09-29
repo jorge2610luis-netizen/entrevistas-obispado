@@ -45,7 +45,7 @@
     label:"Iquique · Tarapacá"
   };
 
-  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.5.0";
+  if ($("appVersion")) $("appVersion").textContent = window.APP_CONFIG.version || "v4.5.5";
 
 
   const PHONE_COUNTRIES = [
