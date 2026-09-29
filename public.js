@@ -1435,7 +1435,7 @@
     $("catalogSearchCard")?.classList.add("hidden");
     state.manualCatalogOpen = false;
     state.unitSelectionSource = null;
-    if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Mi barrio todavía no aparece: buscar manualmente";
+    if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Seleccionar o cambiar mi barrio de Iquique";
 
     const button = $("useMemberLocation");
     button.disabled = true;
@@ -1508,7 +1508,7 @@
         state.manualCatalogOpen = true;
         if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Ocultar búsqueda manual";
         setLocationStatus(
-          "No encontramos una capilla automáticamente para esta ubicación. Usa la búsqueda manual por ciudad, capilla o barrio.",
+          "Busca tu barrio o capilla dentro de Iquique.",
           "info"
         );
       }
@@ -1911,7 +1911,7 @@
     } else {
       card?.classList.add("hidden");
       if (state.nearbyMeetinghouses?.length) $("nearbyMeetinghouses")?.classList.remove("hidden");
-      $("manualUnitBtn").textContent = "Mi barrio todavía no aparece: buscar manualmente";
+      $("manualUnitBtn").textContent = "Seleccionar o cambiar mi barrio de Iquique";
     }
   };
   $("catalogSearchBtn").onclick = searchManualCatalog;
@@ -1939,7 +1939,7 @@
       $("catalogSearchCard")?.classList.add("hidden");
       if (state.nearbyMeetinghouses?.length) $("nearbyMeetinghouses")?.classList.remove("hidden");
       state.manualCatalogOpen = false;
-      if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Mi barrio todavía no aparece: buscar manualmente";
+      if ($("manualUnitBtn")) $("manualUnitBtn").textContent = "Seleccionar o cambiar mi barrio de Iquique";
     }
 
     state.unitSelectionSource = null;
