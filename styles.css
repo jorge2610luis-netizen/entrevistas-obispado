@@ -1902,3 +1902,22 @@ body.modal-open{
   color:var(--muted);
   font-size:13px;
 }
+
+
+/* Zona fija Iquique · Tarapacá v4.5.5 */
+.fixed-zone-banner{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin:0 0 14px;
+  padding:12px 14px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--soft);
+  color:var(--muted);
+}
+.fixed-zone-banner strong{color:var(--blue)}
+@media(max-width:620px){
+  .fixed-zone-banner{align-items:flex-start;flex-direction:column;gap:3px}
+}
