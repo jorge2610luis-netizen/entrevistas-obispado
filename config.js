@@ -2,7 +2,14 @@ window.APP_CONFIG = Object.freeze({
   supabaseUrl: "https://gyyahvrkcjocqhhoslho.supabase.co",
   supabasePublishableKey: "sb_publishable_vS4nO0OkKzZRcTR5BVRzhQ_wRuXDcFf",
   defaultTimeZone: "America/Santiago",
+  fixedZone: Object.freeze({
+    countryCode: "CL",
+    countryName: "Chile",
+    region: "Tarapacá",
+    city: "Iquique",
+    label: "Iquique · Tarapacá"
+  }),
   memberAuthStorageKey: "obispado-member-auth-v1",
   staffAuthStorageKey: "obispado-staff-auth-v1",
-  version: "v4.5.4"
+  version: "v4.5.5"
 });
